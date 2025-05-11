@@ -1,5 +1,6 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import bgSound from '@/assets/musica.ogg'
 
 const router = useRouter()
 
@@ -9,7 +10,8 @@ function goTo(route) {
 </script>
 
 <template>
-    <router-view />
+  <audio :src="bgSound" autoplay loop :volume="0.3"></audio>
+
   <div class="menu-container">
     <img src="@/assets/Background.png" alt="Background" class="background-image" />
     <img src="@/assets/Menu.png" alt="Menu" class="menu-image" />
