@@ -1,8 +1,15 @@
 <script setup>
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
+
+function goTo(route) {
+  router.push(`/${route}`)
+}
 </script>
 
 <template>
+    <router-view />
   <div class="menu-container">
     <img src="@/assets/Background.png" alt="Background" class="background-image" />
     <img src="@/assets/Menu.png" alt="Menu" class="menu-image" />
@@ -51,26 +58,26 @@
 /* Estilo dos botões */
 .btn {
   position: absolute;
-  width: 220px;
-  height: 60px;
+  width: 275px;
+  height: 81px;
   cursor: pointer;
   overflow-y: hidden;
 }
 
 /* Posições dos botões */
 .story {
-  top: 40%;
-  left: 40%;
+  top: 45.7%;
+  left: 40.1%;
 }
 
 .endless {
-  top: 50%;
-  left: 40%;
+  top: 55.4%;
+  left: 40.1%;
 }
 
 .options {
-  top: 60%;
-  left: 40%;
+  top: 65.3%;
+  left: 40.1%;
 }
 
 html, body {
