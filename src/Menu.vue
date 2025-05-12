@@ -40,7 +40,7 @@ function goTo(route) {
   height: 100%;
   object-fit:cover;
   z-index: -2;
-  filter: blur(2px);
+  filter: blur(1px);
   overflow: hidden;
   overflow-y: hidden;
   margin-left: -7px;
@@ -51,7 +51,7 @@ function goTo(route) {
   position: absolute;
   width: 60%;
   top: 20%;
-  left: 20%;
+  left: 23%;
   z-index: -1;
   overflow: hidden;
   overflow-y: hidden;
@@ -67,19 +67,20 @@ function goTo(route) {
 }
 
 /* Posições dos botões */
+.story, .endless, .options {
+  left: 43.2%;
+}
+
 .story {
   top: 45.7%;
-  left: 40.1%;
 }
 
 .endless {
   top: 55.4%;
-  left: 40.1%;
 }
 
 .options {
   top: 65.3%;
-  left: 40.1%;
 }
 
 html, body {
