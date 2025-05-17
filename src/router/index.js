@@ -1,9 +1,16 @@
+<<<<<<< Updated upstream
+=======
 import { createRouter, createWebHistory } from 'vue-router'
-import Menu from '@/Menu.vue'
-import Story from '@/router/story.vue'
+import Menu from '@/components/Menu.vue'
+import ClassSelect from '@/components/ClassSelect.vue'
+import Options from '@/components/Options.vue'
+import GameView from '@/components/GameView.vue'
 
 const routes = [
-  { path: '/story', component: Story },
+  { path: '/menu', component: Menu },
+  { path: '/story', component: GameView },
+  { path: '/class', component: ClassSelect },
+  { path: '/options', component: Options },
 ]
 
 const router = createRouter({
@@ -12,3 +19,4 @@ const router = createRouter({
 })
 
 export default router
+>>>>>>> Stashed changes
