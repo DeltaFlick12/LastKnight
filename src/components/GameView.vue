@@ -15,24 +15,20 @@
 
     <!-- Botões fixos -->
     <button class="map-button" @click="router.push('/map')">🗺️ Mapa</button>
+
+
     <button class="bag-button" @click="toggleBag">🎒 Mochila</button>
 
-    <!-- Inventário (mochila) -->
-    <div v-if="bagOpen" class="bag-modal">
-      <h2>🎒 Mochila</h2>
-      <ul>
-        <li>🧪 Poções: {{ potions }}</li>
-        <li>🗡️ Espada de Treinamento</li>
-        <li>🔑 Chave da Floresta (item de missão)</li>
-      </ul>
-      <button @click="toggleBag">Fechar</button>
-    </div>
+    <Inventory 
+  v-if="bagOpen"
+  :potions="potions"
+  :equipped-weapon="equippedWeapon"
+  @use-potion="usePotion"
+  @equip-weapon="equipWeapon"
+  @close="toggleBag"
+/>
 
-    <div class="game-content">
-    </div>
   </div>
-
-
 </template>
 
 
@@ -42,6 +38,31 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
+import Inventory from '@/components/Inventory.vue'
+
+const bagOpen = ref(false)
+const toggleBag = () => {
+  bagOpen.value = !bagOpen.value
+}
+
+const usePotion = () => {
+  if (potions.value > 0) {
+    health.value = Math.min(100, health.value + 30)
+    potions.value--
+  }
+}
+
+const equippedWeapon = ref('Espada de Treinamento') // valor default
+
+const equipWeapon = (weaponName) => {
+  equippedWeapon.value = weaponName
+}
+
+const calculateDamage = () => {
+  return equippedWeapon.value === 'Espada de Treinamento'
+    ? Math.floor(Math.random() * 5 + 10) // dano 10–15
+    : Math.floor(Math.random() * 5 + 5)  // dano base 5–10
+}
 
 // Estado do jogador
 const health = ref(100)
@@ -50,11 +71,6 @@ const gold = ref(150)
 const potions = ref(3)
 const currentArea = ref('Campo de Treinamento')
 
-// Mochila
-const bagOpen = ref(false)
-const toggleBag = () => {
-  bagOpen.value = !bagOpen.value
-}
 </script>
 
 <style scoped>
