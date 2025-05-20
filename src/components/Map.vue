@@ -18,19 +18,36 @@
   </div>
 </template>
 
-<script setup>
-import { ref } from 'vue'
+<<script setup>
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-// Cada ponto com nome, posição e se está desbloqueado
 const locations = ref([
   { name: 'Floresta', top: '60%', left: '15%', route: '/level/floresta', unlocked: true },
   { name: 'Rio', top: '52%', left: '32%', route: '/level/rio', unlocked: false },
   { name: 'Ruínas', top: '45%', left: '50%', route: '/level/ruinas', unlocked: false },
   { name: 'Castelo', top: '28%', left: '72%', route: '/level/castelo', unlocked: false },
 ])
+
+const updateUnlockedLocations = () => {
+  const progress = localStorage.getItem('progress')
+
+  // Floresta já começa desbloqueada
+  if (progress === 'floresta-concluida') {
+    locations.value[1].unlocked = true // Rio
+  }
+  if (progress === 'rio-concluido') {
+    locations.value[1].unlocked = true // Rio
+    locations.value[2].unlocked = true // Ruínas
+  }
+  if (progress === 'ruinas-concluidas') {
+    locations.value[1].unlocked = true
+    locations.value[2].unlocked = true
+    locations.value[3].unlocked = true // Castelo
+  }
+}
 
 const goToLocation = (loc) => {
   if (loc.unlocked) {
@@ -43,7 +60,12 @@ const goToLocation = (loc) => {
 const goBack = () => {
   router.push('/story')
 }
+
+onMounted(() => {
+  updateUnlockedLocations()
+})
 </script>
+
 
 <style scoped>
 .map-screen {

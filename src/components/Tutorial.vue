@@ -2,7 +2,7 @@
   <div class="tutorial-screen">
     <!-- Diálogo com Bartolomeu Dummy -->
     <div v-if="showDialog" class="dialog-box">
-      <p>{{ dialogLines[dialogIndex] }}</p>
+      <p>{{ displayedText }}</p>
       <button @click="nextDialog">Continuar</button>
     </div>
 
@@ -22,13 +22,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import typingSound from '@/assets/bartolomeu-voz.mp3'
 
 const router = useRouter()
 
-// Estado
+// Estados do diálogo
 const showDialog = ref(true)
 const dialogIndex = ref(0)
 const dialogLines = [
@@ -37,15 +37,54 @@ const dialogLines = [
   'Vamos treinar com um dummy de treino (não me acerte, por favor).',
   'Prepare-se...'
 ]
+const displayedText = ref('')
+const typing = ref(false)
+
+// Som
+let audio = new Audio(typingSound)
+
+// Digitação
+const typeLine = async () => {
+  typing.value = true
+  displayedText.value = ''
+  const line = dialogLines[dialogIndex.value]
+  let index = 0
+
+  // Toca o áudio da fala
+  try {
+    audio.pause()
+    audio.currentTime = 0
+    await audio.play()
+  } catch (e) {
+    console.warn('Não foi possível tocar o som:', e)
+  }
+
+  const interval = setInterval(() => {
+    if (index < line.length) {
+      displayedText.value += line[index]
+      index++
+    } else {
+      clearInterval(interval)
+      typing.value = false
+    }
+  }, 40) // Velocidade da digitação
+}
 
 const nextDialog = () => {
+  if (typing.value) return // Ignora cliques enquanto está digitando
   if (dialogIndex.value < dialogLines.length - 1) {
     dialogIndex.value++
+    typeLine()
   } else {
     showDialog.value = false
     combatStarted.value = true
   }
 }
+
+// Iniciar digitação na montagem
+onMounted(() => {
+  typeLine()
+})
 
 // Combate
 const combatStarted = ref(false)
@@ -53,7 +92,6 @@ const enemyHp = ref(30)
 const enemyMaxHp = 30
 const enemyDefeated = ref(false)
 
-// Recursos do jogador
 const health = ref(100)
 const potions = ref(3)
 
