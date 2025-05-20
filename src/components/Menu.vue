@@ -7,6 +7,15 @@ const router = useRouter()
 function goTo(route) {
   router.push(`/${route}`)
 }
+
+const goToStory = () => {
+  const hasClass = localStorage.getItem('playerClass')
+  if (hasClass) {
+    router.push('/story') // Vai direto pro jogo
+  } else {
+    router.push('/class') // Vai escolher a classe primeiro
+  }
+}
 </script>
 
 <template>
@@ -18,7 +27,7 @@ function goTo(route) {
     <img src="@/assets/rio.gif" alt="Rio" class="background-image" />
 
     <!-- Botões invisíveis -->
-    <div class="btn story" @click="goTo('story')"></div>
+    <div class="btn story" @click="goToStory('story')"></div>
     <div class="btn endless" @click="goTo('endless')"></div>
     <div class="btn options" @click="goTo('options')"></div>
   </div>
@@ -40,7 +49,7 @@ function goTo(route) {
   height: 100%;
   object-fit:cover;
   z-index: -2;
-  filter: blur(2px);
+  filter: blur(1px);
   overflow: hidden;
   overflow-y: hidden;
   margin-left: -7px;
@@ -51,7 +60,7 @@ function goTo(route) {
   position: absolute;
   width: 60%;
   top: 20%;
-  left: 20%;
+  left: 23%;
   z-index: -1;
   overflow: hidden;
   overflow-y: hidden;
@@ -67,19 +76,20 @@ function goTo(route) {
 }
 
 /* Posições dos botões */
+.story, .endless, .options {
+  left: 43.2%;
+}
+
 .story {
   top: 45.7%;
-  left: 40.1%;
 }
 
 .endless {
   top: 55.4%;
-  left: 40.1%;
 }
 
 .options {
   top: 65.3%;
-  left: 40.1%;
 }
 
 html, body {
