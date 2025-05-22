@@ -146,7 +146,6 @@ function playClick() {
   width: 200px;
   height: 30px;
   font-size: 30px;
-  font-family: 'Courier New', monospace;
   text-align: center;
   cursor: pointer;
   position: relative;
