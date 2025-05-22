@@ -3,7 +3,7 @@ import Menu from '@/components/Menu.vue'
 import ClassSelect from '@/components/ClassSelect.vue'
 import Options from '@/components/Options.vue'
 import Endless from '@/components/Endless.vue'
-import GameView from '@/components/GameView.vue'
+import AlbadiaView from '@/components/views/AlbadiaView.vue'
 import Map from '@/components/Map.vue'
 import Credits from '@/components/Credits.vue'
 import Tutorial from '@/components/Tutorial.vue'
@@ -12,7 +12,7 @@ import CavernaView from '@/components/views/CavernaView.vue'
 
 const routes = [
   { path: '/', component: Menu },
-  { path: '/story', component: GameView },
+  { path: '/story', component: AlbadiaView },
   { path: '/class', component: ClassSelect },
   { path: '/endless', component: Endless },
   { path: '/options', component: Options },
