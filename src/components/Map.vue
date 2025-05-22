@@ -25,11 +25,12 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 
 const locations = ref([
-  { name: 'Floresta', top: '60%', left: '15%', route: '/level/floresta', unlocked: true },
-  { name: 'Caverna', top: '32%', left: '44%', route: '/level/caverna', unlocked: false },
+  { name: 'Albadia', top: '10%', left: '15%', route: '/level/albadia', unlocked: true },
+  { name: 'Floresta', top: '30%', left: '35%', route: '/level/floresta', unlocked: true },
+  { name: 'Caverna', top: '80%', left: '44%', route: '/level/caverna', unlocked: false },
   { name: 'Rio', top: '52%', left: '32%', route: '/level/rio', unlocked: false },
-  { name: 'Ruínas', top: '45%', left: '50%', route: '/level/ruinas', unlocked: false },
-  { name: 'Castelo', top: '28%', left: '72%', route: '/level/castelo', unlocked: false },
+  { name: 'Ruínas', top: '75%', left: '60%', route: '/level/ruinas', unlocked: false },
+  { name: 'Castelo', top: '75%', left: '82%', route: '/level/castelo', unlocked: false },
 ])
 
 const updateUnlockedLocations = () => {

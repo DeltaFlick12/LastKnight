@@ -3,16 +3,11 @@
     <canvas ref="canvas" class="game-canvas"></canvas>
 
     <!-- HUD -->
-    <div class="hud">
-      <div class="stat-group">
-        <div class="stat">❤️ Vida: {{ health }}/100</div>
-        <div class="stat">⚡ Stamina: {{ stamina }}/100</div>
-      </div>
-      <div class="resources">
-        <div>🪙 Ouro: {{ gold }}</div>
-        <div>🧪 Poções: {{ potions }}</div>
-      </div>
-      <div class="area">📍 {{ currentArea }}</div>
+    <HUD :health="health" :stamina="stamina" :gold="gold" :potions="potions" :area="currentArea" />
+
+    <!-- Prompt de entrada -->
+    <div v-if="showEnterPrompt" class="enter-prompt">
+      Pressione <span class="key">E</span> para entrar em {{ structureName }}
     </div>
 
     <!-- Botões -->
@@ -35,6 +30,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Inventory from '@/components/Inventory.vue'
+import HUD from '@/components/HUD.vue'
 
 const router = useRouter()
 
@@ -44,6 +40,8 @@ const stamina = ref(100)
 const gold = ref(150)
 const potions = ref(3)
 const currentArea = ref('Reino de Albadia')
+const showEnterPrompt = ref(false)
+const structureName = ref('')
 
 const bagOpen = ref(false)
 const toggleBag = () => (bagOpen.value = !bagOpen.value)
@@ -69,10 +67,10 @@ const world = { width: 3000, height: 2000 }
 const background = new Image()
 const foreground = new Image()
 const obstacles = [
-  { x: 480, y: 380, width: 480, height: 180 }, // Ferreiro
-  { x: 1310, y: 820, width: 350, height: 150 }, // Poção
-  { x: 2080, y: 590, width: 330, height: 140 }, // Igreja
-  { x: 1165, y: 1300, width: 290, height: 20 }, // Fonte
+  { x: 480, y: 380, width: 480, height: 180, name: 'Ferreiro', route: '/interior/ferreiro' },
+  { x: 1310, y: 820, width: 350, height: 150, name: 'Loja de Poções', route: '/interior/pocoes' },
+  { x: 2080, y: 590, width: 330, height: 140, name: 'Igreja', route: '/interior/igreja' },
+  { x: 1165, y: 1300, width: 290, height: 20, name: 'Fonte' },
   { x: 1155, y: 1320, width: 315, height: 25 },
   { x: 1145, y: 1345, width: 335, height: 120 },
   { x: 1165, y: 1465, width: 290, height: 20 },
@@ -89,8 +87,8 @@ onMounted(() => {
   document.addEventListener('keydown', onKeyDown)
   document.addEventListener('keyup', onKeyUp)
 
-  background.src = 'public/img/albadia-bg.png'
-  foreground.src = 'public/img/albadiaDetalhes.png'
+  background.src = 'public/img/albadia/albadia-bg.png'
+  foreground.src = 'public/img/albadia/albadiaDetalhes.png'
   background.onload = foreground.onload = () => {
     imagesLoaded++
     if (imagesLoaded >= 2) {
@@ -113,6 +111,11 @@ function resizeCanvas() {
 function onKeyDown(e) {
   const k = e.key.toLowerCase()
   if (keys.hasOwnProperty(k)) keys[k] = true
+
+  if (k === 'e') {
+    const current = getPlayerNearbyStructure()
+    if (current?.route) router.push(current.route)
+  }
 }
 
 function onKeyUp(e) {
@@ -132,15 +135,42 @@ function update() {
   if (s) move(0, player.speed)
   if (a) move(-player.speed, 0)
   if (d) move(player.speed, 0)
+
+  const nearStructure = getPlayerNearbyStructure()
+  showEnterPrompt.value = !!nearStructure?.route
+  structureName.value = nearStructure?.name || ''
 }
 
 function move(dx, dy) {
   const next = { ...player, x: player.x + dx, y: player.y + dy }
   for (const block of obstacles) {
-    if (isColliding(next, block)) return
+    if (isColliding(next, block)) {
+      if (block.name) currentArea.value = block.name
+      return
+    }
   }
   player.x = Math.max(0, Math.min(world.width - player.size, next.x))
   player.y = Math.max(0, Math.min(world.height - player.size, next.y))
+  currentArea.value = 'Reino de Albadia'
+}
+
+function getPlayerNearbyStructure() {
+  return obstacles.find(b => {
+    if (!b.route) return false
+    const buffer = 20
+    const playerCenter = {
+      x: player.x + player.size / 2,
+      y: player.y + player.size / 2,
+    }
+    const blockCenter = {
+      x: b.x + b.width / 2,
+      y: b.y + b.height / 2,
+    }
+    const dx = playerCenter.x - blockCenter.x
+    const dy = playerCenter.y - blockCenter.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    return distance < Math.max(b.width, b.height) / 2 + buffer
+  })
 }
 
 function isColliding(a, b) {
@@ -160,14 +190,8 @@ function draw() {
   const cam = getCamera()
   ctx.clearRect(0, 0, canvas.value.width, canvas.value.height)
   ctx.drawImage(background, cam.x, cam.y, canvas.value.width, canvas.value.height, 0, 0, canvas.value.width, canvas.value.height)
-
-  // DEBUG obstáculos (opcional)
-  // ctx.fillStyle = "rgba(255, 0, 0, 0.3)"
-  // obstacles.forEach(b => ctx.fillRect(b.x - cam.x, b.y - cam.y, b.width, b.height))
-
   ctx.fillStyle = player.color
   ctx.fillRect(player.x - cam.x, player.y - cam.y, player.size, player.size)
-
   ctx.drawImage(foreground, cam.x, cam.y, canvas.value.width, canvas.value.height, 0, 0, canvas.value.width, canvas.value.height)
 }
 </script>
@@ -188,30 +212,29 @@ function draw() {
   background: black;
 }
 
-.hud {
+.enter-prompt {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 10, 10, 0.7);
+  border: 2px solid #ffd700;
+  border-radius: 8px;
+  padding: 12px 20px;
+  color: #fffbe6;
+  font-family: 'Press Start 2P', cursive;
   font-size: 14px;
-  padding: 10px;
-  display: flex;
-  justify-content: space-between;
-  z-index: 10;
+  z-index: 999;
+  text-align: center;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
 }
 
-.stat-group,
-.resources {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.area {
-  align-self: flex-end;
-  font-weight: bold;
+.enter-prompt .key {
+  background: #ffd700;
+  color: black;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin: 0 5px;
 }
 
 .map-button,

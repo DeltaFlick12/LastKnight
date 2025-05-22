@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+
 import Menu from '@/components/Menu.vue'
 import ClassSelect from '@/components/ClassSelect.vue'
 import Options from '@/components/Options.vue'
@@ -9,6 +10,7 @@ import Credits from '@/components/Credits.vue'
 import Tutorial from '@/components/Tutorial.vue'
 import FlorestaView from '@/components/views/FlorestaView.vue'
 import CavernaView from '@/components/views/CavernaView.vue'
+import FerreiroView from '@/components/views/interiors/FerreiroView.vue' // Novo import
 
 const routes = [
   { path: '/', component: Menu },
@@ -21,6 +23,7 @@ const routes = [
   { path: '/tutorial', component: Tutorial },
   { path: '/level/floresta', component: FlorestaView },
   { path: '/level/caverna', component: CavernaView },
+  { path: '/interior/ferreiro', component: FerreiroView }, // Nova rota
 ]
 
 const router = createRouter({
