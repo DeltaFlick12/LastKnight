@@ -3,7 +3,6 @@
 
   <div class="menu-container fade-in">
     <img src="@/assets/menu-bg.jpg" class="background-image" alt="Background" />
-    <img src="@/assets/rio.gif" class="river-image" alt="Rio" />
 
     <!-- LOGO ANIMADA -->
     <img src="@/assets/Logo.png" alt="Logo Last Knight" class="game-logo" />
