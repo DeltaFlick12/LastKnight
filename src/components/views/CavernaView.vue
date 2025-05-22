@@ -1,7 +1,7 @@
 <template>
   <transition name="fade">
-    <div :class="['forest-view', { shake: isShaking }]">
-      <img src="@/assets/backviews/floresta.jpg" alt="Fundo da Floresta" class="bg-image" />
+    <div :class="['cave-view', { shake: isShaking }]">
+      <img src="@/assets/backviews/caverna.jpg" alt="Fundo da Caverna" class="bg-image" />
 
       <div class="hud">
         <div>❤️ Vida: {{ playerHealth }}/100</div>
@@ -10,7 +10,7 @@
 
       <div class="battle-box">
         <div :class="['enemy', { hit: enemyHit }]">
-          <h2>👹 {{ enemy.name }}</h2>
+          <h2>🔥 {{ enemy.name }}</h2>
           <p>🩸 Vida: {{ enemy.health }}/{{ enemy.maxHealth }}</p>
         </div>
 
@@ -28,7 +28,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -38,13 +38,13 @@ const potions = ref(parseInt(localStorage.getItem('potions')) || 3)
 const equippedWeapon = ref(localStorage.getItem('weapon') || 'Espada de Treinamento')
 
 const enemy = ref({
-  name: 'Goblin',
-  health: 60,
-  maxHealth: 60,
-  attack: 12
+  name: 'Demônio da Lava',
+  health: 100,
+  maxHealth: 100,
+  attack: 18
 })
 
-const battleLog = ref('Um goblin selvagem apareceu!')
+const battleLog = ref('Um demônio irrompeu das chamas!')
 const isShaking = ref(false)
 const enemyHit = ref(false)
 
@@ -95,7 +95,7 @@ const usePotion = () => {
 
 const finishBattle = () => {
   playSound('/sfx/victory.wav')
-  localStorage.setItem('progress', 'floresta-concluida')
+  localStorage.setItem('progress', 'caverna-concluida')
   setTimeout(() => router.push('/map'), 1000)
 }
 </script>
@@ -107,7 +107,7 @@ html, body {
   margin: 0;
 }
 
-.forest-view {
+.cave-view {
   position: relative;
   height: 100vh;
   width: 100vw;
@@ -130,7 +130,7 @@ html, body {
   height: 100%;
   object-fit: cover;
   z-index: -1;
-  filter: brightness(0.8);
+  filter: brightness(0.85);
 }
 
 .hud {
@@ -147,7 +147,7 @@ html, body {
 .battle-box {
   background-color: rgba(0, 0, 0, 0.65);
   padding: 20px;
-  border: 2px solid #8b5e3c;
+  border: 2px solid #b64e1a;
   border-radius: 12px;
   max-width: 500px;
   width: 90%;
@@ -187,7 +187,7 @@ html, body {
 }
 
 button {
-  background-color: #8b5e3c;
+  background-color: #b64e1a;
   color: white;
   padding: 10px 16px;
   border: none;
@@ -198,7 +198,7 @@ button {
 }
 
 button:hover {
-  background-color: #a56b45;
+  background-color: #c85d27;
   transform: scale(1.05);
 }
 
