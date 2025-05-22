@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Menu from '@/components/Menu.vue'
 import ClassSelect from '@/components/ClassSelect.vue'
 import Options from '@/components/Options.vue'
+import Endless from '@/components/Endless.vue'
 import GameView from '@/components/GameView.vue'
 import Map from '@/components/Map.vue'
 import Credits from '@/components/Credits.vue'
@@ -13,6 +14,7 @@ const routes = [
   { path: '/', component: Menu },
   { path: '/story', component: GameView },
   { path: '/class', component: ClassSelect },
+  { path: '/endless', component: Endless },
   { path: '/options', component: Options },
   { path: '/credits', component: Credits },
   { path: '/map', component: Map },
