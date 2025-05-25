@@ -1,30 +1,26 @@
 <template>
-  <transition name="fade">
-    <div :class="['forest-view', { shake: isShaking }]">
-      <img src="@/assets/backviews/floresta.jpg" alt="Fundo da Floresta" class="bg-image" />
-
-      <div class="hud">
-        <div>❤️ Vida: {{ playerHealth }}/100</div>
-        <div>⚔️ Arma: {{ equippedWeapon }}</div>
-      </div>
-
-      <div class="battle-box">
-        <div :class="['enemy', { hit: enemyHit }]">
-          <h2>👹 {{ enemy.name }}</h2>
-          <p>🩸 Vida: {{ enemy.health }}/{{ enemy.maxHealth }}</p>
-        </div>
-
-        <div class="actions">
-          <button @click="attackEnemy" :disabled="enemy.health <= 0 || playerHealth <= 0">Atacar</button>
-          <button @click="usePotion" :disabled="potions <= 0">Usar Poção ({{ potions }})</button>
-        </div>
-
-        <p class="log animated-text">{{ battleLog }}</p>
-
-        <button v-if="enemy.health <= 0" @click="finishBattle">🏆 Vitória! Continuar</button>
-      </div>
+  <div class="forest-view">
+    <div class="hud">
+      <div>❤️ Vida: {{ playerHealth }}/100</div>
+      <div>⚔️ Arma: {{ equippedWeapon }}</div>
     </div>
-  </transition>
+
+    <div class="battle-box">
+      <div class="enemy">
+        <h2>👹 {{ enemy.name }}</h2>
+        <p>🩸 Vida: {{ enemy.health }}/{{ enemy.maxHealth }}</p>
+      </div>
+
+      <div class="actions">
+        <button @click="attackEnemy" :disabled="enemy.health <= 0 || playerHealth <= 0">Atacar</button>
+        <button @click="usePotion" :disabled="potions <= 0">Usar Poção ({{ potions }})</button>
+      </div>
+
+      <p class="log">{{ battleLog }}</p>
+
+      <button v-if="enemy.health <= 0" @click="finishBattle">🏆 Vitória! Continuar</button>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -45,14 +41,6 @@ const enemy = ref({
 })
 
 const battleLog = ref('Um goblin selvagem apareceu!')
-const isShaking = ref(false)
-const enemyHit = ref(false)
-
-const playSound = (path) => {
-  const sfx = new Audio(path)
-  sfx.volume = 0.5
-  sfx.play()
-}
 
 const attackEnemy = () => {
   const damage = equippedWeapon.value === 'Espada de Treinamento'
@@ -62,25 +50,15 @@ const attackEnemy = () => {
   enemy.value.health = Math.max(0, enemy.value.health - damage)
   battleLog.value = `Você causou ${damage} de dano ao ${enemy.value.name}!`
 
-  enemyHit.value = true
-  playSound('/sfx/attack.wav')
-
-  setTimeout(() => {
-    enemyHit.value = false
-    if (enemy.value.health > 0) {
-      enemyAttack()
-    }
-  }, 300)
+  if (enemy.value.health > 0) {
+    setTimeout(enemyAttack, 1000)
+  }
 }
 
 const enemyAttack = () => {
   const damage = Math.floor(Math.random() * 6 + enemy.value.attack)
   playerHealth.value = Math.max(0, playerHealth.value - damage)
   battleLog.value = `${enemy.value.name} atacou e causou ${damage} de dano!`
-
-  isShaking.value = true
-  setTimeout(() => (isShaking.value = false), 400)
-  playSound('/sfx/hit.wav')
 }
 
 const usePotion = () => {
@@ -89,93 +67,46 @@ const usePotion = () => {
     potions.value--
     localStorage.setItem('potions', potions.value)
     battleLog.value = 'Você usou uma poção!'
-    playSound('/sfx/potion.wav')
   }
 }
 
 const finishBattle = () => {
-  playSound('/sfx/victory.wav')
   localStorage.setItem('progress', 'floresta-concluida')
-  setTimeout(() => router.push('/map'), 1000)
+  router.push('/map')
 }
 </script>
 
 <style scoped>
-html, body {
-  overflow: hidden;
-  height: 100%;
-  margin: 0;
-}
-
 .forest-view {
-  position: relative;
-  height: 100vh;
-  width: 100vw;
+  padding: 30px;
+  background: linear-gradient(to bottom, #0a3614, #06240f);
   color: white;
   font-family: 'Press Start 2P', cursive;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding-top: 30px;
-  overflow: hidden;
-  animation: fadeInSmooth 0.6s ease-out;
-}
-
-.bg-image {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: -1;
-  filter: brightness(0.8);
+  height: 100vh;
 }
 
 .hud {
-  background-color: rgba(0, 0, 0, 0.6);
-  padding: 12px 20px;
-  border-radius: 8px;
-  font-size: 14px;
   display: flex;
-  gap: 30px;
+  justify-content: space-between;
+  font-size: 14px;
+  background-color: rgba(0, 0, 0, 0.4);
+  padding: 10px;
   margin-bottom: 20px;
-  box-shadow: 0 0 10px #000;
+  border-radius: 8px;
 }
 
 .battle-box {
-  background-color: rgba(0, 0, 0, 0.65);
+  background-color: rgba(0, 0, 0, 0.5);
   padding: 20px;
   border: 2px solid #8b5e3c;
   border-radius: 12px;
   max-width: 500px;
-  width: 90%;
+  margin: auto;
   text-align: center;
-  box-shadow: 0 0 15px #000;
-  animation: fadeIn 0.6s ease;
 }
 
-.enemy.hit {
-  animation: flash 0.3s linear;
-}
-
-@keyframes flash {
-  0% { filter: brightness(2) }
-  50% { filter: brightness(0.5) }
-  100% { filter: brightness(1) }
-}
-
-.shake {
-  animation: shake 0.3s;
-}
-
-@keyframes shake {
-  0% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  50% { transform: translateX(5px); }
-  75% { transform: translateX(-3px); }
-  100% { transform: translateX(0); }
+.enemy h2 {
+  margin-bottom: 5px;
 }
 
 .actions {
@@ -183,7 +114,6 @@ html, body {
   gap: 20px;
   justify-content: center;
   margin: 20px 0;
-  flex-wrap: wrap;
 }
 
 button {
@@ -194,35 +124,10 @@ button {
   border-radius: 10px;
   font-size: 14px;
   cursor: pointer;
-  transition: transform 0.2s, background-color 0.2s;
-}
-
-button:hover {
-  background-color: #a56b45;
-  transform: scale(1.05);
 }
 
 .log {
   font-size: 12px;
   margin-top: 10px;
-  min-height: 20px;
-  animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes fadeInSmooth {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.4s ease;
-}
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
 }
 </style>
