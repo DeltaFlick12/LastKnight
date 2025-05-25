@@ -1,6 +1,4 @@
 <template>
-  <audio src="/audio/musica-menu.ogg" autoplay loop></audio>
-
   <div class="menu-container fade-in">
     <img src="@/assets/menu-bg.jpg" class="background-image" alt="Background" />
 
@@ -9,10 +7,10 @@
 
     <!-- BOTÕES -->
     <div class="menu">
-      <div class="menu-button story" @click="goToStory">STORY</div>
-      <div class="menu-button endless" @click="goTo('endless')">ENDLESS</div>
-      <div class="menu-button options" @click="goTo('options')">OPTIONS</div>
-      <div class="menu-button credits" @click="goTo('credits')">CREDITS</div>
+      <div class="menu-button story" @click="goToStory">{{ texts[language].story }}</div>
+      <div class="menu-button endless" @click="goTo('endless')">{{ texts[language].endless }}</div>
+      <div class="menu-button options" @click="goTo('options')">{{ texts[language].options }}</div>
+      <div class="menu-button credits" @click="goTo('credits')">{{ texts[language].credits }}</div>
     </div>
 
     <!-- BOTÃO FULLSCREEN -->
@@ -23,10 +21,37 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+const texts = {
+  pt: {
+    story: "HISTÓRIA",
+    endless: "INFINITO",
+    options: "OPÇÕES",
+    credits: "CRÉDITOS"
+  },
+  en: {
+    story: "STORY",
+    endless: "ENDLESS",
+    options: "OPTIONS",
+    credits: "CREDITS"
+  }
+}
+
+const language = ref('pt')
+
+onMounted(() => {
+  const savedLang = localStorage.getItem('language')
+  if (savedLang && ['pt', 'en'].includes(savedLang)) {
+    language.value = savedLang
+  }
+
+  clickSound = new Audio('/audio/click.ogg')
+  clickSound.volume = 0.4
+})
 
 function goTo(route) {
   playClick()
@@ -53,10 +78,6 @@ function toggleFullscreen() {
 }
 
 let clickSound
-onMounted(() => {
-  clickSound = new Audio('/audio/click.ogg')
-  clickSound.volume = 0.4
-})
 
 function playClick() {
   if (clickSound) clickSound.play()
