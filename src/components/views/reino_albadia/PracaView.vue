@@ -71,7 +71,7 @@ const handleMapClick = () => {
 const canvas = ref(null)
 let ctx
 const player = {
-  x: 830, y: 1600, size: 128, speed: 2, direction: 'idle'
+  x: 830, y: 1600, size: 128, speed: 6, direction: 'idle'
 }
 const keys = { w: false, a: false, s: false, d: false }
 const world = { width: 3000, height: 2000 }
@@ -110,7 +110,7 @@ function loadImage(img, src) {
 
 const obstacles = [
   { x: 480, y: 380, width: 480, height: 180, name: 'Ferreiro', route: '/interior/ferreiro' },
-  { x: 1310, y: 820, width: 350, height: 150, name: 'Loja de Poções', route: '/interior/pocoes' },
+  { x: 1310, y: 820, width: 350, height: 150, name: 'Loja de Poções', route: '/interior/bruxa' },
   { x: 2080, y: 590, width: 330, height: 140, name: 'Igreja', route: '/interior/igreja' },
   { x: 1165, y: 1300, width: 290, height: 20, name: 'Fonte' },
   { x: 1155, y: 1320, width: 315, height: 25 },
@@ -214,7 +214,8 @@ function update() {
   structureName.value = nearStructure?.name || ''
 }
 
-function move(dx, dy) {
+function move(dx, dy) 
+{
   const nextX = player.x + dx;
   const nextY = player.y + dy;
   const next = { ...player, x: nextX, y: nextY }

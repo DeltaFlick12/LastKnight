@@ -9,10 +9,11 @@ import ClassSelect from '@/components/ClassSelect.vue';
 import CreditsScreen from '@/components/CreditsScreen.vue';
 import Credits from '@/components/Credits.vue';
 
-import LojaMagicaView from '@/components/views/reino_albadia/LojaMagicaView.vue';
 import PracaView from '@/components/views/reino_albadia/PracaView.vue';
 import FlorestaView from '@/components/views/FlorestaView.vue';
 import FerreiroView from '@/components/views/interiors/FerreiroView.vue';
+import Bruxa from '@/components/views/interiors/BruxaView.vue';
+import Igreja from '@/components/views/interiors/IgrejaView.vue';
 import RioView from '@/components/views/niveis/RioView.vue';
 import RuinasView from '@/components/views/niveis/RuinasView.vue';
 import CavernaView from '@/components/views/niveis/CavernaView.vue';
@@ -30,8 +31,9 @@ const routes = [
   { path: '/class', component: ClassSelect },
   { path: '/credits/:type?', component: Credits },
   { path: '/level/albadia', component: PracaView },
-  { path: '/level/albadia/loja', component: LojaMagicaView },
   { path: '/interior/ferreiro', component: FerreiroView },
+  { path: '/interior/bruxa', component: Bruxa },
+  { path: '/interior/igreja', component: Igreja },
   { path: '/level/floresta', component: FlorestaView },
   { path: '/level/rio', component:  RioView },
   { path: '/level/ruinas', component: RuinasView },
