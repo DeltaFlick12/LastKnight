@@ -60,7 +60,7 @@ onMounted(() => {
   font-size: 14px;
   border-bottom: 4px solid #5c2c1d;
   box-shadow: 0 4px 12px rgba(0,0,0,0.7);
-  z-index: 100;
+  z-index: 1000;
 }
 
 .panel {
@@ -97,6 +97,7 @@ onMounted(() => {
   font-size: 36px;
   font-weight: bold;
   color: #ff0033;
+  left: 100px;
   text-shadow: 2px 2px 4px #000;
   z-index: 9999;
   pointer-events: none;

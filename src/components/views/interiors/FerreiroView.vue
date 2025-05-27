@@ -23,7 +23,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import bgImage from '@/assets/interior/ferreiro-bg.png'
+import bgImage from '@/assets/interior/ferreiro-bg.gif'
 // import bjornVoice from '@/assets/bjorn-voz.mp3'
 
 const router = useRouter()
@@ -146,7 +146,7 @@ onMounted(() => {
   text-align: center;
   max-width: 600px;
   z-index: 1;
-  margin-top: 20px;
+  margin-top: 630px;
 }
 
 .bjorn-image {
