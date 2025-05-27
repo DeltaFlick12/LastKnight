@@ -1,6 +1,7 @@
 <template>
   <div class="battle-container">
     <div class="battle-grid">
+
       <!-- Status -->
       <div class="game-status-top">
         <div v-if="isPlayerTurn">SUA VEZ! Selecione um inimigo para atacar</div>
@@ -8,8 +9,11 @@
       </div>
 
       <!-- Jogador -->
-      <div class="unit player" :class="{ 'is-damaging': damagedPlayer }"
-           :style="{ top: playerTop + 'px', left: playerLeft + 'px' }">
+      <div
+        class="unit player"
+        :class="{ 'is-damaging': damagedPlayer }"
+        :style="{ top: playerTop + 'px', left: playerLeft + 'px' }"
+      >
         🧙‍♂️
         <div class="hp-bar">
           <div class="hp" :style="{ width: playerHp + '%' }"></div>
@@ -18,32 +22,39 @@
 
       <!-- Inimigos -->
       <div v-for="(enemy, index) in enemies" :key="'enemy-' + index">
-        <!-- Emoji inimigo no centro -->
-        <div class="unit-enemy enemy" :style="{ top: enemy.top + 'px', left: enemy.left + 'px' }"
-             :class="{ 'is-damaging': damagedEnemy === index }">
+        <div
+          class="unit-enemy enemy"
+          :class="{ 'is-damaging': damagedEnemy === index }"
+          :style="{ top: enemy.top + 'px', left: enemy.left + 'px' }"
+        >
           😈
         </div>
 
-        <!-- Barra de vida posicionada fixo abaixo do emoji -->
-        <div class="hp-bar-enemy" 
-             :style="{ top: (enemy.top + 50) + 'px', left: (enemy.left - 30) + 'px' }">
+        <div
+          class="hp-bar-enemy"
+          :style="{ top: (enemy.top + 50) + 'px', left: (enemy.left - 30) + 'px' }"
+        >
           <div class="hp-enemy" :style="{ width: enemy.hp + '%' }"></div>
         </div>
 
-        <!-- Área clicável fixa -->
-        <div v-if="enemy.hp > 0" class="enemy-clickable-area"
-             :class="{ 'enemy-selected': selectedEnemy === index }"
-             :style="{ top: initialEnemyPositions[index].top + 'px', left: initialEnemyPositions[index].left + 'px' }"
-             @click="selectEnemy(index)">
+        <div
+          v-if="enemy.hp > 0"
+          class="enemy-clickable-area"
+          :class="{ 'enemy-selected': selectedEnemy === index }"
+          :style="{ top: initialEnemyPositions[index].top + 'px', left: initialEnemyPositions[index].left + 'px' }"
+          @click="selectEnemy(index)"
+        >
           <div v-if="selectedEnemy === index" class="selected-marker">🎯</div>
         </div>
       </div>
 
       <!-- Popup de dano flutuante -->
-      <div v-if="damagePopup.active" 
-           class="damage-popup" 
-           :class="{ 'player-damage': damagePopup.isPlayer, 'enemy-damage': !damagePopup.isPlayer }"
-           :style="{ top: damagePopup.top + 'px', left: damagePopup.left + 'px' }">
+      <div
+        v-if="damagePopup.active"
+        class="damage-popup"
+        :class="damagePopup.isPlayer ? 'player-damage' : 'enemy-damage'"
+        :style="{ top: damagePopup.top + 'px', left: damagePopup.left + 'px' }"
+      >
         -{{ damagePopup.value }}
       </div>
 
@@ -54,18 +65,36 @@
       <div class="red-area-3"></div>
     </div>
 
-    <!-- Botões -->
+    <!-- Botões de ataque -->
     <div class="actions">
-      <button class="attack-btn weak-attack" :disabled="btnDisabled" @click="attack(10)">Ataque Fraco</button>
-      <button class="attack-btn medium-attack" :disabled="btnDisabled" @click="attack(20)">Ataque Médio</button>
-      <button class="attack-btn strong-attack" :disabled="btnDisabled" @click="attack(30)">Ataque Forte</button>
+      <button
+        class="attack-btn weak-attack"
+        :disabled="btnDisabled"
+        @click="attack(10)"
+      >
+        Ataque Fraco
+      </button>
+      <button
+        class="attack-btn medium-attack"
+        :disabled="btnDisabled"
+        @click="attack(20)"
+      >
+        Ataque Médio
+      </button>
+      <button
+        class="attack-btn strong-attack"
+        :disabled="btnDisabled"
+        @click="attack(30)"
+      >
+        Ataque Forte
+      </button>
     </div>
   </div>
 </template>
 
 <script>
 export default {
-  name: 'ModifiedEndless',
+  name: "ModifiedEndless",
   data() {
     return {
       playerTop: 220,
@@ -142,28 +171,30 @@ export default {
       this.isAttacking = true;
       const enemy = this.enemies[this.selectedEnemy];
 
+      // Guarda posição inicial do jogador
       const startTop = this.playerTop;
       const startLeft = this.playerLeft;
 
-      // avança
+      // Avança para atacar
       this.playerTop = enemy.top;
       this.playerLeft = enemy.left - 100;
       await this.sleep(400);
 
-      // dano
+      // Aplica dano no inimigo
       this.damagedEnemy = this.selectedEnemy;
       enemy.hp = Math.max(0, enemy.hp - damage);
       this.showDamagePopup(damage, enemy.top, enemy.left, false);
       await this.sleep(200);
       this.damagedEnemy = null;
 
-      // volta
+      // Volta à posição inicial
       this.playerTop = startTop;
       this.playerLeft = startLeft;
 
       this.selectedEnemy = null;
       this.attackCount++;
 
+      // Troca turno após 3 ataques
       if (this.attackCount >= 3) {
         this.attackCount = 0;
         this.isPlayerTurn = false;
@@ -180,16 +211,19 @@ export default {
         const origTop = enemy.top;
         const origLeft = enemy.left;
 
+        // Inimigo avança para atacar jogador
         enemy.top = this.playerTop;
         enemy.left = this.playerLeft + 100;
         await this.sleep(400);
 
+        // Aplica dano no jogador
         this.damagedPlayer = true;
         this.playerHp = Math.max(0, this.playerHp - 10);
         this.showDamagePopup(10, this.playerTop, this.playerLeft, true);
         await this.sleep(200);
         this.damagedPlayer = false;
 
+        // Inimigo volta à posição original
         enemy.top = origTop;
         enemy.left = origLeft;
         await this.sleep(400);
@@ -198,7 +232,7 @@ export default {
     },
 
     sleep(ms) {
-      return new Promise(r => setTimeout(r, ms));
+      return new Promise((resolve) => setTimeout(resolve, ms));
     },
   },
 };
@@ -230,6 +264,7 @@ export default {
   overflow: hidden;
 }
 
+/* Jogador */
 .unit {
   position: absolute;
   width: 80px;
@@ -243,18 +278,17 @@ export default {
   user-select: none;
 }
 
+/* Inimigo */
 .unit-enemy {
   position: absolute;
-  width: 0px;
-  height: 0px;
+  width: 0;
+  height: 0;
   font-size: 40px;
   display: flex;
-  flex-direction: column;
   justify-content: center;
   align-items: center;
   transition: top 0.4s ease, left 0.4s ease;
   user-select: none;
-  /* centraliza o emoji usando translate */
   transform: translate(-50%, -50%);
 }
 
@@ -266,7 +300,21 @@ export default {
   z-index: 2;
 }
 
-/* Barra de vida do inimigo - posicionada fora do emoji */
+/* Barras de vida */
+.hp-bar {
+  width: 60px;
+  height: 8px;
+  border: 1px solid #000;
+  margin-top: 4px;
+  background: rgb(18, 54, 1);
+}
+
+.hp {
+  height: 100%;
+  background: rgb(5, 255, 67);
+  transition: width 0.3s;
+}
+
 .hp-bar-enemy {
   position: absolute;
   width: 60px;
@@ -283,22 +331,7 @@ export default {
   transition: width 0.3s;
 }
 
-/* Barra de vida do jogador */
-.hp-bar {
-  width: 60px;
-  height: 8px;
-  border: 1px solid #000;
-  margin-top: 4px;
-  background: rgb(18, 54, 1);
-}
-
-.hp {
-  height: 100%;
-  background: rgb(5, 255, 67);
-  transition: width 0.3s;
-}
-
-/* Área de clique */
+/* Área clicável dos inimigos */
 .enemy-clickable-area {
   position: absolute;
   width: 120px;
@@ -343,7 +376,7 @@ export default {
   }
 }
 
-/* Status, botões e efeitos */
+/* Status e botões */
 .game-status-top {
   position: absolute;
   top: 10px;
@@ -399,6 +432,7 @@ export default {
   cursor: not-allowed;
 }
 
+/* Animação de dano */
 .player.is-damaging,
 .enemy.is-damaging {
   animation: damageFlash 0.2s alternate 3;
@@ -458,7 +492,6 @@ export default {
   position: absolute;
   font-size: 24px;
   font-weight: bold;
-  color: red;
   user-select: none;
   animation: floatUpFade 1s forwards;
   pointer-events: none;
@@ -467,11 +500,11 @@ export default {
 }
 
 .player-damage {
-  color: rgb(255, 255, 255); /* verde para dano no player */
+  color: #0f0; /* verde para dano no player */
 }
 
 .enemy-damage {
-  color: rgb(255, 255, 255); /* vermelho para dano no inimigo */
+  color: #f00; /* vermelho para dano no inimigo */
 }
 
 @keyframes floatUpFade {
