@@ -61,7 +61,7 @@ function goTo(route) {
 const goToStory = () => {
   playClick()
   const hasClass = localStorage.getItem('playerClass')
-  router.push(hasClass ? '/story' : '/class')
+  router.push(hasClass ? '/tutorial' : '/class')
 }
 
 function toggleFullscreen() {
