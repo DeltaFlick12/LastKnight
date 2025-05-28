@@ -24,10 +24,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import bgImage from '@/assets/interior/ferreiro-bg.gif'
-import bjorn1 from '/public/img/sprites/bjorn/bjorn1.png'
-import bjorn2 from '/public/img/sprites/bjorn/bjorn2.png'
-import bjorn3 from '/public/img/sprites/bjorn/bjorn3.png'
-// import bjornVoice from '@/assets/bjorn-voz.mp3'
+import bjornParado from '/public/img/sprites/bjorn/bjorn.png'
+import bjornFalando from '/public/img/sprites/bjorn/bjorn-falando.gif'
 
 const router = useRouter()
 
@@ -47,8 +45,7 @@ const message = ref('')
 const gold = ref(150)
 const ownedWeapons = ref([])
 
-const bjornImage = ref(bjorn1)
-let bjornInterval = null
+const bjornImage = ref(bjornParado)
 
 const weapons = [
   {
@@ -68,30 +65,12 @@ const weapons = [
   }
 ]
 
-// const audio = new Audio(bjornVoice)
-
 const typeLine = async () => {
   typing.value = true
+  bjornImage.value = bjornFalando
   displayedText.value = ''
   const line = dialogLines[dialogIndex.value]
   let index = 0
-
-  // Correção da animação de fala com troca de imagem
-  let frameIndex = 0
-  const frames = [bjorn1, bjorn3, bjorn2]
-  bjornInterval = setInterval(() => {
-    frameIndex = (frameIndex + 1) % frames.length
-    bjornImage.value = frames[frameIndex]
-  }, 100)
-
-  // Tocar voz do Bjorn, se desejar
-  // try {
-  //   audio.pause()
-  //   audio.currentTime = 0
-  //   await audio.play()
-  // } catch (e) {
-  //   console.warn('Erro ao tocar voz do Bjorn:', e)
-  // }
 
   const interval = setInterval(() => {
     if (index < line.length) {
@@ -99,9 +78,8 @@ const typeLine = async () => {
       index++
     } else {
       clearInterval(interval)
-      clearInterval(bjornInterval)
-      bjornImage.value = bjorn1
       typing.value = false
+      bjornImage.value = bjornParado
     }
   }, 40)
 }
@@ -139,6 +117,7 @@ onMounted(() => {
 })
 </script>
 
+
 <style scoped>
 .ferreiro-screen {
   background-size: cover;
@@ -167,9 +146,9 @@ onMounted(() => {
 }
 
 .bjorn-image {
-  width: 550px;
-  margin-bottom: -1200px;
-  margin-left: -1000px;
+  width: 850px;
+  margin-bottom: -1300px;
+  margin-left: -1200px;
   z-index: 0;
   transition: transform 0.3s ease-in-out;
 }
@@ -183,7 +162,7 @@ onMounted(() => {
     transform: scale(1);
   }
   50% {
-    transform: scale(1.03);
+    transform: scale(1.008);
   }
 }
 
