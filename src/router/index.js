@@ -9,7 +9,6 @@ import Credits from '@/components/Credits.vue'
 import Tutorial from '@/components/Tutorial.vue'
 import FlorestaView from '@/components/views/FlorestaView.vue'
 import CavernaView from '@/components/views/CavernaView.vue'
-import move_albadia from '@/components/move_albadia.vue'
 
 const routes = [
   { path: '/', component: Menu },
@@ -22,7 +21,6 @@ const routes = [
   { path: '/tutorial', component: Tutorial },
   { path: '/level/floresta', component: FlorestaView },
   { path: '/level/caverna', component: CavernaView },
-  { path: '/move_albadia', component: move_albadia },
 ]
 
 const router = createRouter({

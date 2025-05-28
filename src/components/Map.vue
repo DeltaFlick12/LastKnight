@@ -18,14 +18,13 @@
   </div>
 </template>
 
-<script setup>
+<<script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
 const locations = ref([
-  { name: 'Albadia', top: '10%', left: '15%', route: '/level/move_albadia', unlocked: true },
   { name: 'Floresta', top: '60%', left: '15%', route: '/level/floresta', unlocked: true },
   { name: 'Caverna', top: '32%', left: '44%', route: '/level/caverna', unlocked: false },
   { name: 'Rio', top: '52%', left: '32%', route: '/level/rio', unlocked: false },

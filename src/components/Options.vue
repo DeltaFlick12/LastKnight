@@ -2,10 +2,10 @@
   <img src="@/assets/menu-bg.jpg" class="background-image" alt="Background" />
   <div class="options-container slide-down">
     <div class="options-box">
-      <h1 class="options-title">OPÇÕES</h1>
+      <h1 class="options-title">{{ texts[language].title }}</h1>
       <div class="options-content">
         <div class="option-group">
-          <label for="musicVolume">🎵 Volume da Música</label>
+          <label for="musicVolume">🎵 {{ texts[language].musicVolume }}</label>
           <input
             type="range"
             id="musicVolume"
@@ -17,7 +17,8 @@
           <span>{{ musicVolume }}%</span>
         </div>
 
-        <div class="option-group">
+        <!-- Quebrado -->
+        <!-- <div class="option-group">
           <label for="sfxVolume">🔊 Volume dos Efeitos</label>
           <input
             type="range"
@@ -28,10 +29,10 @@
             @input="updateVolume('sfx')"
           />
           <span>{{ sfxVolume }}%</span>
-        </div>
+        </div> -->
 
         <div class="option-group">
-          <label for="language">🌐 Idioma</label>
+          <label for="language">🌐 {{ texts[language].language }}</label>
           <select id="language" v-model="language">
             <option value="pt">Português</option>
             <option value="en">Inglês</option>
@@ -39,44 +40,75 @@
         </div>
 
         <div class="buttons">
-          <div class="menu-button" @click="saveSettings">SALVAR</div>
-          <div class="menu-button" @click="goBack">VOLTAR</div>
+          <div class="menu-button" @click="saveSettings">{{ texts[language].save }}</div>
+          <div class="menu-button" @click="goBack">{{ texts[language].back }}</div>
         </div>
 
-        <p v-if="saved" class="saved-msg">✔️ Configurações salvas!</p>
+        <p v-if="saved" class="saved-msg">✔️ {{ texts[language].savedMsg }}</p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
+
+const texts = {
+  pt: {
+    title: "OPÇÕES",
+    musicVolume: "Volume da Música",
+    language: "Idioma",
+    save: "SALVAR",
+    back: "VOLTAR",
+    savedMsg: "Configurações salvas!"
+  },
+  en: {
+    title: "OPTIONS",
+    musicVolume: "Music Volume",
+    language: "Language",
+    save: "SAVE",
+    back: "BACK",
+    savedMsg: "Settings saved!"
+  }
+};
+
 const musicVolume = ref(50);
-const sfxVolume = ref(50);
 const language = ref("pt");
-const saved = ref(false);
+const saved = ref(true);
 
 let clickSound;
+
 onMounted(() => {
-  musicVolume.value = Number(localStorage.getItem("musicVolume")) || 50;
-  sfxVolume.value = Number(localStorage.getItem("sfxVolume")) || 50;
-  language.value = localStorage.getItem("language") || "pt";
+  const storedMusicVolume = localStorage.getItem("musicVolume");
+  musicVolume.value = storedMusicVolume !== null ? Number(storedMusicVolume) : 50;
+
+  const storedLanguage = localStorage.getItem("language");
+  if (storedLanguage && ['pt', 'en'].includes(storedLanguage)) {
+    language.value = storedLanguage;
+  } else {
+    language.value = "pt";
+  }
 
   clickSound = new Audio("/audio/click.ogg");
   clickSound.volume = 0.4;
 
   updateVolume("music");
-  updateVolume("sfx");
+});
+
+watch(language, (newLang) => {
+  localStorage.setItem("language", newLang);
 });
 
 const saveSettings = () => {
   playClick();
   localStorage.setItem("musicVolume", musicVolume.value);
-  localStorage.setItem("sfxVolume", sfxVolume.value);
   localStorage.setItem("language", language.value);
+
+  updateVolume("music");
+
   saved.value = true;
   setTimeout(() => (saved.value = false), 1500);
 };
@@ -87,9 +119,9 @@ const goBack = () => {
 };
 
 const updateVolume = (type) => {
-  const value = type === "music" ? musicVolume.value : sfxVolume.value;
-  if (window.gameAudio && window.gameAudio[type]) {
-    window.gameAudio[type].volume = value / 100;
+  const value = type === "music" ? musicVolume.value : 0;
+  if (window.gameAudio && window.gameAudio.music) {
+    window.gameAudio.music.volume = value / 100;
   }
 };
 
@@ -99,6 +131,7 @@ function playClick() {
 </script>
 
 <style scoped>
+/* Seu CSS permanece igual */
 .background-image {
   position: fixed;
   width: 100%;
@@ -283,6 +316,10 @@ select:focus {
   color: black;
   font-size: 16px;
   text-align: center;
+  position: absolute;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 /* Barra de rolagem */
@@ -304,16 +341,4 @@ select:focus {
   overflow: hidden;
   height: 100vh;
 }
-
-/* Mensagem de salvamento posicionada sem causar scroll */
-.saved-msg {
-  color: black;
-  font-size: 16px;
-  text-align: center;
-  position: absolute;
-  bottom: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
 </style>
