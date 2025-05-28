@@ -2,7 +2,7 @@
   <div class="hud">
     <div class="panel panel-left">
       <p class="stat">❤️ Vida: {{ health }}/100</p>
-      <p class="stat">⚡ Stamina: {{ stamina }}/100</p>
+      <p class="stat">⚡ Vigor: {{ stamina }}/100</p>
     </div>
     <div class="panel panel-center">
       <p class="resource">🪙 Ouro: {{ gold }}</p>
@@ -54,12 +54,11 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 12px 30px;
-  background: rgba(34, 17, 5, 0.85);
-  font-family: 'Press Start 2P', cursive;
-  font-size: 14px;
-  border-bottom: 4px solid #5c2c1d;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.7);
+  padding: 16px 40px;
+  background: linear-gradient(145deg, #3b2e2a, #221912);
+  border-bottom: 5px solid #bfa760;
+  box-shadow: inset 0 0 8px #000, 0 4px 15px rgba(0, 0, 0, 0.6);
+  font-size: 20px;
   z-index: 1000;
 }
 
@@ -70,37 +69,40 @@ onMounted(() => {
 }
 
 .panel-left {
-  color: #fbeec1;
+  color: #f4e3b2;
 }
 
 .panel-center {
   text-align: center;
-  color: #ffd700;
+  color: #fddc6c;
 }
 
 .panel-right {
   text-align: right;
-  color: #d7b29d;
+  color: #e3c3a1;
 }
 
 .stat,
 .resource,
 .location {
   margin: 0;
-  text-shadow: 1px 1px 2px #000;
+  text-shadow: 1px 1px 1px #000;
+  background: rgba(0,0,0,0.2);
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
 .fps {
-  position: fixed;
-  top: 0%;
-  transform: translate(-50%, -50%);
-  font-size: 36px;
-  font-weight: bold;
-  color: #ff0033;
-  left: 100px;
-  text-shadow: 2px 2px 4px #000;
-  z-index: 9999;
-  pointer-events: none;
-  font-family: 'Press Start 2P', cursive;
+  position: absolute;
+  bottom: -80px; /* ou maior se quiser mais abaixo */
+  left: 20px;
+  font-size: 22px;
+  color: #b6ffba;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #76c976;
+  z-index: 5;
 }
+
 </style>

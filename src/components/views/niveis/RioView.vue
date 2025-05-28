@@ -1,193 +1,209 @@
 <template>
-  <div class="rio-view" :style="backgroundStyle">
-    <div class="game-hud-placeholder">
-      <p>❤️ {{ gameState.player.health }}/{{ gameState.player.maxHealth }} | ⚡ {{ Math.round(gameState.player.stamina) }}/{{ gameState.player.maxStamina }} | 🪙 {{ gameState.player.gold }} | 🧪 {{ gameState.player.potions }}</p>
-      <p>Área Atual: {{ gameState.currentArea }}</p>
-      <p v-if="gameState.player.hasRiverBlessing">Bênção do Rio Ativa</p>
-    </div>
+  <div class="background-container" :style="{ backgroundImage: `url(${bgImage})` }">
+    <!-- Névoa -->
+    <div class="fog-layer"></div>
 
-    <div class="content-area">
-      <!-- Placeholder para o cenário: Rio largo e sombrio -->
-      <div class="scenario-placeholder">
-        (Placeholder: Cenário do Rio das Almas Perdidas)
-        <div class="river-visual">~~~~~~ Rio ~~~~~~</div>
+    <!-- Partículas -->
+    <div class="particle" v-for="n in 10" :key="n" :style="randomParticleStyle()"></div>
+
+    <!-- HUD -->
+    <Hud
+      :health="health"
+      :stamina="stamina"
+      :gold="gold"
+      :potions="potions"
+      :area="area"
+      :fps="fps"
+    />
+
+    <!-- Caixa de diálogo -->
+    <div class="dialog-box" v-if="showDialog">
+      <p>{{ displayedText }}</p>
+      <div class="dialog-actions" v-if="!typing">
+        <button @click="atravessar">Tentar Atravessar</button>
+        <button @click="voltar">Voltar para o mapa</button>
       </div>
-
-      <!-- Interação -->
-      <div class="interaction-point">
-        <p>Você chega à margem do Rio das Almas Perdidas. As águas escuras parecem puxar sua energia vital.</p>
-        <button @click="attemptCrossRiver">Tentar Atravessar</button>
-      </div>
-
-       <!-- Caixa de Diálogo para feedback -->
-      <div v-if="showFeedback" class="dialog-box feedback-box">
-        <p>{{ feedbackMessage }}</p>
-        <button @click="showFeedback = false">Ok</button>
-      </div>
-
-    </div>
-
-    <div class="navigation-placeholder">
-       <button @click="goToPreviousArea">Voltar para Floresta</button>
-       <!-- Botão para próxima área aparece após atravessar -->
-       <button v-if="crossedRiver" @click="goToNextArea">Seguir para Ruínas</button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { gameState, actions } from '@/stores/gfame.js'; // Ajuste o caminho
-import { playAudio } from '@/utils/audioManager.js';
+import bgImage from '@/assets/backviews/rio-bg.gif'
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import Hud from '@/components/Hud.vue'
 
-const router = useRouter();
+defineProps({
+  health: Number,
+  stamina: Number,
+  gold: Number,
+  potions: Number,
+  area: String,
+})
 
-// Estado local
-const showFeedback = ref(false);
-const feedbackMessage = ref('');
-const crossedRiver = ref(false); // Indica se o jogador já atravessou
+const router = useRouter()
+const fps = ref(0)
+let frameCount = 0
+let lastTime = performance.now()
 
-const attemptCrossRiver = () => {
-  if (crossedRiver.value) {
-    feedbackMessage.value = 'Você já atravessou o rio.';
-    showFeedback.value = true;
-    return;
-  }
+const showDialog = ref(true)
+const displayedText = ref('')
+const typing = ref(false)
 
-  if (gameState.player.hasRiverBlessing) {
-    playAudio('river_cross_blessed');
-    feedbackMessage.value = 'Com a bênção da Igreja, você atravessa as águas sombrias sem dificuldades.';
-    crossedRiver.value = true;
-    actions.completeLevel('rio'); // Marcar nível como completo
-  } else {
-    playAudio('river_cross_unblessed');
-    const damageTaken = 25; // Exemplo de dano por tentar cruzar sem bênção
-    actions.takeDamage(damageTaken);
-    feedbackMessage.value = `As águas amaldiçoadas drenam sua força vital! Você perde ${damageTaken} HP e é forçado a recuar.`;
-    if (gameState.player.health <= 0) {
-      // Lógica de Game Over
-      playAudio('player_defeat');
-      alert('Game Over! As águas o consumiram.');
-      router.push('/'); // Volta ao menu
-      return;
+const line =
+  'Ao chegar à margem do Rio das Almas Perdidas, uma névoa gélida envolve teus pés. As águas negras, imóveis, parecem observar-te... famintas.'
+
+// Variável para controlar se tem benção (pode ser um prop ou estado externo)
+const hasBlessing = ref(false)
+
+// Suponha que saúde inicial venha via prop
+const health = ref(100)
+
+function typeText() {
+  typing.value = true
+  displayedText.value = ''
+  let i = 0
+  const interval = setInterval(() => {
+    if (i < line.length) {
+      displayedText.value += line[i]
+      i++
+    } else {
+      clearInterval(interval)
+      typing.value = false
     }
+  }, 35)
+}
+
+function atravessar() {
+  if (!hasBlessing.value) {
+    // Tomar dano se não tiver benção
+    health.value -= 30
+    if (health.value < 0) health.value = 0
+    alert('Você tentou atravessar sem a bênção e tomou dano! Saúde atual: ' + health.value)
+  } else {
+    alert('Você atravessou o rio com a bênção! Sem danos.')
   }
-  showFeedback.value = true;
-};
+}
 
-const goToPreviousArea = () => {
-  playAudio('ui_back');
-  // TODO: Navegar de volta para a FlorestaView ou Mapa
-  router.push({ name: 'Floresta' }); // Assumindo que 'Floresta' é a rota
-};
-
-const goToNextArea = () => {
-  playAudio('ui_confirm');
-  // Navegar para a próxima área após o rio (Ruínas, conforme enredo)
-  router.push({ name: 'Ruinas' }); // Assumindo que 'Ruinas' é a rota
-};
+function voltar() {
+  router.push('/map')
+}
 
 onMounted(() => {
-  actions.setCurrentArea('Rio das Almas Perdidas');
-  // playAudio('music_river_ambient', { loop: true });
-  // Verificar se o jogador já completou este nível para definir crossedRiver
-  if (gameState.levelsCompleted.includes('rio')) {
-      crossedRiver.value = true;
+  updateFPS()
+  typeText()
+})
+
+// FPS Tracker
+function updateFPS() {
+  const now = performance.now()
+  frameCount++
+  if (now - lastTime >= 1000) {
+    fps.value = frameCount
+    frameCount = 0
+    lastTime = now
   }
-});
+  requestAnimationFrame(updateFPS)
+}
 
-// Estilo de fundo (placeholder)
-const backgroundStyle = computed(() => {
-  // TODO: Trocar por imagem de fundo real do rio
-  return { backgroundColor: '#2e4a62' }; // Azul acinzentado escuro
-});
+// Estilo de partículas
+function randomParticleStyle() {
+  const top = Math.random() * 100
+  const left = Math.random() * 100
+  const duration = 8 + Math.random() * 4
+  const delay = Math.random() * 5
+  const size = 12 + Math.random() * 12
 
+  return {
+    top: `${top}%`,
+    left: `${left}%`,
+    width: `${size}px`,
+    height: `${size}px`,
+    animationDuration: `${duration}s`,
+    animationDelay: `${delay}s`,
+  }
+}
 </script>
 
 <style scoped>
-/* Estilos gerais similares aos outros níveis */
-.rio-view {
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  color: white;
-  font-family: 'Press Start 2P', cursive;
-}
-
-.game-hud-placeholder {
-  background-color: rgba(0, 0, 0, 0.7);
-  padding: 10px;
-  font-size: 12px;
-}
-
-.content-area {
-  flex-grow: 1;
-  padding: 30px;
+.background-container {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
+  height: 100vh;
+  background-size: cover;
+  background-position: center;
+  /* fallback para caso o import falhe */
+  background-image: url('/assets/backviews/rio-bg.gif');
+  overflow: hidden;
 }
 
-.scenario-placeholder {
+/* Névoa */
+.fog-layer {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  border: 2px dashed #aaa;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-style: italic;
-  z-index: 0;
-}
-
-.river-visual {
-  font-size: 2rem;
-  color: #5a7a9a;
-  text-align: center;
-}
-
-.interaction-point {
-  background-color: rgba(0, 0, 0, 0.6);
-  padding: 20px;
-  border-radius: 5px;
-  text-align: center;
-  z-index: 1;
-}
-
-.feedback-box {
-  background-color: rgba(0, 0, 0, 0.8);
-  border: 2px solid #ccc;
-  padding: 20px;
-  margin-top: 20px;
-  width: 80%;
-  max-width: 600px;
-  border-radius: 5px;
-  text-align: center;
-  color: white;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at center, rgba(200, 200, 200, 0.15), rgba(0, 0, 0, 0.1));
+  pointer-events: none;
   z-index: 2;
 }
 
-button {
-  margin: 10px;
-  padding: 10px 15px;
-  font-family: 'Press Start 2P', cursive;
-  cursor: pointer;
-  background-color: #4682b4; /* SteelBlue */
-  color: white;
-  border: 1px solid #5a7a9a;
-  z-index: 1;
+/* Partículas */
+.particle {
+  position: absolute;
+  background-image: url('/assets/particles/particle.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  opacity: 0.4;
+  z-index: 3;
+  animation: floatUp linear infinite;
 }
 
-button:hover {
-  background-color: #6495ed; /* CornflowerBlue */
+@keyframes floatUp {
+  from {
+    transform: translateY(0px) scale(1);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateY(-120px) scale(1.1);
+    opacity: 0;
+  }
 }
 
-.navigation-placeholder {
-  padding: 10px;
+.dialog-box {
+  background-color: rgba(0, 0, 0, 0.85);
+  padding: 20px;
+  border: 2px solid #d69c2f;
+  border-radius: 10px;
   text-align: center;
-  background-color: rgba(0, 0, 0, 0.5);
+  max-width: 600px;
+  position: absolute;
+  top: 58%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  font-size: 26px;
+  color: #fffde0;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
+}
+
+.dialog-actions button {
+  margin: 0 10px;
+  padding: 10px 20px;
+  background: linear-gradient(to bottom, #7b4a27, #3b1e0c);
+  color: #f5e1a4;
+  font-family: 'Uncial Antiqua', serif;
+  font-size: 16px;
+  border: 2px solid #caa65b;
+  border-radius: 8px;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.dialog-actions button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 12px #d4af37;
 }
 </style>
