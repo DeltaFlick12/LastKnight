@@ -1,6 +1,7 @@
 <template>
   <div class="tutorial-screen">
     <!-- Diálogo com Bartolomeu Dummy -->
+      <img src="@/assets/bartolomeu.png" alt="Bartolomeu" class="bartolomeu-image" />
     <div v-if="showDialog" class="dialog-box">
       <p>{{ displayedText }}</p>
       <button @click="nextDialog">Continuar</button>
@@ -122,6 +123,9 @@ const usePotion = () => {
   color: white;
   font-family: 'Press Start 2P', cursive;
   position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .dialog-box,
@@ -137,6 +141,13 @@ const usePotion = () => {
   border-radius: 10px;
   text-align: center;
   max-width: 500px;
+  z-index: 1; /* Garante que o diálogo fique acima da imagem */
+}
+
+.bartolomeu-image {
+  width: 600px;
+  margin-bottom: -400px;
+  margin-left: -900px;
 }
 
 button {
@@ -149,6 +160,4 @@ button {
   font-size: 14px;
   cursor: pointer;
 }
-
-
 </style>

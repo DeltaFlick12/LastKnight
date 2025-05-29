@@ -135,20 +135,26 @@ onMounted(() => {
 
 .dialog-box,
 .shop-box {
+  position: fixed;
+  bottom: 0.5vh;
+  left: 60%;
+  transform: translateX(-50%);
   background-color: rgba(0, 0, 0, 0.85);
-  padding: 20px;
+  padding: 2rem;
   border: 2px solid #d69c2f;
   border-radius: 10px;
   text-align: center;
+  width: 80vw;
   max-width: 600px;
   z-index: 1;
-  margin-top: 630px;
 }
 
 .bjorn-image {
-  width: 850px;
-  margin-bottom: -1300px;
-  margin-left: -1200px;
+  position: fixed;
+  bottom: -20vh;
+  left: -3vw;
+  width: 40vw;
+  max-width: 850px;
   z-index: 0;
   transition: transform 0.3s ease-in-out;
 }

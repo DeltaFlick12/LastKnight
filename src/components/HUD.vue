@@ -1,15 +1,13 @@
 <template>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap" rel="stylesheet">
+
   <div class="hud">
     <div class="panel panel-left">
-      <p class="stat">❤️ Vida: {{ health }}/100</p>
-      <p class="stat">⚡ Vigor: {{ stamina }}/100</p>
-    </div>
-    <div class="panel panel-center">
-      <p class="resource">🪙 Ouro: {{ gold }}</p>
-      <p class="resource">🧪 Poções: {{ potions }}</p>
-    </div>
-    <div class="panel panel-right">
-      <p class="location">📍 {{ area }}</p>
+      <p class="stat vida">❤️ Vida: {{ health }}/100</p>
+      <p class="stat energia">⚡ Energia: {{ stamina }}/100</p>
+      <p class="resource ouro">🥇 Ouro: {{ gold }}</p>
+      <p class="resource potions">🧪 Poções: {{ potions }}</p>
+      <p class="loc">📍 {{ area }}</p>
     </div>
     <p class="fps">{{ fps }} FPS</p>
   </div>
@@ -46,63 +44,109 @@ onMounted(() => {
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap');
+
 .hud {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: fixed;
+  top: 0px;
+  left: -10px;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 16px 40px;
-  background: linear-gradient(145deg, #3b2e2a, #221912);
-  border-bottom: 5px solid #bfa760;
-  box-shadow: inset 0 0 8px #000, 0 4px 15px rgba(0, 0, 0, 0.6);
-  font-size: 20px;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 12px 24px;
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
   z-index: 1000;
+  letter-spacing: 0.5px;
+  flex-direction: column;
+}
+
+.loc {
+  position: fixed;
+  top: 0px;
+  right: 10px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 12px 24px;
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  z-index: 1000;
+  letter-spacing: 0.5px;
+  flex-direction: column;
 }
 
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  max-width: 300px;
 }
 
 .panel-left {
-  color: #f4e3b2;
-}
-
-.panel-center {
-  text-align: center;
-  color: #fddc6c;
-}
-
-.panel-right {
-  text-align: right;
-  color: #e3c3a1;
+  color: #f0d9a9;
 }
 
 .stat,
 .resource,
 .location {
   margin: 0;
+  padding: 6px 10px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.1);
   text-shadow: 1px 1px 1px #000;
-  background: rgba(0,0,0,0.2);
-  padding: 2px 8px;
-  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: bold;
 }
 
+/* Fundo colorido leve para cada item */
+.vida {
+  background: rgba(255, 0, 0, 1); /* Vermelho claro */
+  border-color: rgba(255, 0, 0, 0.3);
+}
+
+.energia {
+  background: rgba(255, 255, 0, 0.45); /* Amarelo claro */
+  border-color: rgba(255, 255, 0, 0.3);
+}
+
+.ouro {
+  background: rgba(255, 255, 255, 1); /* Branco claro */
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff; /* Ajuste cor do texto para melhor visibilidade */
+  text-shadow: 1px 1px 2px #000;
+}
+
+.potions {
+  background: rgba(0, 255, 0, 0.45); /* Verde claro */
+  border-color: rgba(0, 255, 0, 0.3);
+}
+
+/* Adiciona espaçamento e estilo aos ícones */
+.stat::before,
+.resource::before,
+.location::before {
+  font-size: 1.2em;
+  display: inline-block;
+}
+
+/* FPS visual melhorado */
 .fps {
   position: absolute;
-  bottom: -80px; /* ou maior se quiser mais abaixo */
-  left: 20px;
-  font-size: 22px;
-  color: #b6ffba;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 6px 10px;
+  bottom: 550px;
+  left: -1060px;
+  transform: translateX(-50%);
+  font-size: 20px;
+  color: #caffc6;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 8px 14px;
   border-radius: 6px;
   border: 1px solid #76c976;
+  font-family: monospace;
+  box-shadow: 0 0 5px #76c976;
   z-index: 5;
 }
-
 </style>
