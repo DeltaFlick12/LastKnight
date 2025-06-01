@@ -18,55 +18,54 @@
   </div>
 </template>
 
-<<script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+<script setup>
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 
-const router = useRouter()
+const router = useRouter();
 
 const locations = ref([
+  { name: 'Albadia', top: '10%', left: '15%', route: '/level/albadia', unlocked: true },
   { name: 'Floresta', top: '60%', left: '15%', route: '/level/floresta', unlocked: true },
-  { name: 'Caverna', top: '32%', left: '44%', route: '/level/caverna', unlocked: false },
+  { name: 'Caverna', top: '80%', left: '44%', route: '/level/caverna', unlocked: false },
   { name: 'Rio', top: '52%', left: '32%', route: '/level/rio', unlocked: false },
-  { name: 'Ruínas', top: '45%', left: '50%', route: '/level/ruinas', unlocked: false },
-  { name: 'Castelo', top: '28%', left: '72%', route: '/level/castelo', unlocked: false },
-])
+  { name: 'Ruínas', top: '75%', left: '60%', route: '/level/ruinas', unlocked: false },
+  { name: 'Castelo', top: '75%', left: '82%', route: '/level/castelo', unlocked: false }
+]);
 
 const updateUnlockedLocations = () => {
-  const progress = localStorage.getItem('progress')
+  const progress = localStorage.getItem('progress');
 
-  // Floresta já começa desbloqueada
   if (progress === 'floresta-concluida') {
-    locations.value[1].unlocked = true // Rio
+    locations.value[3].unlocked = true; // Rio
   }
   if (progress === 'rio-concluido') {
-    locations.value[1].unlocked = true // Rio
-    locations.value[2].unlocked = true // Ruínas
+    locations.value[3].unlocked = true; // Rio
+    locations.value[4].unlocked = true; // Ruínas
   }
   if (progress === 'ruinas-concluidas') {
-    locations.value[1].unlocked = true
-    locations.value[2].unlocked = true
-    locations.value[3].unlocked = true // Castelo
+    locations.value[3].unlocked = true; // Rio
+    locations.value[4].unlocked = true; // Ruínas
+    locations.value[5].unlocked = true; // Castelo
   }
-}
+};
 
 const goToLocation = (loc) => {
   if (loc.unlocked) {
-    router.push(loc.route)
+    router.push(loc.route);
   } else {
-    alert('Área bloqueada! Termine a anterior.')
+    alert('Área bloqueada! Termine a anterior.');
   }
-}
+};
 
 const goBack = () => {
-  router.push('/story')
-}
+  router.push('/story');
+};
 
 onMounted(() => {
-  updateUnlockedLocations()
-})
+  updateUnlockedLocations();
+});
 </script>
-
 
 <style scoped>
 .map-screen {

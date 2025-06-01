@@ -145,7 +145,9 @@ const usePotion = () => {
 }
 
 .bartolomeu-image {
-  width: 200px;
+  width: 600px;
+  margin-bottom: -400px;
+  margin-left: -900px;
 }
 
 button {
