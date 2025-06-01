@@ -5,8 +5,6 @@
     @keyup="stopMoving"
     tabindex="0"
   >
-    <!-- Botão de sair -->
-    <button class="menu menu-button" @click="sairDaCena">Sair</button>
 
     <!-- Camada com imagem e zoom centralizado -->
     <div
@@ -29,7 +27,7 @@
       <div
         class="character"
         :style="{
-          transform: `translate(${characterPosition.x}px, ${characterPosition.y}px)`,
+          transform: `translate(${characterPosition.x}px, ${characterPosition.y}px)` ,
           backgroundImage: `url(${currentSprite})`,
           backgroundSize: 'cover',
           width: '80px',
@@ -48,12 +46,29 @@
           height: `${area.height}px`
         }"
       />
+
+      <!-- Visualização das áreas interativas -->
+      <div
+        v-for="(area, i) in interactionAreas"
+        :key="'interact-' + i"
+        class="interaction-box"
+        :style="{
+          transform: `translate(${area.x}px, ${area.y}px)`,
+          width: `${area.width}px`,
+          height: `${area.height}px`
+        }"
+      />
     </div>
 
-    <!-- Caixa de diálogo -->
+    <!-- Caixa de diálogo do diálogo inicial -->
     <div v-if="showDialog" class="dialog-box">
       <p>{{ displayedText }}</p>
       <button @click="nextDialog" :disabled="typing">Continuar</button>
+    </div>
+
+    <!-- Caixa de diálogo para sair da igreja -->
+    <div v-if="showExitDialog && !showDialog" class="dialog-box">
+      <p>{{ exitDialogText }}</p>
     </div>
   </div>
 </template>
@@ -82,7 +97,7 @@ const lastDirection = ref('up')
 // Estado do padre
 const padrePosition = ref({ x: 400, y: 120 })
 
-// Diálogo
+// Diálogo inicial
 const showDialog = ref(true)
 const dialogIndex = ref(0)
 const dialogLines = [
@@ -94,6 +109,10 @@ const dialogLines = [
 const displayedText = ref('')
 const typing = ref(false)
 const canMove = ref(false)
+
+// Caixa diálogo para saída da igreja
+const showExitDialog = ref(false)
+const exitDialogText = `Precione 'E' para Sair da Igreja`
 
 // Tamanho do fundo
 const bgWidth = 1200
@@ -107,6 +126,12 @@ const collisionAreas = [
   { x: 1020, y: 200, width: 50, height: 1000 },
   { x: 820, y: 700, width: 130, height: 100 },
   { x: 430, y: 890, width: 170, height: 50 },
+]
+
+// Áreas interativas para "entrar" em lugares (área verde)
+const interactionAreas = [
+  { x: 430, y: 850, width: 170, height: 80, action: () =>  window.location.href = '/level/albadia' },
+  // Adicione outras áreas e ações aqui se quiser
 ]
 
 // Verificação de colisão
@@ -126,7 +151,24 @@ const isColliding = (nextX, nextY) => {
   )
 }
 
-// Digitação do texto do diálogo
+// Verifica se personagem está numa área interativa
+const isInInteractionArea = () => {
+  const charBox = {
+    x: characterPosition.value.x,
+    y: characterPosition.value.y,
+    width: 80,
+    height: 80
+  }
+
+  return interactionAreas.find(area =>
+    charBox.x < area.x + area.width &&
+    charBox.x + charBox.width > area.x &&
+    charBox.y < area.y + area.height &&
+    charBox.y + charBox.height > area.y
+  )
+}
+
+// Digitação do texto do diálogo inicial
 const typeLine = () => {
   typing.value = true
   displayedText.value = ''
@@ -168,7 +210,7 @@ const getMovementBounds = () => {
   }
 }
 
-// Atualização do movimento com verificação de colisão
+// Atualização do movimento com verificação de colisão e detecção da área verde
 const updateMovement = () => {
   if (!canMove.value) {
     animationFrameId = requestAnimationFrame(updateMovement)
@@ -216,13 +258,32 @@ const updateMovement = () => {
     ? sprites[`walk_${lastDirection.value}`]
     : sprites.walk_up
 
+  // Verifica se personagem está dentro da área verde (área interativa)
+  const insideArea = isInInteractionArea()
+  if (insideArea) {
+    showExitDialog.value = true
+  } else {
+    showExitDialog.value = false
+  }
+
   animationFrameId = requestAnimationFrame(updateMovement)
 }
 
-// Controles do teclado
+// Controles do teclado (inclui tecla 'e' para ação na área interativa)
 const startMoving = (event) => {
   if (!canMove.value) return
-  switch (event.key.toLowerCase()) {
+
+  const key = event.key.toLowerCase()
+
+  if (key === 'e') {
+    const area = isInInteractionArea()
+    if (area) {
+      area.action()
+    }
+    return
+  }
+
+  switch (key) {
     case 'w': moving.value.up = true; break
     case 's': moving.value.down = true; break
     case 'a': moving.value.left = true; break
@@ -240,10 +301,6 @@ const stopMoving = (event) => {
   }
 }
 
-// Função do botão de sair
-const sairDaCena = () => {
-  window.location.href = '/level/albadia' // redireciona para a tela inicial
-}
 
 onMounted(() => {
   typeLine()
@@ -314,44 +371,15 @@ onMounted(() => {
 
 .collision-box {
   position: absolute;
-  background-color: rgba(255, 0, 0, 0.0); 
+  background-color: rgba(255, 0, 0, 0.0);
   z-index: 1;
 }
 
-/* BOTÕES */
-.menu {
-  display: grid;
-  gap: 20px;
-  justify-content: center;
-  margin-top: 850px;
+/* Visualização das áreas interativas (verde semitransparente) */
+.interaction-box {
+  position: absolute;
+  background-color: rgba(0, 255, 0, 0.0);
+  z-index: 1;
 }
 
-.menu-button {
-  background-color: #e0a867;
-  color: #5c2c1d;
-  border: 4px solid #5c2c1d;
-  padding:5px 40px ;
-  margin-left: 100px;
-  width: 200px;
-  height: 50px;
-  font-size: 30px;
-  text-align: center;
-  cursor: pointer;
-  position: relative;
-  image-rendering: pixelated;
-  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
-  font-weight: bold;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
-}
-
-.menu-button:hover {
-  background-color: #f4b76a;
-  color: #3e1e14;
-  box-shadow: inset -6px -6px #c96a32, inset 6px 6px #ffd9a1;
-}
-
-.menu-button:active {
-  transform: translateY(2px);
-  box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8e;
-}
 </style>
