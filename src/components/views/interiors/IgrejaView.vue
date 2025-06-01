@@ -1,36 +1,84 @@
 <template>
-  <div class="igreja-screen"
-       :style="{ backgroundImage: `url(${bgImage})`, backgroundSize: 'auto 120%', transform: `scale(${zoomLevel})` }"
-       @keydown="startMoving" 
-       @keyup="stopMoving"
-       tabindex="0">
+  <div
+    class="igreja-screen"
+    @keydown="startMoving"
+    @keyup="stopMoving"
+    tabindex="0"
+  >
 
+    <!-- Camada com imagem e zoom centralizado -->
+    <div
+      class="zoom-layer"
+      :style="{
+        backgroundImage: `url(${bgImage})`,
+        transform: `translate(-50%, -50%) scale(${zoomLevel})`
+      }"
+    >
+      <!-- NPC Padre -->
+      <div
+        class="npc padre"
+        :style="{
+          transform: `translate(${padrePosition.x}px, ${padrePosition.y}px)`,
+          backgroundImage: `url(${padreSprite})`
+        }"
+      ></div>
+
+      <!-- Personagem do jogador -->
+      <div
+        class="character"
+        :style="{
+          transform: `translate(${characterPosition.x}px, ${characterPosition.y}px)` ,
+          backgroundImage: `url(${currentSprite})`,
+          backgroundSize: 'cover',
+          width: '80px',
+          height: '80px'
+        }"
+      ></div>
+
+      <!-- Visualização das colisões -->
+      <div
+        v-for="(area, i) in collisionAreas"
+        :key="i"
+        class="collision-box"
+        :style="{
+          transform: `translate(${area.x}px, ${area.y}px)`,
+          width: `${area.width}px`,
+          height: `${area.height}px`
+        }"
+      />
+
+      <!-- Visualização das áreas interativas -->
+      <div
+        v-for="(area, i) in interactionAreas"
+        :key="'interact-' + i"
+        class="interaction-box"
+        :style="{
+          transform: `translate(${area.x}px, ${area.y}px)`,
+          width: `${area.width}px`,
+          height: `${area.height}px`
+        }"
+      />
+    </div>
+
+    <!-- Caixa de diálogo do diálogo inicial -->
     <div v-if="showDialog" class="dialog-box">
       <p>{{ displayedText }}</p>
       <button @click="nextDialog" :disabled="typing">Continuar</button>
     </div>
 
-    <!-- Personagem -->
-    <div 
-      :style="{ 
-        left: `${characterPosition.x}px`, 
-        top: `${characterPosition.y}px`, 
-        backgroundImage: `url(${currentSprite})`, 
-        backgroundSize: 'cover', 
-        width: '80px', 
-        height: '80px' 
-      }" 
-      class="character">
+    <!-- Caixa de diálogo para sair da igreja -->
+    <div v-if="showExitDialog && !showDialog" class="dialog-box">
+      <p>{{ exitDialogText }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import bgImage from '@/assets/interior/igreja-bg.png'
+import padreSprite from '@/assets/Padre.png'  // Importação correta da imagem do padre
 
-// Sprites do personagem
+// Sprites
 const sprites = {
   idle: '/img/sprites/player/player_idle.png',
   walk_up: '/img/sprites/player/player_walk_up.png',
@@ -39,15 +87,17 @@ const sprites = {
   walk_right: '/img/sprites/player/player_walk_right.png'
 }
 
-// Referência para o sprite atual
+// Estado do personagem
 const currentSprite = ref(sprites.idle)
+const characterPosition = ref({ x: 0, y: 0 })
+const zoomLevel = ref(0.95)
+const moving = ref({ up: false, down: false, left: false, right: false })
+const lastDirection = ref('up')
 
-// Controle do personagem
-const characterPosition = ref({ x: 655, y: 365 }) // Posição inicial do personagem
-const zoomLevel = ref(0.95) // Zoom ajustado da tela (mais afastado)
-const moving = ref({ up: false, down: false, left: false, right: false }) // Estado de movimentação
+// Estado do padre
+const padrePosition = ref({ x: 400, y: 120 })
 
-// Controle do diálogo
+// Diálogo inicial
 const showDialog = ref(true)
 const dialogIndex = ref(0)
 const dialogLines = [
@@ -58,25 +108,75 @@ const dialogLines = [
 ]
 const displayedText = ref('')
 const typing = ref(false)
-
-// Flag para bloquear movimento
 const canMove = ref(false)
 
-// Tamanho do mapa
-const mapWidth = 1024;  // Ajuste conforme o tamanho real da imagem de fundo
-const mapHeight = 1024;
+// Caixa diálogo para saída da igreja
+const showExitDialog = ref(false)
+const exitDialogText = `Precione 'E' para Sair da Igreja`
 
-// Função para digitar a linha de texto
-const typeLine = async () => {
+// Tamanho do fundo
+const bgWidth = 1200
+const bgHeight = 1024
+let animationFrameId = null
+
+// Áreas de colisão
+const collisionAreas = [
+  { x: 0, y: 200, width: 1024, height: 50 },
+  { x: 0, y: 950, width: 1024, height: 50 },
+  { x: 1020, y: 200, width: 50, height: 1000 },
+  { x: 820, y: 700, width: 130, height: 100 },
+  { x: 430, y: 890, width: 170, height: 50 },
+]
+
+// Áreas interativas para "entrar" em lugares (área verde)
+const interactionAreas = [
+  { x: 430, y: 850, width: 170, height: 80, action: () =>  window.location.href = '/level/albadia' },
+  // Adicione outras áreas e ações aqui se quiser
+]
+
+// Verificação de colisão
+const isColliding = (nextX, nextY) => {
+  const charBox = {
+    x: nextX,
+    y: nextY,
+    width: 80,
+    height: 80
+  }
+
+  return collisionAreas.some(area =>
+    charBox.x < area.x + area.width &&
+    charBox.x + charBox.width > area.x &&
+    charBox.y < area.y + area.height &&
+    charBox.y + charBox.height > area.y
+  )
+}
+
+// Verifica se personagem está numa área interativa
+const isInInteractionArea = () => {
+  const charBox = {
+    x: characterPosition.value.x,
+    y: characterPosition.value.y,
+    width: 80,
+    height: 80
+  }
+
+  return interactionAreas.find(area =>
+    charBox.x < area.x + area.width &&
+    charBox.x + charBox.width > area.x &&
+    charBox.y < area.y + area.height &&
+    charBox.y + charBox.height > area.y
+  )
+}
+
+// Digitação do texto do diálogo inicial
+const typeLine = () => {
   typing.value = true
   displayedText.value = ''
   const line = dialogLines[dialogIndex.value]
   let index = 0
-
   const interval = setInterval(() => {
     if (index < line.length) {
-      displayedText.value += line[index]
-      index++
+      displayedText.value += line[index++]
     } else {
       clearInterval(interval)
       typing.value = false
@@ -84,7 +184,6 @@ const typeLine = async () => {
   }, 40)
 }
 
-// Função para avançar o diálogo
 const nextDialog = () => {
   if (typing.value) return
   if (dialogIndex.value < dialogLines.length - 1) {
@@ -92,126 +191,195 @@ const nextDialog = () => {
     typeLine()
   } else {
     showDialog.value = false
-    canMove.value = true // Permite o movimento quando o diálogo terminar
+    canMove.value = true
   }
 }
 
-// Função para começar a movimentação ao pressionar as teclas WASD
-const startMoving = (event) => {
-  if (!canMove.value) return // Impede o movimento enquanto o diálogo estiver ativo
+// Limites de movimento
+const getMovementBounds = () => {
+  const screen = document.querySelector('.igreja-screen')
+  const rect = screen.getBoundingClientRect()
+  const bgRenderedWidth = bgWidth * zoomLevel.value
+  const bgRenderedHeight = bgHeight * zoomLevel.value
 
-  switch (event.key.toLowerCase()) {
-    case 'w':
-      moving.value.up = true;
-      currentSprite.value = sprites.walk_up; // Atualiza para sprite de subir
-      break;
-    case 's':
-      moving.value.down = true;
-      currentSprite.value = sprites.walk_down; // Atualiza para sprite de descer
-      break;
-    case 'a':
-      moving.value.left = true;
-      currentSprite.value = sprites.walk_left; // Atualiza para sprite de andar à esquerda
-      break;
-    case 'd':
-      moving.value.right = true;
-      currentSprite.value = sprites.walk_right; // Atualiza para sprite de andar à direita
-      break;
+  return {
+    minX: 0,
+    maxX: bgRenderedWidth - 80,
+    minY: 0,
+    maxY: bgRenderedHeight - 80
   }
 }
 
-// Função para parar a movimentação ao soltar as teclas WASD
-const stopMoving = (event) => {
-  if (!canMove.value) return // Impede o movimento enquanto o diálogo estiver ativo
-
-  switch (event.key.toLowerCase()) {
-    case 'w':
-      moving.value.up = false;
-      break;
-    case 's':
-      moving.value.down = false;
-      break;
-    case 'a':
-      moving.value.left = false;
-      break;
-    case 'd':
-      moving.value.right = false;
-      break;
-  }
-  // Se nenhuma tecla de movimento estiver pressionada, mantém o sprite de idle
-  if (!moving.value.up && !moving.value.down && !moving.value.left && !moving.value.right) {
-    currentSprite.value = sprites.idle;
-  }
-}
-
-// Função para atualizar a posição do personagem com base nas teclas pressionadas
+// Atualização do movimento com verificação de colisão e detecção da área verde
 const updateMovement = () => {
-  const step = 5; // Quantos pixels por vez
+  if (!canMove.value) {
+    animationFrameId = requestAnimationFrame(updateMovement)
+    return
+  }
 
-  if (moving.value.up) characterPosition.value.y = Math.max(characterPosition.value.y - step, 0);
-  if (moving.value.down) characterPosition.value.y = Math.min(characterPosition.value.y + step, mapHeight - 50); // 50px é o tamanho do personagem
-  if (moving.value.left) characterPosition.value.x = Math.max(characterPosition.value.x - step, 0);
-  if (moving.value.right) characterPosition.value.x = Math.min(characterPosition.value.x + step, mapWidth - 50); // 50px é o tamanho do personagem
+  const step = 3
+  let moved = false
+  const bounds = getMovementBounds()
+
+  if (moving.value.up) {
+    const nextY = characterPosition.value.y - step
+    if (nextY >= bounds.minY && !isColliding(characterPosition.value.x, nextY)) {
+      characterPosition.value.y = nextY
+      lastDirection.value = 'up'
+      moved = true
+    }
+  }
+  if (moving.value.down) {
+    const nextY = characterPosition.value.y + step
+    if (nextY <= bounds.maxY && !isColliding(characterPosition.value.x, nextY)) {
+      characterPosition.value.y = nextY
+      lastDirection.value = 'down'
+      moved = true
+    }
+  }
+  if (moving.value.left) {
+    const nextX = characterPosition.value.x - step
+    if (nextX >= bounds.minX && !isColliding(nextX, characterPosition.value.y)) {
+      characterPosition.value.x = nextX
+      lastDirection.value = 'left'
+      moved = true
+    }
+  }
+  if (moving.value.right) {
+    const nextX = characterPosition.value.x + step
+    if (nextX <= bounds.maxX && !isColliding(nextX, characterPosition.value.y)) {
+      characterPosition.value.x = nextX
+      lastDirection.value = 'right'
+      moved = true
+    }
+  }
+
+  currentSprite.value = moved
+    ? sprites[`walk_${lastDirection.value}`]
+    : sprites.walk_up
+
+  // Verifica se personagem está dentro da área verde (área interativa)
+  const insideArea = isInInteractionArea()
+  if (insideArea) {
+    showExitDialog.value = true
+  } else {
+    showExitDialog.value = false
+  }
+
+  animationFrameId = requestAnimationFrame(updateMovement)
 }
 
-// Atualiza a posição do personagem a cada frame
+// Controles do teclado (inclui tecla 'e' para ação na área interativa)
+const startMoving = (event) => {
+  if (!canMove.value) return
+
+  const key = event.key.toLowerCase()
+
+  if (key === 'e') {
+    const area = isInInteractionArea()
+    if (area) {
+      area.action()
+    }
+    return
+  }
+
+  switch (key) {
+    case 'w': moving.value.up = true; break
+    case 's': moving.value.down = true; break
+    case 'a': moving.value.left = true; break
+    case 'd': moving.value.right = true; break
+  }
+}
+
+const stopMoving = (event) => {
+  if (!canMove.value) return
+  switch (event.key.toLowerCase()) {
+    case 'w': moving.value.up = false; break
+    case 's': moving.value.down = false; break
+    case 'a': moving.value.left = false; break
+    case 'd': moving.value.right = false; break
+  }
+}
+
+
 onMounted(() => {
   typeLine()
-  document.querySelector('.igreja-screen').focus()
 
-  // Atualiza a posição do personagem constantemente enquanto ele estiver se movendo
-  setInterval(updateMovement, 16); // Aproximadamente 60fps
+  const screen = document.querySelector('.igreja-screen')
+  screen.focus()
+  screen.addEventListener('click', () => screen.focus())
+
+  const bounds = getMovementBounds()
+  characterPosition.value.x = (bounds.minX + bounds.maxX) / 2
+  characterPosition.value.y = (bounds.minY + bounds.maxY) / 2
+
+  animationFrameId = requestAnimationFrame(updateMovement)
 })
 </script>
 
 <style scoped>
 .igreja-screen {
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
   height: 100vh;
   width: 100vw;
-  color: white;
-  font-family: 'Press Start 2P', cursive;
   position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
   overflow: hidden;
   outline: none;
+  font-family: 'Press Start 2P', cursive;
+  color: white;
+}
+
+.zoom-layer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1024px;
+  height: 1024px;
+  background-repeat: no-repeat;
+  background-position: center;
+  transform-origin: center center;
+  z-index: 0;
+}
+
+.character {
+  position: absolute;
+  transition: transform 0.05s linear;
+  z-index: 3;
+}
+
+.npc.padre {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  z-index: 2;
 }
 
 .dialog-box {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
   background-color: rgba(0, 0, 0, 0.85);
   padding: 20px;
   border: 2px solid #ffffff;
   border-radius: 10px;
   text-align: center;
   max-width: 600px;
-  z-index: 1;
-  margin-top: 400px;
+  z-index: 10;
 }
 
-button {
-  margin-top: 10px;
-  padding: 8px 16px;
-  background-color: #ffffff;
-  color: black;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.character {
+.collision-box {
   position: absolute;
-  transition: left 0.1s, top 0.1s;
+  background-color: rgba(255, 0, 0, 0.0);
+  z-index: 1;
 }
+
+/* Visualização das áreas interativas (verde semitransparente) */
+.interaction-box {
+  position: absolute;
+  background-color: rgba(0, 255, 0, 0.0);
+  z-index: 1;
+}
+
 </style>
