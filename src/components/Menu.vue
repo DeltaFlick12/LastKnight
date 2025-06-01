@@ -10,7 +10,7 @@
       <div class="menu-button story" @click="goToStory">{{ texts[language].story }}</div>
       <div class="menu-button endless" @click="goTo('endless')">{{ texts[language].endless }}</div>
       <div class="menu-button options" @click="goTo('options')">{{ texts[language].options }}</div>
-      <div class="menu-button credits" @click="goTo('credits')">{{ texts[language].credits }}</div>
+      <div class="menu-button credits" @click="goTo('creditsScreen')">{{ texts[language].credits }}</div>
     </div>
 
     <!-- BOTÃO FULLSCREEN -->
@@ -61,7 +61,7 @@ function goTo(route) {
 const goToStory = () => {
   playClick()
   const hasClass = localStorage.getItem('playerClass')
-  router.push(hasClass ? '/tutorial' : '/class')
+  router.push(hasClass ? '/map' : '/class')
 }
 
 function toggleFullscreen() {

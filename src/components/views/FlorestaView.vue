@@ -1,7 +1,7 @@
 <template>
   <transition name="fade">
     <div :class="['forest-view', { shake: isShaking }]">
-      <img src="@/assets/backviews/floresta.jpg" alt="Fundo da Floresta" class="bg-image" />
+      <img :src="forestImage" alt="Fundo da Floresta" class="bg-image" />
 
       <div class="hud">
         <div>❤️ Vida: {{ playerHealth }}/100</div>
@@ -19,7 +19,7 @@
           <button @click="usePotion" :disabled="potions <= 0">Usar Poção ({{ potions }})</button>
         </div>
 
-        <p class="log animated-text">{{ battleLog }}</p>
+        <p class="log">{{ battleLog }}</p>
 
         <button v-if="enemy.health <= 0" @click="finishBattle">🏆 Vitória! Continuar</button>
       </div>
@@ -28,20 +28,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import forestImage from '@/assets/backviews/floresta.jpg'
 
 const router = useRouter()
 
 const playerHealth = ref(100)
-const potions = ref(parseInt(localStorage.getItem('potions')) || 3)
-const equippedWeapon = ref(localStorage.getItem('weapon') || 'Espada de Treinamento')
+const potions = ref(Number(localStorage.getItem('potions')) || 3)
+const equippedWeapon = ref('Espada de Treinamento')
 
 const enemy = ref({
-  name: 'Goblin',
-  health: 60,
-  maxHealth: 60,
-  attack: 12
+  name: 'Goblin Selvagem',
+  health: 50,
+  maxHealth: 50,
+  attack: 5,
 })
 
 const battleLog = ref('Um goblin selvagem apareceu!')
@@ -56,8 +57,8 @@ const playSound = (path) => {
 
 const attackEnemy = () => {
   const damage = equippedWeapon.value === 'Espada de Treinamento'
-    ? Math.floor(Math.random() * 6 + 10)
-    : Math.floor(Math.random() * 5 + 5)
+    ? Math.floor(Math.random() * 5) + 5
+    : Math.floor(Math.random() * 8) + 8
 
   enemy.value.health = Math.max(0, enemy.value.health - damage)
   battleLog.value = `Você causou ${damage} de dano ao ${enemy.value.name}!`
@@ -84,7 +85,7 @@ const enemyAttack = () => {
 }
 
 const usePotion = () => {
-  if (potions.value > 0 && playerHealth.value < 100) {
+  if (potions.value > 0) {
     playerHealth.value = Math.min(100, playerHealth.value + 30)
     potions.value--
     localStorage.setItem('potions', potions.value)
@@ -111,15 +112,15 @@ html, body {
   position: relative;
   height: 100vh;
   width: 100vw;
-  color: white;
-  font-family: 'Press Start 2P', cursive;
+  padding-top: 30px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding-top: 30px;
-  overflow: hidden;
+  color: white;
+  font-family: 'Press Start 2P', cursive;
   animation: fadeInSmooth 0.6s ease-out;
+  overflow: hidden;
 }
 
 .bg-image {
@@ -127,30 +128,31 @@ html, body {
   top: 0;
   left: 0;
   width: 100%;
-  height: 100%;
+  height: 100vh;
   object-fit: cover;
   z-index: -1;
   filter: brightness(0.8);
 }
 
 .hud {
-  background-color: rgba(0, 0, 0, 0.6);
-  padding: 12px 20px;
-  border-radius: 8px;
-  font-size: 14px;
+  background-color: rgba(0, 0, 0, 0.4);
+  padding: 10px 20px;
+  margin-bottom: 20px;
   display: flex;
   gap: 30px;
-  margin-bottom: 20px;
   box-shadow: 0 0 10px #000;
+  border-radius: 8px;
+  font-size: 14px;
 }
 
 .battle-box {
-  background-color: rgba(0, 0, 0, 0.65);
+  background-color: rgba(0, 0, 0, 0.5);
   padding: 20px;
   border: 2px solid #8b5e3c;
   border-radius: 12px;
   max-width: 500px;
   width: 90%;
+  margin: auto;
   text-align: center;
   box-shadow: 0 0 15px #000;
   animation: fadeIn 0.6s ease;
@@ -178,6 +180,10 @@ html, body {
   100% { transform: translateX(0); }
 }
 
+.enemy h2 {
+  margin-bottom: 5px;
+}
+
 .actions {
   display: flex;
   gap: 20px;
@@ -189,8 +195,8 @@ html, body {
 button {
   background-color: #8b5e3c;
   color: white;
-  padding: 10px 16px;
   border: none;
+  padding: 10px 18px;
   border-radius: 10px;
   font-size: 14px;
   cursor: pointer;
@@ -222,6 +228,7 @@ button:hover {
 .fade-enter-active, .fade-leave-active {
   transition: opacity 0.4s ease;
 }
+
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
 }

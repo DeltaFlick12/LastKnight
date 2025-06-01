@@ -17,20 +17,6 @@
           <span>{{ musicVolume }}%</span>
         </div>
 
-        <!-- Quebrado -->
-        <!-- <div class="option-group">
-          <label for="sfxVolume">🔊 Volume dos Efeitos</label>
-          <input
-            type="range"
-            id="sfxVolume"
-            v-model.number="sfxVolume"
-            min="0"
-            max="100"
-            @input="updateVolume('sfx')"
-          />
-          <span>{{ sfxVolume }}%</span>
-        </div> -->
-
         <div class="option-group">
           <label for="language">🌐 {{ texts[language].language }}</label>
           <select id="language" v-model="language">
@@ -43,9 +29,10 @@
           <div class="menu-button" @click="saveSettings">{{ texts[language].save }}</div>
           <div class="menu-button" @click="goBack">{{ texts[language].back }}</div>
         </div>
-
-        <p v-if="saved" class="saved-msg">✔️ {{ texts[language].savedMsg }}</p>
       </div>
+
+      <!-- Mensagem de salvamento -->
+      <p :class="['saved-msg', { show: saved }]">✔️ {{ texts[language].savedMsg }}</p>
     </div>
   </div>
 </template>
@@ -77,7 +64,7 @@ const texts = {
 
 const musicVolume = ref(50);
 const language = ref("pt");
-const saved = ref(true);
+const saved = ref(false);
 
 let clickSound;
 
@@ -131,7 +118,6 @@ function playClick() {
 </script>
 
 <style scoped>
-/* Seu CSS permanece igual */
 .background-image {
   position: fixed;
   width: 100%;
@@ -141,7 +127,6 @@ function playClick() {
   filter: blur(1px);
 }
 
-/* Animação de descida */
 .slide-down {
   animation: slideDown 1s ease-out;
 }
@@ -156,7 +141,6 @@ function playClick() {
   }
 }
 
-/* Container */
 .options-container {
   position: fixed;
   top: 0;
@@ -170,12 +154,13 @@ function playClick() {
   z-index: 100;
 }
 
-/* Caixa de opções */
 .options-box {
+  position: relative;
   background: #e0a867;
   border: 6px solid #5c2c1d;
   border-radius: 10px;
   padding: 20px;
+  padding-bottom: 60px; /* 👈 adicione isso ou aumente o valor */
   width: 80%;
   max-width: 600px;
   max-height: 80vh;
@@ -185,7 +170,6 @@ function playClick() {
   image-rendering: pixelated;
 }
 
-/* Título */
 .options-title {
   font-size: 40px;
   color: #5c2c1d;
@@ -194,7 +178,6 @@ function playClick() {
   text-shadow: 2px 2px #d17844;
 }
 
-/* Conteúdo */
 .options-content {
   flex: 1;
   overflow-y: auto;
@@ -205,7 +188,6 @@ function playClick() {
   margin-bottom: 20px;
 }
 
-/* Grupo de opções */
 .option-group {
   display: flex;
   flex-direction: column;
@@ -277,7 +259,6 @@ select:focus {
   background-color: #ffcb8e;
 }
 
-/* Botões */
 .buttons {
   display: flex;
   gap: 20px;
@@ -313,16 +294,25 @@ select:focus {
 
 /* Mensagem de salvamento */
 .saved-msg {
-  color: black;
-  font-size: 16px;
-  text-align: center;
   position: absolute;
-  bottom: 60px;
+  bottom: 11px;
   left: 50%;
   transform: translateX(-50%);
+  background-color: #fff2cc;
+  padding: 8px 16px;
+  border-radius: 8px;
+  color: #5c2c1d;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+  pointer-events: none;
+}
+.saved-msg.show {
+  opacity: 1;
 }
 
-/* Barra de rolagem */
 .options-content::-webkit-scrollbar {
   width: 10px;
 }
@@ -334,7 +324,6 @@ select:focus {
   border-radius: 5px;
 }
 
-/* Garante que o scroll lateral não apareça */
 :global(html, body) {
   margin: 0;
   padding: 0;
