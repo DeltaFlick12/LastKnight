@@ -28,6 +28,10 @@
         <div class="buttons">
           <div class="menu-button" @click="saveSettings">{{ texts[language].save }}</div>
           <div class="menu-button" @click="goBack">{{ texts[language].back }}</div>
+          <div class="buttons">
+          <div class="menu-button danger-button" @click="resetProgress">RESETAR PROGRESSO</div>
+        </div>
+
         </div>
       </div>
 
@@ -42,6 +46,18 @@ import { ref, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
+
+
+const resetProgress = () => {
+  playClick();
+  if (confirm(language.value === "pt"
+    ? "Tem certeza que deseja apagar todo o progresso? Isso não pode ser desfeito!"
+    : "Are you sure you want to reset all progress? This cannot be undone!")) {
+    localStorage.clear();
+    location.reload();
+  }
+};
+
 
 const texts = {
   pt: {
@@ -330,4 +346,14 @@ select:focus {
   overflow: hidden;
   height: 100vh;
 }
+
+.danger-button {
+  background-color: #b22222;
+  color: #fff2cc;
+}
+.danger-button:hover {
+  background-color: #8b0000;
+  color: #ffe9b3;
+}
+
 </style>

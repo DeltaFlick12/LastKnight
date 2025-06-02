@@ -5,17 +5,22 @@
     <!-- Minimap -->
     <canvas ref="minimapCanvas" class="minimap"></canvas>
 
-    <!-- HUD -->
-    <HUD :health="health" :stamina="stamina" :gold="gold" :potions="potions" :area="currentArea" />
+    <HUD/>
 
     <!-- Prompt de entrada -->
     <div v-if="showEnterPrompt" class="enter-prompt">
       Pressione <span class="key">E</span> para entrar em {{ structureName }}
     </div>
 
-    <!-- Botões -->
-    <button class="map-button" @click="handleMapClick">🗺️</button>
-    <button class="bag-button" @click="toggleBag">🎒</button>
+    <!-- Botão do Mapa -->
+    <button class="map-button" @click="handleMapClick">
+      <img src="/icons/map-icon.png" alt="Mapa" class="button-icon" />
+    </button>
+
+    <!-- Botão da Mochila -->
+    <button class="bag-button" @click="toggleBag">
+      <img src="/icons/bag-icon.png" alt="Mochila" class="button-icon" />
+    </button>
 
     <!-- Mochila -->
     <Inventory 
@@ -464,4 +469,26 @@ function drawMinimap() {
   height: 250px;
   image-rendering: pixelated;
 }
+
+.button-icon {
+  width: 80px;
+  height: 80px;
+  filter: drop-shadow(1px 1px 1px #000);
+  pointer-events: none;
+  padding: 0px;
+}
+
+.map-button,
+.bag-button {
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.map-button:hover,
+.bag-button:hover {
+  transform: scale(1.1);
+}
+
 </style>

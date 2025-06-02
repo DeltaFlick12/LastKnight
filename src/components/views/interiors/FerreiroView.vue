@@ -1,28 +1,61 @@
 <template>
-  <div class="ferreiro-screen" :style="{ backgroundImage: `url(${bgImage})` }">
-    <img :src="bjornImage" alt="Bjorn o Ferreiro" class="bjorn-image" :class="{ breathing: !typing }" />
+  <div
+    class="ferreiro-screen"
+    :style="{ backgroundImage: `url(${bgImage})` }"
+  >
+    <img
+      :src="bjornImage"
+      alt="Bjorn o Ferreiro"
+      class="bjorn-image"
+      :class="{ breathing: !typing }"
+    />
 
-    <div v-if="showDialog" class="dialog-box">
-      <p>{{ displayedText }}</p>
-      <button @click="nextDialog" :disabled="typing">Continuar</button>
-    </div>
-
-    <div v-if="showShop" class="shop-box">
-      <p>Escolha sua arma:</p>
-      <div class="shop-item" v-for="item in weapons" :key="item.name">
-        <strong>{{ item.name }} - {{ item.price }} ouro</strong>
-        <p>{{ item.description }}</p>
-        <button @click="buyWeapon(item)">Comprar</button>
+    <transition name="fade">
+      <div v-if="showDialog" class="dialog-box" key="dialog">
+        <p>{{ displayedText }}</p>
+        <button @click="nextDialog" :disabled="typing">Continuar</button>
       </div>
-      <p v-if="message" class="message">{{ message }}</p>
-      <button class="exit" @click="router.push('/level/albadia')">Sair</button>
-    </div>
+    </transition>
+
+    <transition name="fade">
+      <div v-if="showShop" class="shop-box" key="shop">
+        <p>Escolha sua arma:</p>
+        <div class="shop-item" v-for="item in weapons" :key="item.itemId">
+          <img :src="item.icon" :alt="item.name" class="weapon-icon" />
+          <strong>{{ item.name }} - {{ item.price }} ouro</strong>
+          <p>{{ item.description }}</p>
+          <button @click="buyWeapon(item)">Comprar</button>
+        </div>
+        <div class="backpack">
+          <h3>Sua Mochila</h3>
+          <p v-if="gameState.player.inventory.length === 0">Sua mochila está vazia.</p>
+          <div
+            v-else
+            class="backpack-item"
+            v-for="invItem in gameState.player.inventory"
+            :key="invItem.itemId"
+          >
+            <strong>{{ ITEMS[invItem.itemId].name }}</strong> -
+            {{ ITEMS[invItem.itemId].description }}
+          </div>
+        </div>
+        <p v-if="message" class="message">{{ message }}</p>
+        <button class="exit" @click="exitShop">Sair</button>
+      </div>
+    </transition>
+
+    <transition name="fade">
+      <div v-if="showFarewell" class="dialog-box farewell" key="farewell">
+        <p>Volte sempre, guerreiro! Que suas batalhas sejam gloriosas!</p>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { gameState, actions, ITEMS } from '@/stores/game.js'
 import bgImage from '@/assets/interior/ferreiro-bg.gif'
 import bjornParado from '/public/img/sprites/bjorn/bjorn.png'
 import bjornFalando from '/public/img/sprites/bjorn/bjorn-falando.gif'
@@ -31,37 +64,52 @@ const router = useRouter()
 
 const showDialog = ref(true)
 const dialogIndex = ref(0)
-const dialogLines = [
+
+const firstVisitLines = [
   'Ah, um novo guerreiro! Eu sou Bjorn, o ferreiro mais rúbido do reino!',
   'Minhas armas são forjadas com fogo de dragão e suor de titãs.',
   'Escolha com sabedoria, jovem... uma boa arma faz toda a diferença.',
   'Vamos aos negócios!'
 ]
+
+const repeatVisitLines = [
+  'Bem vindo de volta à minha forja, guerreiro! Espero que esteja pronto para reforjar seu arsenal.',
+]
+
+const dialogLines = ref([])
+
 const displayedText = ref('')
 const typing = ref(false)
 const showShop = ref(false)
 const message = ref('')
-
-const gold = ref(150)
-const ownedWeapons = ref([])
+const showFarewell = ref(false)
 
 const bjornImage = ref(bjornParado)
 
 const weapons = [
   {
-    name: 'Espada Longa',
-    price: 80,
-    description: 'Aumenta o dano em +10. Forjada com o aço da Guarda Real.'
+    itemId: 'sword_iron',
+    name: ITEMS.sword_iron.name,
+    price: ITEMS.sword_iron.price,
+    description: ITEMS.sword_iron.description,
+    stats: ITEMS.sword_iron.stats,
+    icon: '/img/weapons/sword_iron.png',
   },
   {
-    name: 'Machado de Guerra',
+    itemId: 'axe_iron',
+    name: ITEMS.axe_iron.name,
     price: 120,
-    description: 'Aumenta o dano em +15. Pesado e brutal como Bjorn.'
+    description: ITEMS.axe_iron.description,
+    stats: ITEMS.axe_iron.stats,
+    icon: '/img/weapons/axe_iron.png',
   },
   {
+    itemId: 'sword_mythril',
     name: 'Lança Rúnica',
     price: 200,
-    description: 'Aumenta o dano em +20. Forjada com magia anã.'
+    description: 'Aumenta o dano em +20. Forjada com magia anã.',
+    stats: { attack: 20 },
+    icon: '/img/weapons/sword_mythril.png',
   }
 ]
 
@@ -69,7 +117,7 @@ const typeLine = async () => {
   typing.value = true
   bjornImage.value = bjornFalando
   displayedText.value = ''
-  const line = dialogLines[dialogIndex.value]
+  const line = dialogLines.value[dialogIndex.value]
   let index = 0
 
   const interval = setInterval(() => {
@@ -86,25 +134,29 @@ const typeLine = async () => {
 
 const nextDialog = () => {
   if (typing.value) return
-  if (dialogIndex.value < dialogLines.length - 1) {
+  if (dialogIndex.value < dialogLines.value.length - 1) {
     dialogIndex.value++
     typeLine()
   } else {
     showDialog.value = false
     showShop.value = true
+    localStorage.setItem('visitedBlacksmith', 'true')
   }
 }
 
 const buyWeapon = (item) => {
-  if (ownedWeapons.value.includes(item.name)) {
-    message.value = 'Você já possui essa arma.'
+  const existingItem = gameState.player.inventory.find(
+    (invItem) => invItem.itemId === item.itemId
+  )
+  if (existingItem) {
+    message.value = `Você já possui ${item.name}.`
     return
   }
 
-  if (gold.value >= item.price) {
-    gold.value -= item.price
-    ownedWeapons.value.push(item.name)
-    message.value = `Você comprou ${item.name}!`
+  if (gameState.player.gold >= item.price) {
+    gameState.player.gold -= item.price
+    actions.addItemToInventory(item.itemId, 1)
+    message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`
   } else {
     message.value = 'Você não tem ouro suficiente.'
   }
@@ -112,11 +164,33 @@ const buyWeapon = (item) => {
   setTimeout(() => (message.value = ''), 3000)
 }
 
+const exitShop = () => {
+  // Faz fade out da loja
+  showShop.value = false
+
+  // Mostra mensagem de despedida
+  showFarewell.value = true
+
+  // Depois de 3 segundos, redireciona
+  setTimeout(() => {
+    router.push('/level/albadia')
+  }, 3000)
+}
+
 onMounted(() => {
-  typeLine()
+  const visited = localStorage.getItem('visitedBlacksmith')
+
+  if (visited) {
+    dialogLines.value = repeatVisitLines
+    dialogIndex.value = 0
+    typeLine()
+  } else {
+    dialogLines.value = firstVisitLines
+    dialogIndex.value = 0
+    typeLine()
+  }
 })
 </script>
-
 
 <style scoped>
 .ferreiro-screen {
@@ -164,7 +238,8 @@ onMounted(() => {
 }
 
 @keyframes breathe {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
   }
   50% {
@@ -193,14 +268,59 @@ button:disabled {
   margin: 15px 0;
 }
 
+.backpack {
+  margin-top: 20px;
+  border-top: 1px solid #d69c2f;
+  padding-top: 10px;
+}
+
+.backpack-item {
+  margin: 10px 0;
+  text-align: left;
+}
+
 .message {
   margin-top: 10px;
   color: #ffd700;
+}
+
+.weapon-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 5px;
 }
 
 .exit {
   margin-top: 20px;
   background: #5c2c1d;
   color: white;
+}
+
+/* Transitions fade */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.farewell {
+  position: fixed;
+  bottom: 0.5vh;
+  left: 60%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.9);
+  padding: 2rem;
+  border: 2px solid #d69c2f;
+  border-radius: 10px;
+  width: 80vw;
+  max-width: 600px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 18px;
+  color: #ffffff;
+  z-index: 10;
 }
 </style>

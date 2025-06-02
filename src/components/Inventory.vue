@@ -1,6 +1,7 @@
 <template>
   <div class="bag-modal">
     <h2>🎒 Mochila</h2>
+    <p class="gold">Ouro: {{ gameState.player.gold }} 🪙</p>
 
     <!-- Filtros -->
     <div class="filters">
@@ -19,7 +20,7 @@
       <transition-group name="fade" tag="div" class="item-list">
         <div
           v-for="item in filteredItems"
-          :key="item.name"
+          :key="item.itemId"
           class="item"
           :class="{ clickable: item.usable || item.equipable, equipped: item.equipped }"
           @click="handleClick(item)"
@@ -28,7 +29,7 @@
         >
           <span class="icon">{{ item.icon }}</span>
           <div class="info">
-            <strong>{{ item.name }} <span v-if="item.amount > 1">×{{ item.amount }}</span></strong>
+            <strong>{{ item.name }} <span v-if="item.quantity > 1">×{{ item.quantity }}</span></strong>
             <p v-if="item.equipped" class="equipped-label">(Equipado)</p>
           </div>
         </div>
@@ -41,8 +42,10 @@
           <h4>{{ hoverItem.name }}</h4>
         </div>
         <p>{{ hoverItem.description }}</p>
-        <p v-if="hoverItem.equipped" class="equipped-label">Arma equipada!</p>
+        <p v-if="hoverItem.equipped" class="equipped-label">Item equipado!</p>
         <p v-if="hoverItem.type" class="type-label">Tipo: {{ hoverItem.type }}</p>
+        <p v-if="hoverItem.stats?.attack" class="damage-label">Dano: +{{ hoverItem.stats.attack }}</p>
+        <p v-if="hoverItem.stats?.defense" class="defense-label">Defesa: +{{ hoverItem.stats.defense }}</p>
       </div>
     </div>
 
@@ -52,69 +55,79 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed } from 'vue';
+import { gameState, actions, ITEMS, ITEM_ICONS, } from '@/stores/game.js';
 
-const props = defineProps({
-  potions: Number,
-  equippedWeapon: String
-})
-const emits = defineEmits(['use-potion', 'equip-weapon', 'close'])
+const emits = defineEmits(['close']);
 
-const hoverItem = ref(null)
-const feedbackMessage = ref('')
-const activeCategory = ref('Todos')
+const hoverItem = ref(null);
+const feedbackMessage = ref('');
+const activeCategory = ref('Todos');
 
 // Categorias
-const categories = ['Todos', 'Consumíveis', 'Armas', 'Chave']
+const categories = ['Todos', 'Consumíveis', 'Armas', 'Armadura', 'Chave'];
 
-const allItems = computed(() => [
-  {
-    name: 'Poção',
-    icon: '🧪',
-    amount: props.potions,
-    description: 'Recupera 30 de vida. Clique para usar.',
-    type: 'Consumíveis',
-    usable: true,
-    action: () => emits('use-potion')
-  },
-  {
-    name: 'Espada de Treinamento',
-    icon: '⚔️',
-    amount: 1,
-    description: 'Arma básica. +5 de dano ao atacar.',
-    type: 'Armas',
-    equipable: true,
-    equipped: props.equippedWeapon === 'Espada de Treinamento',
-    action: () => emits('equip-weapon', 'Espada de Treinamento')
-  },
-  {
-    name: 'Chave da Floresta',
-    icon: '🔑',
-    amount: 1,
-    description: 'Desbloqueia a entrada da floresta amaldiçoada.',
-    type: 'Chave',
-    usable: false
-  }
-])
+// Função para atribuir ícones
+const getItemIcon = (itemId) => {
+  return ITEM_ICONS[itemId] || '/icons/question_mark.png';
+};
+
+// Lista de itens do inventário
+const allItems = computed(() => {
+  return gameState.player.inventory
+    .map(invItem => {
+      const itemData = ITEMS[invItem.itemId];
+      if (!itemData) {
+        console.warn(`Item com ID ${invItem.itemId} não encontrado em ITEMS`);
+        return null;
+      }
+      return {
+        itemId: invItem.itemId,
+        name: itemData.name,
+        icon: getItemIcon(invItem.itemId),
+        quantity: invItem.quantity,
+        description: itemData.description,
+        type: itemData.type === 'Armadura' ? 'Armadura' : itemData.type,
+        usable: itemData.type === 'Consumível' || itemData.type === 'Consumível Especial',
+        equipable: itemData.slot === 'weapon' || itemData.slot === 'armor',
+        equipped: gameState.player.equipment[itemData.slot] === invItem.itemId,
+        stats: itemData.stats,
+        action: () => {
+          if (itemData.type === 'Consumível' || itemData.type === 'Consumível Especial') {
+            return actions.useItem(invItem.itemId);
+          } else if (itemData.slot) {
+            actions.equipItem(invItem.itemId);
+          }
+        },
+      };
+    })
+    .filter(item => item !== null); // Remove itens inválidos
+});
 
 const filteredItems = computed(() => {
-  if (activeCategory.value === 'Todos') return allItems.value
-  return allItems.value.filter(item => item.type === activeCategory.value)
-})
+  if (activeCategory.value === 'Todos') return allItems.value;
+  return allItems.value.filter(item => item.type === activeCategory.value);
+});
 
 const handleClick = (item) => {
-  if (item.usable && item.amount > 0) {
-    item.action?.()
-    feedbackMessage.value = `Você usou ${item.name}!`
+  if (item.usable && item.quantity > 0) {
+    const used = item.action?.();
+    if (used) {
+      feedbackMessage.value = `Você usou ${item.name}!`;
+    } else {
+      feedbackMessage.value = `Não foi possível usar ${item.name}.`;
+    }
   } else if (item.equipable) {
-    item.action?.()
-    feedbackMessage.value = `${item.name} equipada!`
+    item.action?.();
+    feedbackMessage.value = `${item.name} equipada!`;
   } else if (item.usable) {
-    feedbackMessage.value = `Você não tem ${item.name}!`
+    feedbackMessage.value = `Você não tem ${item.name}!`;
+  } else {
+    feedbackMessage.value = `${item.name} não pode ser usado ou equipado.`;
   }
 
-  setTimeout(() => (feedbackMessage.value = ''), 2000)
-}
+  setTimeout(() => (feedbackMessage.value = ''), 2000);
+};
 </script>
 
 <style scoped>
@@ -132,6 +145,12 @@ const handleClick = (item) => {
   min-width: 700px;
   max-width: 800px;
   font-family: 'Press Start 2P', cursive;
+}
+
+.gold {
+  font-size: 14px;
+  color: #ffd700;
+  margin-bottom: 10px;
 }
 
 .filters {
@@ -227,7 +246,9 @@ const handleClick = (item) => {
   font-size: 32px;
 }
 
-.type-label {
+.type-label,
+.damage-label,
+.defense-label {
   font-size: 11px;
   color: #aaa;
   margin-top: 5px;

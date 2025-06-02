@@ -1,28 +1,73 @@
 <template>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap" rel="stylesheet">
-
   <div class="hud">
     <div class="panel panel-left">
-      <p class="stat vida">❤️ Vida: {{ health }}/100</p>
-      <p class="stat energia">⚡ Energia: {{ stamina }}/100</p>
-      <p class="resource ouro">🥇 Ouro: {{ gold }}</p>
-      <p class="resource potions">🧪 Poções: {{ potions }}</p>
-      <p class="loc">📍 {{ area }}</p>
+      <!-- Vida -->
+      <div class="stat vida">
+        <img src="/icons/life-icon.png" alt="Vida" class="icon" />
+        <div class="bar-container">
+          <div
+            class="bar"
+            :style="{ width: (gameState.player.health / gameState.player.maxHealth) * 100 + '%' }"
+          ></div>
+          <span class="bar-label">
+            {{ gameState.player.health }}/{{ gameState.player.maxHealth }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Energia -->
+      <div class="stat energia">
+        <img src="/icons/stam-icon.png" alt="Energia" class="icon" />
+        <div class="bar-container">
+          <div
+            class="bar"
+            :style="{ width: (gameState.player.stamina / gameState.player.maxStamina) * 100 + '%' }"
+          ></div>
+          <span class="bar-label">
+            {{ gameState.player.stamina }}/{{ gameState.player.maxStamina }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Ouro -->
+      <div class="stat ouro">
+        <img src="/icons/gold-icon.png" alt="Ouro" class="icon" />
+        <div class="bar-container">
+          <div
+            class="bar"
+            :style="{ width: Math.min(gameState.player.gold / 100, 1) * 100 + '%' }"
+          ></div>
+          <span class="bar-label">
+            {{ gameState.player.gold }} Ouro
+          </span>
+        </div>
+      </div>
+
+      <!-- Poções -->
+      <div class="stat potions">
+        <img src="/icons/pot-icon.png" alt="Poções" class="icon" />
+        <div class="bar-container">
+          <div
+            class="bar"
+            :style="{ width: Math.min(gameState.player.potions / 10, 1) * 100 + '%' }"
+          ></div>
+          <span class="bar-label">
+            {{ gameState.player.potions }} Poções
+          </span>
+        </div>
+      </div>
     </div>
+
     <p class="fps">{{ fps }} FPS</p>
   </div>
 </template>
 
+
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useGameState } from '@/stores/gameState'
 
-defineProps({
-  health: Number,
-  stamina: Number,
-  gold: Number,
-  potions: Number,
-  area: String,
-})
+const gameState = useGameState()
 
 const fps = ref(0)
 let frameCount = 0
@@ -42,7 +87,6 @@ onMounted(() => {
   updateFPS()
 })
 </script>
-
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap');
 
@@ -61,79 +105,69 @@ onMounted(() => {
   flex-direction: column;
 }
 
-.loc {
-  position: fixed;
-  top: 0px;
-  right: 10px;
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-end;
-  padding: 12px 24px;
-  font-family: 'Cinzel', serif;
-  font-size: 14px;
-  z-index: 1000;
-  letter-spacing: 0.5px;
-  flex-direction: column;
-}
-
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 300px;
+  gap: 10px;
+  max-width: 320px;
 }
 
-.panel-left {
-  color: #f0d9a9;
-}
-
-.stat,
-.resource,
-.location {
-  margin: 0;
-  padding: 6px 10px;
-  border-radius: 5px;
-  box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.1);
-  text-shadow: 1px 1px 1px #000;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.stat {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: bold;
+  gap: 10px;
 }
 
-/* Fundo colorido leve para cada item */
-.vida {
-  background: rgba(255, 0, 0, 1); /* Vermelho claro */
-  border-color: rgba(255, 0, 0, 0.3);
+.icon {
+  width: 24px;
+  height: 24px;
+  filter: drop-shadow(1px 1px 1px #000);
 }
 
-.energia {
-  background: rgba(255, 255, 0, 0.45); /* Amarelo claro */
-  border-color: rgba(255, 255, 0, 0.3);
+.bar-container {
+  position: relative;
+  width: 160px;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
 }
 
-.ouro {
-  background: rgba(255, 255, 255, 1); /* Branco claro */
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #fff; /* Ajuste cor do texto para melhor visibilidade */
+.bar {
+  height: 100%;
+  transition: width 0.3s ease-in-out;
+}
+
+.bar-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: white;
   text-shadow: 1px 1px 2px #000;
+  font-weight: bold;
+  line-height: 18px;
 }
 
-.potions {
-  background: rgba(0, 255, 0, 0.45); /* Verde claro */
-  border-color: rgba(0, 255, 0, 0.3);
+/* Cores específicas */
+.vida .bar {
+  background: red;
 }
 
-/* Adiciona espaçamento e estilo aos ícones */
-.stat::before,
-.resource::before,
-.location::before {
-  font-size: 1.2em;
-  display: inline-block;
+.energia .bar {
+  background: gold;
 }
 
-/* FPS visual melhorado */
+.ouro .bar {
+  background: #ffd700;
+}
+
+.potions .bar {
+  background: limegreen;
+}
+
 .fps {
   position: absolute;
   bottom: 550px;
