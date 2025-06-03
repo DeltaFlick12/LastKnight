@@ -6,6 +6,7 @@ import Menu from '@/components/Menu.vue';
 import Options from '@/components/Options.vue';
 import Map from '@/components/Map.vue';
 import Tutorial from '@/components/Tutorial.vue';
+import Gameover from '@/components/GameOver.vue';
 import FinalBossBattle from '@/components/FinalBossBattle.vue';
 import EndingScene from '@/components/EndingScene.vue';
 import ClassSelect from '@/components/ClassSelect.vue';
@@ -13,19 +14,21 @@ import CreditsScreen from '@/components/CreditsScreen.vue';
 import Credits from '@/components/Credits.vue';
 import Endless from '@/components/Endless.vue';
 import PracaView from '@/components/views/reino_albadia/PracaView.vue';
-import FlorestaView from '@/components/views/FlorestaView.vue';
+import FlorestaView from '@/components/views/niveis/FlorestaView.vue';
 import FerreiroView from '@/components/views/interiors/FerreiroView.vue';
 import Bruxa from '@/components/views/interiors/BruxaView.vue';
 import Igreja from '@/components/views/interiors/IgrejaView.vue';
 import RioView from '@/components/views/niveis/RioView.vue';
 import RuinasView from '@/components/views/niveis/RuinasView.vue';
 import CavernaView from '@/components/views/niveis/CavernaView.vue';
+import MontanhaView from '@/components/views/niveis/MontanhaView.vue';
 import CasteloView from '@/components/views/CasteloView.vue';
 
 const routes = [
   { path: '/', name: 'Menu', component: Menu },
   { path: '/options', name: 'Options', component: Options },
   { path: '/endless', name: 'Endless', component: Endless },
+  { path: '/gameover', name: 'Gameover', component: Gameover },
   { path: '/credits/:type?', name: 'Credits', component: Credits },
   { path: '/map', name: 'Map', component: Map },
   { path: '/tutorial', name: 'Tutorial', component: Tutorial },
@@ -41,6 +44,7 @@ const routes = [
   { path: '/level/rio', name: 'RioView', component: RioView },
   { path: '/level/ruinas', name: 'RuinasView', component: RuinasView },
   { path: '/level/caverna', name: 'CavernaView', component: CavernaView },
+  { path: '/level/montanha', name: 'MontanhaView', component: MontanhaView },
   { path: '/level/castelo', name: 'CasteloView', component: CasteloView },
 ];
 

@@ -75,10 +75,10 @@ const areas = ref([
   },
   {
     name: 'Ruínas',
-    top: '85%',
+    top: '65%',
     left: '51%',
     width: '20%',
-    height: '20%',
+    height: '30%',
     route: '/level/ruinas',
     unlocked: true,
     description: 'Restos de uma civilização antiga.',

@@ -56,7 +56,7 @@
           <!-- Poções -->
           <div class="stat potions">
             <div class="icon-container">
-              <img src="/icons/pot-icon.png" alt="Poções" class="icon" />
+              <img src="/icons/potions/potvida-icon.png" alt="Poções" class="icon" />
             </div>
             <div class="value-container">
               <span class="value-label">{{ gameState.player.potions }} POÇÕES</span>

@@ -1,81 +1,90 @@
 <template>
-  <div class="bag-modal">
-    <h2>🎒 Mochila</h2>
-    <p class="gold">Ouro: {{ gameState.player.gold }} 🪙</p>
+  <div class="inventory-modal scroll-unroll">
+    <div class="modal-header">
+      <h2>INVENTÁRIO</h2>
+      <div class="gold">
+        <img src="/icons/gold-icon.png" alt="Gold Coin" class="gold-icon" />
+        <span>{{ gameState.player.gold }}</span>
+      </div>
+      <button class="close-btn" @click="$emit('close')">✖</button>
+    </div>
 
     <!-- Filtros -->
-    <div class="filters">
-      <button 
-        v-for="cat in categories" 
-        :key="cat" 
-        :class="{ active: activeCategory === cat }"
+    <div class="filter-bar">
+      <button
+        v-for="cat in categories"
+        :key="cat"
+        :class="{ 'filter-btn': true, active: activeCategory === cat }"
         @click="activeCategory = cat"
       >
         {{ cat }}
       </button>
     </div>
 
-    <div class="bag-body">
+    <div class="inventory-content">
       <!-- Lista de Itens -->
-      <transition-group name="fade" tag="div" class="item-list">
-        <div
-          v-for="item in filteredItems"
-          :key="item.itemId"
-          class="item"
-          :class="{ clickable: item.usable || item.equipable, equipped: item.equipped }"
-          @click="handleClick(item)"
-          @mouseenter="hoverItem = item"
-          @mouseleave="hoverItem = null"
-        >
-          <span class="icon">{{ item.icon }}</span>
-          <div class="info">
-            <strong>{{ item.name }} <span v-if="item.quantity > 1">×{{ item.quantity }}</span></strong>
-            <p v-if="item.equipped" class="equipped-label">(Equipado)</p>
+      <div class="item-grid">
+        <transition-group name="item-fade" tag="div" class="grid-container">
+          <div
+            v-for="item in filteredItems"
+            :key="item.itemId"
+            class="item-card"
+            :class="{
+              clickable: item.usable || item.equipable,
+              equipped: item.equipped,
+              'low-quantity': item.quantity === 1 && item.usable,
+            }"
+            @click="handleClick(item)"
+            @mouseenter="hoverItem = item"
+            @mouseleave="hoverItem = null"
+          >
+            <img :src="item.icon" class="item-icon" :alt="item.name" />
+            <div class="item-info">
+              <span class="item-name">{{ item.name }}</span>
+              <span v-if="item.quantity > 1" class="item-quantity">×{{ item.quantity }}</span>
+              <span v-if="item.equipped" class="equipped-tag">Equipado</span>
+            </div>
           </div>
-        </div>
-      </transition-group>
-
-      <!-- Painel lateral -->
-      <div class="item-details" v-if="hoverItem">
-        <div class="details-header">
-          <span class="icon-large">{{ hoverItem.icon }}</span>
-          <h4>{{ hoverItem.name }}</h4>
-        </div>
-        <p>{{ hoverItem.description }}</p>
-        <p v-if="hoverItem.equipped" class="equipped-label">Item equipado!</p>
-        <p v-if="hoverItem.type" class="type-label">Tipo: {{ hoverItem.type }}</p>
-        <p v-if="hoverItem.stats?.attack" class="damage-label">Dano: +{{ hoverItem.stats.attack }}</p>
-        <p v-if="hoverItem.stats?.defense" class="defense-label">Defesa: +{{ hoverItem.stats.defense }}</p>
+        </transition-group>
       </div>
-    </div>
 
-    <p v-if="feedbackMessage" class="feedback">{{ feedbackMessage }}</p>
-    <button @click="$emit('close')">Fechar</button>
+      <!-- Painel de Detalhes -->
+      <div class="details-panel" v-if="hoverItem">
+        <div class="details-header">
+          <img :src="hoverItem.icon" class="item-icon large" :alt="hoverItem.name" />
+          <h3>{{ hoverItem.name }}</h3>
+        </div>
+        <p class="description">{{ hoverItem.description }}</p>
+        <p v-if="hoverItem.type" class="detail">Tipo: {{ hoverItem.type }}</p>
+        <p v-if="hoverItem.stats?.attack" class="detail">Dano: +{{ hoverItem.stats.attack }}</p>
+        <p v-if="hoverItem.stats?.defense" class="detail">Defesa: +{{ hoverItem.stats.defense }}</p>
+        <p v-if="hoverItem.equipped" class="equipped-notice">Item atualmente equipado</p>
+      </div>
+
+      <!-- Mensagem de Feedback -->
+      <p v-if="feedbackMessage" class="feedback-message">{{ feedbackMessage }}</p>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue';
-import { gameState, actions, ITEMS, ITEM_ICONS, } from '@/stores/game.js';
+import { gameState, actions, ITEMS, ITEM_ICONS } from '@/stores/game.js';
 
 const emits = defineEmits(['close']);
-
 const hoverItem = ref(null);
 const feedbackMessage = ref('');
 const activeCategory = ref('Todos');
 
-// Categorias
 const categories = ['Todos', 'Consumíveis', 'Armas', 'Armadura', 'Chave'];
 
-// Função para atribuir ícones
 const getItemIcon = (itemId) => {
-  return ITEM_ICONS[itemId] || '/icons/question_mark.png';
+  return ITEM_ICONS[itemId] || '/assets/icons/unknown-item.png';
 };
 
-// Lista de itens do inventário
 const allItems = computed(() => {
   return gameState.player.inventory
-    .map(invItem => {
+    .map((invItem) => {
       const itemData = ITEMS[invItem.itemId];
       if (!itemData) {
         console.warn(`Item com ID ${invItem.itemId} não encontrado em ITEMS`);
@@ -87,196 +96,371 @@ const allItems = computed(() => {
         icon: getItemIcon(invItem.itemId),
         quantity: invItem.quantity,
         description: itemData.description,
-        type: itemData.type === 'Armadura' ? 'Armadura' : itemData.type,
+        type: itemData.type === 'Armadura' ? 'Armadura' : itemData.type, // Standardize type
         usable: itemData.type === 'Consumível' || itemData.type === 'Consumível Especial',
         equipable: itemData.slot === 'weapon' || itemData.slot === 'armor',
         equipped: gameState.player.equipment[itemData.slot] === invItem.itemId,
         stats: itemData.stats,
-        action: () => {
-          if (itemData.type === 'Consumível' || itemData.type === 'Consumível Especial') {
-            return actions.useItem(invItem.itemId);
-          } else if (itemData.slot) {
-            actions.equipItem(invItem.itemId);
-          }
-        },
+        action: itemData.slot
+          ? () => {
+              if (gameState.player.equipment[itemData.slot] === invItem.itemId) {
+                actions.unequipItem(itemData.slot); // Unequip if already equipped
+              } else {
+                actions.equipItem(invItem.itemId); // Equip if not equipped
+              }
+            }
+          : itemData.type === 'Consumível' || itemData.type === 'Consumível Especial'
+          ? () => actions.useItem(invItem.itemId)
+          : null,
       };
     })
-    .filter(item => item !== null); // Remove itens inválidos
+    .filter((item) => item !== null);
 });
 
 const filteredItems = computed(() => {
   if (activeCategory.value === 'Todos') return allItems.value;
-  return allItems.value.filter(item => item.type === activeCategory.value);
+  // Normalize comparison by converting to lowercase
+  return allItems.value.filter(
+    (item) => item.type.toLowerCase() === activeCategory.value.toLowerCase()
+  );
 });
 
 const handleClick = (item) => {
+  feedbackMessage.value = '';
   if (item.usable && item.quantity > 0) {
     const used = item.action?.();
-    if (used) {
-      feedbackMessage.value = `Você usou ${item.name}!`;
-    } else {
-      feedbackMessage.value = `Não foi possível usar ${item.name}.`;
-    }
+    feedbackMessage.value = used
+      ? `Você usou ${item.name}!`
+      : `Não foi possível usar ${item.name}.`;
   } else if (item.equipable) {
+    const wasEquipped = item.equipped;
     item.action?.();
-    feedbackMessage.value = `${item.name} equipada!`;
+    feedbackMessage.value = wasEquipped ? `${item.name} desequipado!` : `${item.name} equipado!`;
   } else if (item.usable) {
     feedbackMessage.value = `Você não tem ${item.name}!`;
   } else {
     feedbackMessage.value = `${item.name} não pode ser usado ou equipado.`;
   }
 
-  setTimeout(() => (feedbackMessage.value = ''), 2000);
+  setTimeout(() => (feedbackMessage.value = ''), 3000);
 };
 </script>
 
 <style scoped>
-.bag-modal {
-  position: absolute;
-  top: 10%;
+/* Animação de abertura (scroll unroll) */
+.scroll-unroll {
+  animation: unroll 1s ease-out forwards;
+}
+
+@keyframes unroll {
+  0% {
+    transform: translate(-50%, -50%) scaleY(0);
+    opacity: 0;
+  }
+  60% {
+    transform: translate(-50%, -50%) scaleY(1.15);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-50%, -50%) scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* Modal principal */
+.inventory-modal {
+  position: fixed;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  background-color: #1e1e1e;
-  border: 2px solid #8b5e3c;
-  border-radius: 12px;
-  padding: 20px 30px;
-  color: white;
-  z-index: 9999;
-  min-width: 700px;
+  transform: translate(-50%, -50%);
+  background: url('/textures/parchment.jpg') repeat;
+  background-size: cover;
+  border: 4px solid #5c2c1d;
+  border-radius: 8px;
+  padding: 24px;
+  color: #5c2c1d;
+  width: 90%;
   max-width: 800px;
-  font-family: 'Press Start 2P', cursive;
+  min-height: 500px;
+  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e, 0 0 20px rgba(0, 0, 0, 0.5),
+    0 0 10px #b8860b;
+  font-family: 'Press Start 2P', 'Arial', sans-serif;
+  image-rendering: pixelated;
+  z-index: 10000;
+}
+
+/* Cabeçalho */
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #5c2c1d;
+  padding-bottom: 10px;
+}
+
+.modal-header h2 {
+  font-size: 24px;
+  margin: 0;
+  color: #5c2c1d;
+  text-shadow: 2px 2px 0 #d17844;
 }
 
 .gold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 14px;
-  color: #ffd700;
-  margin-bottom: 10px;
+  color: #b8860b;
+  font-weight: bold;
 }
 
-.filters {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
+.gold-icon {
+  width: 20px;
+  height: 20px;
+  image-rendering: pixelated;
 }
 
-.filters button {
-  background-color: #2c2c2c;
-  color: white;
-  padding: 6px 12px;
-  border: 1px solid #555;
-  border-radius: 6px;
+.close-btn {
+  background: #e0a867;
+  border: 3px solid #5c2c1d;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  color: #5c2c1d;
+  font-size: 16px;
   cursor: pointer;
-  font-size: 12px;
+  box-shadow: inset -4px -4px #d17844, inset 4px 4px #ffcb8e;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
 }
 
-.filters button.active {
-  background-color: #8b5e3c;
-  border-color: gold;
+.close-btn:hover {
+  background: #f4b76a;
+  box-shadow: inset -4px -4px #c96a32, inset 4px 4px #ffd9a1;
 }
 
-.bag-body {
-  display: flex;
-  gap: 20px;
+.close-btn:active {
+  transform: translateY(2px);
+  box-shadow: inset -2px -2px #d17844, inset 2px 2px #ffcb8e;
 }
 
-.item-list {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  width: 50%;
-}
-
-.item {
+/* Barra de filtros */
+.filter-bar {
   display: flex;
   gap: 12px;
-  background-color: #2c2c2c;
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 10px;
-  transition: all 0.3s ease;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.item.clickable:hover {
-  background-color: #3d2d1c;
+.filter-btn {
+  background: #e0a867;
+  border: 3px solid #5c2c1d;
+  padding: 8px 16px;
+  color: #5c2c1d;
+  cursor: pointer;
+  font-size: 12px;
+  box-shadow: inset -4px -4px #d17844, inset 4px 4px #ffcb8e;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
+  image-rendering: pixelated;
+}
+
+.filter-btn:hover {
+  background: #f4b76a;
+  box-shadow: inset -4px -4px #c96a32, inset 4px 4px #ffd9a1;
+}
+
+.filter-btn:active {
+  transform: translateY(2px);
+  box-shadow: inset -2px -2px #d17844, inset 2px 2px #ffcb8e;
+}
+
+.filter-btn.active {
+  background: #f4b76a;
+  border-color: #b8860b;
+  color: #3e1e14;
+}
+
+/* Conteúdo principal */
+.inventory-content {
+  position: relative;
+  display: flex;
+  gap: 24px;
+  min-height: 350px;
+}
+
+/* Grid de itens */
+.item-grid {
+  flex: 1;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.item-card {
+  background: #e0a867;
+  border: 2px solid #5c2c1d;
+  border-radius: 4px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: inset -4px -4px #d17844, inset 4px 4px #ffcb8e;
+  image-rendering: pixelated;
+  transition: transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.item-card.clickable:hover {
+  background: #f4b76a;
+  transform: translateY(-2px);
+  box-shadow: inset -4px -4px #c96a32, inset 4px 4px #ffd9a1, 0 0 8px #b8860b;
   cursor: pointer;
 }
 
-.item.equipped {
-  border-color: gold;
-  background-color: #443315;
+.item-card.equipped {
+  border-color: #b8860b;
+  background: #d4a45e;
 }
 
-.icon {
-  font-size: 28px;
+.item-card.low-quantity {
+  border-color: #8b2c2c;
 }
 
-.info {
-  flex: 1;
+.item-icon {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 8px;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
-.info strong {
-  font-size: 13px;
-  display: block;
-  margin-bottom: 5px;
+.item-icon.large {
+  width: 48px;
+  height: 48px;
 }
 
-.equipped-label {
-  font-size: 11px;
-  color: #ffd700;
+.item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.item-details {
-  width: 50%;
-  background-color: #2c2c2c;
-  border: 1px solid #8b5e3c;
-  border-radius: 8px;
-  padding: 15px;
+.item-name {
   font-size: 12px;
+  font-weight: bold;
+  color: #5c2c1d;
+  text-shadow: 1px 1px 0 #d17844;
+}
+
+.item-quantity {
+  font-size: 10px;
+  color: #3e1e14;
+  text-shadow: 1px 1px 0 #d17844;
+}
+
+.equipped-tag {
+  font-size: 10px;
+  color: #b8860b;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-shadow: 1px 1px 0 #000;
+}
+
+/* Painel de detalhes */
+.details-panel {
+  width: 40%;
+  background: #e0a867;
+  border: 2px solid #5c2c1d;
+  border-radius: 4px;
+  padding: 16px;
+  color: #5c2c1d;
+  box-shadow: inset -4px -4px #d17844, inset 4px 4px #ffcb8e;
 }
 
 .details-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
-.icon-large {
-  font-size: 32px;
+.details-header h3 {
+  font-size: 16px;
+  margin: 0;
+  color: #5c2c1d;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #d17844;
 }
 
-.type-label,
-.damage-label,
-.defense-label {
+.description {
+  font-size: 12px;
+  margin-bottom: 8px;
+  text-shadow: 1px 1px 0 #d17844;
+}
+
+.detail {
   font-size: 11px;
-  color: #aaa;
-  margin-top: 5px;
+  color: #3e1e14;
+  margin: 4px 0;
+  text-shadow: 1px 1px 0 #d17844;
 }
 
-.feedback {
-  margin-top: 12px;
-  color: #ffd700;
+.equipped-notice {
+  font-size: 11px;
+  color: #b8860b;
+  font-style: italic;
+  text-shadow: 1px 1px 0 #d17844;
+}
+
+/* Mensagem de feedback */
+.feedback-message {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 12px;
-  text-align: center;
-}
-
-button {
-  margin-top: 20px;
+  color: #b8860b;
+  background: rgba(0, 0, 0, 0.5);
   padding: 8px 16px;
-  font-size: 12px;
-  background-color: #8b5e3c;
-  border: none;
-  border-radius: 8px;
-  color: white;
-  cursor: pointer;
+  border-radius: 4px;
+  text-shadow: 1px 1px 0 #000;
+  animation: fade-in-out 3s ease forwards;
 }
 
-/* Transições animadas */
-.fade-enter-active, .fade-leave-active {
+@keyframes fade-in-out {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+}
+
+/* Animação de fade para itens */
+.item-fade-enter-active,
+.item-fade-leave-active {
   transition: all 0.3s ease;
 }
-.fade-enter-from, .fade-leave-to {
+.item-fade-enter-from,
+.item-fade-leave-to {
   opacity: 0;
   transform: translateY(10px);
 }
