@@ -2,9 +2,6 @@
   <div class="game-view">
     <canvas ref="canvas" class="game-canvas"></canvas>
 
-    <!-- Minimap -->
-    <canvas ref="minimapCanvas" class="minimap"></canvas>
-
     <HUD/>
 
     <!-- Prompt de entrada -->
@@ -31,6 +28,12 @@
       @equip-weapon="equipWeapon"
       @close="toggleBag"
     />
+
+    <!-- Mostrador de Ouro -->
+    <div class="gold-display">
+      <img src="/icons/gold-icon.png" alt="Ouro" class="gold-icon" />
+      <span>{{ gold }}</span>
+    </div>
   </div>
 </template>
 
@@ -248,37 +251,52 @@ function update() {
 }
 
 function move(dx, dy) {
-  const nextX = player.x + dx
-  const nextY = player.y + dy
-
-  // player box considerando player.x e player.y como centro
-  const playerBox = {
+  // Tentativa de mover no eixo X
+  let nextX = player.x + dx
+  let playerBoxX = {
     x: nextX - player.size / 2,
+    y: player.y - player.size / 2,
+    width: player.size,
+    height: player.size
+  }
+  let collidedX = obstacles.some(block => (
+    playerBoxX.x < block.x + block.width &&
+    playerBoxX.x + playerBoxX.width > block.x &&
+    playerBoxX.y < block.y + block.height &&
+    playerBoxX.y + playerBoxX.height > block.y
+  ))
+
+  if (!collidedX) {
+    player.x = Math.max(player.size / 2, Math.min(world.width - player.size / 2, nextX))
+  }
+
+  // Tentativa de mover no eixo Y
+  let nextY = player.y + dy
+  let playerBoxY = {
+    x: player.x - player.size / 2,
     y: nextY - player.size / 2,
     width: player.size,
     height: player.size
   }
+  let collidedY = obstacles.some(block => (
+    playerBoxY.x < block.x + block.width &&
+    playerBoxY.x + playerBoxY.width > block.x &&
+    playerBoxY.y < block.y + block.height &&
+    playerBoxY.y + playerBoxY.height > block.y
+  ))
 
-  let collided = false
-
-  for (const block of obstacles) {
-    if (
-      playerBox.x < block.x + block.width &&
-      playerBox.x + playerBox.width > block.x &&
-      playerBox.y < block.y + block.height &&
-      playerBox.y + playerBox.height > block.y
-    ) {
-      if (block.name) currentArea.value = block.name
-      collided = true
-      break
-    }
-  }
-
-  if (!collided) {
-    player.x = Math.max(player.size / 2, Math.min(world.width - player.size / 2, nextX))
+  if (!collidedY) {
     player.y = Math.max(player.size / 2, Math.min(world.height - player.size / 2, nextY))
-    currentArea.value = 'Reino de Albadia'
   }
+
+  // Atualiza área atual (se está em algum obstáculo com nome)
+  const collidedBlock = obstacles.find(block => (
+    player.x - player.size/2 < block.x + block.width &&
+    player.x + player.size/2 > block.x &&
+    player.y - player.size/2 < block.y + block.height &&
+    player.y + player.size/2 > block.y
+  ))
+  currentArea.value = collidedBlock?.name || 'Reino de Albadia'
 }
 
 function getPlayerNearbyStructure() {
@@ -330,6 +348,12 @@ function draw() {
   let currentSprite = playerSprites[player.direction] || playerSprites.idle
 
   if (currentSprite && currentSprite.complete) {
+    // sombra do personagem
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)'
+    ctx.shadowBlur = 15
+    ctx.shadowOffsetX = 5
+    ctx.shadowOffsetY = 10
+
     ctx.drawImage(
       currentSprite,
       player.x - cam.x - player.size / 2,
@@ -337,6 +361,13 @@ function draw() {
       player.size,
       player.size
     )
+
+    // resetar sombra para não afetar outros desenhos
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 0
+
   } else if (playerSprites.idle && playerSprites.idle.complete) {
     ctx.drawImage(
       playerSprites.idle,
@@ -372,11 +403,12 @@ function drawMinimap() {
     player.y * minimapScale,
     minimapPlayerSize,
     0,
-    2 * Math.PI
+    Math.PI * 2
   )
   minimapCtx.fill()
 }
 </script>
+
 
 <style scoped>
 .game-view {
@@ -415,80 +447,63 @@ function drawMinimap() {
 .map-button, .bag-button {
   position: absolute;
   right: 20px;
-  padding: 10px 20px;
-  font-size: 1.3em;
   cursor: pointer;
-  color: #fff;
-  background: linear-gradient(145deg, #6b4c1d, #4a3310); /* tom de madeira escura */
-  border: 3px solid #2f1e0c; /* borda escura, tipo ferro forjado */
-  border-radius: 8px;
-  box-shadow:
-    inset 0 2px 5px rgba(255, 255, 255, 0.15), /* brilho sutil */
-    0 4px 6px rgba(0, 0, 0, 0.6); /* sombra forte */
-  text-shadow: 1px 1px 2px #000;
-  transition: background 0.3s ease, box-shadow 0.3s ease;
-  user-select: none;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  background: transparent; /* Sem fundo */
+  border: none;
+  padding: 0;
+  width: 60px;  /* aumentei de 40px para 60px */
+  height: 60px; /* aumentei de 40px para 60px */
+  transition: filter 0.2s ease-in-out;
+}
+
+.map-button {
+  top: 20px;
+  right: 2%;
+  padding: 2px;
+}
+
+.bag-button {
+  top: 90px;
+  right: 2%;
 }
 
 .map-button:hover, .bag-button:hover {
-  background: linear-gradient(145deg, #7c5a21, #5d4115);
-  box-shadow:
-    inset 0 2px 8px rgba(255, 255, 255, 0.3),
-    0 6px 10px rgba(0, 0, 0, 0.8);
-}
-
-.map-button:active, .bag-button:active {
-  background: linear-gradient(145deg, #563c0e, #3e2c08);
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.7);
-  transform: translateY(2px);
-}
-
-/* Posicionamento vertical separado */
-.map-button {
-  top: 280px;
-}
-
-.bag-button {
-  top: 360px;
-}
-
-.minimap {
-  position: absolute;
-  bottom: 0.5px;
-  left: 0.5px;
-  border: 3px solid #2f1e0c;
-  background-color: rgba(0, 0, 0, 0.7);
-  box-shadow:
-    inset 0 2px 5px rgba(255, 255, 255, 0.15),
-    0 4px 6px rgba(0, 0, 0, 0.6);
-  z-index: 20;
-  pointer-events: none;
-  width: 250px;
-  height: 250px;
-  image-rendering: pixelated;
+  filter: brightness(1.2); /* Efeito visual ao passar o mouse */
 }
 
 .button-icon {
-  width: 80px;
-  height: 80px;
+  width: 82px;
+  height: 82px;
+  margin-top: 800%;
   filter: drop-shadow(1px 1px 1px #000);
-  pointer-events: none;
-  padding: 0px;
 }
 
-.map-button,
-.bag-button {
-  border: none;
-  padding: 8px;
-  cursor: pointer;
-  transition: transform 0.2s ease;
+.gold-display {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  /* removido background para ficar flutuando */
+  background: none;
+  box-shadow: none;
+  color: gold;
+  font-weight: bold;
+  font-size: 1.8em;
+  padding: 0; /* remove padding para parecer flutuante */
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  user-select: none;
+  z-index: 100;
+  text-shadow: 1px 1px 4px #000; /* sombra mais forte para destacar */
 }
 
-.map-button:hover,
-.bag-button:hover {
-  transform: scale(1.1);
+.gold-icon {
+  width: 60px;
+  height: 60px;
+  margin-right: 10px;
+  filter: drop-shadow(1px 1px 2px #000);
 }
-
 </style>
