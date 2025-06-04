@@ -17,14 +17,18 @@
       @mouseover="showTooltip(area)"
       @mouseout="hideTooltip"
     >
-      <!-- Removido o <span class="area-label">{{ area.name }}</span> -->
       <span v-if="area.unlocked && area.showTooltip" class="tooltip">
         {{ area.description }}
       </span>
     </div>
 
-    <button class="back-btn" @click="goBack" aria-label="Voltar para a história" tabindex="0">
-      Voltar
+    <button
+      class="back-btn"
+      @click="goBack"
+      aria-label="Voltar para a história"
+      tabindex="0"
+    >
+      <span class="back-arrow" aria-hidden="true"></span>
     </button>
   </div>
 </template>
@@ -35,11 +39,10 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 
-// Definição das áreas com coordenadas ajustadas para a nova imagem
 const areas = ref([
   {
     name: 'Reino Albadia',
-    top: '65%', // Ajustado para alinhar com a posição na imagem
+    top: '65%',
     left: '14%',
     width: '25%',
     height: '30%',
@@ -123,13 +126,12 @@ const areas = ref([
   },
 ]);
 
-// Atualiza as áreas desbloqueadas com base no progresso
 const updateUnlockedAreas = () => {
   const progress = localStorage.getItem('progress');
   const previousProgress = localStorage.getItem('previousProgress') || '';
 
   areas.value.forEach((area) => {
-    area.newlyUnlocked = false; // Reseta o estado de novo desbloqueio
+    area.newlyUnlocked = false;
   });
 
   if (progress === 'floresta-concluida' && previousProgress !== progress) {
@@ -153,7 +155,6 @@ const updateUnlockedAreas = () => {
   localStorage.setItem('previousProgress', progress);
 };
 
-// Navega para a área selecionada
 const goToArea = (area) => {
   if (!area.unlocked) {
     alert('Área bloqueada! Complete a anterior.');
@@ -164,18 +165,15 @@ const goToArea = (area) => {
   }
 };
 
-// Volta para a história
 const goBack = () => {
   router.push('/level/albadia');
 };
 
-// Animação ao carregar a imagem
 const onImageLoad = () => {
   const mapImage = document.querySelector('.map-image');
   mapImage.classList.add('loaded');
 };
 
-// Gerencia tooltips
 const showTooltip = (area) => {
   if (area.unlocked) {
     area.showTooltip = true;
@@ -186,12 +184,10 @@ const hideTooltip = () => {
   areas.value.forEach((area) => (area.showTooltip = false));
 };
 
-// Inicializa ao montar o componente
 onMounted(() => {
   updateUnlockedAreas();
 });
 
-// Observa mudanças no localStorage para atualizar dinamicamente
 watch(
   () => localStorage.getItem('progress'),
   () => {
@@ -288,14 +284,16 @@ watch(
   position: absolute;
   bottom: 20px;
   left: 20px;
-  padding: 12px 24px;
   background-color: #8b5e3c;
-  color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 16px;
-  font-weight: bold;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.3s ease;
 }
 
@@ -306,6 +304,31 @@ watch(
 
 .back-btn:focus {
   outline: 2px solid #ffd700;
+}
+
+/* Estilo da seta medieval usando bordas */
+.back-arrow {
+  width: 0;
+  height: 0;
+  border-top: 14px solid transparent;
+  border-bottom: 14px solid transparent;
+  border-right: 24px solid #fff9d6;
+  filter: drop-shadow(1px 1px 0 #5a3f1c);
+  image-rendering: pixelated;
+}
+
+/* Ajustes mobile */
+@media (max-width: 768px) {
+  .back-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .back-arrow {
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-right: 20px solid #fff9d6;
+  }
 }
 
 @keyframes pulse {
@@ -338,8 +361,6 @@ watch(
   }
 
   .back-btn {
-    padding: 10px 20px;
-    font-size: 14px;
     font-family: 'MedievalSharp';
   }
 }

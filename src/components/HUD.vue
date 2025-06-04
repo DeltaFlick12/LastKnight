@@ -1,5 +1,6 @@
 <template>
   <div class="main-hud">
+    <!-- Painel com vida e energia -->
     <div class="panel-frame">
       <!-- Vida -->
       <div class="stat vida">
@@ -9,7 +10,9 @@
         <div class="bar-container">
           <div
             class="bar"
-            :style="{ width: (gameState.player.health / gameState.player.maxHealth) * 100 + '%' }"
+            :style="{
+              width: (gameState.player.health / gameState.player.maxHealth) * 100 + '%',
+            }"
           ></div>
           <span class="bar-label">
             {{ gameState.player.health }}/{{ gameState.player.maxHealth }}
@@ -25,33 +28,82 @@
         <div class="bar-container">
           <div
             class="bar"
-            :style="{ width: (gameState.player.stamina / gameState.player.maxStamina) * 100 + '%' }"
+            :style="{
+              width: (gameState.player.stamina / gameState.player.maxStamina) * 100 + '%',
+            }"
           ></div>
           <span class="bar-label">
             {{ gameState.player.stamina }}/{{ gameState.player.maxStamina }}
           </span>
         </div>
-      </div>            
+      </div>
     </div>
+
+    <!-- Ouro no canto inferior direito -->
+    <div class="gold-display">
+      <img src="/icons/gold-icon.png" alt="Ouro" class="gold-icon" />
+      <span class="gold-value">{{ gameState.player.gold }}</span>
+    </div>
+
+    <!-- Botões no lado direito central -->
+    <div class="hud-buttons">
+      <!-- Botão MAPA -->
+      <button class="map-button" @click="handleMapClick">
+        <img src="/icons/map-icon.png" alt="Mapa" class="button-icon" />
+      </button>
+
+      <!-- Botão MOCHILA -->
+      <button class="bag-button" @click="toggleBag">
+        <img src="/icons/bag-icon.png" alt="Mochila" class="button-icon" />
+      </button>
+    </div>
+
+    <!-- Inventário: renderiza somente se aberto -->
+    <Inventory v-if="inventoryOpen" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useGameState } from '@/stores/gameState'
+import { ref } from "vue";
+import { useGameState } from "@/stores/gameState";
+import { useRouter } from "vue-router";
+import Inventory from "@/components/Inventory.vue";
 
-const gameState = useGameState()
+const gameState = useGameState();
+const router = useRouter();
+
+const inventoryOpen = ref(false);
+
+const toggleBag = () => {
+  inventoryOpen.value = !inventoryOpen.value;
+};
+
+const handleMapClick = () => {
+  const tutorialDone = localStorage.getItem("tutorialCompleted");
+  if (!tutorialDone) {
+    localStorage.setItem("tutorialCompleted", "true");
+    router.push("/tutorial");
+  } else {
+    router.push("/map");
+  }
+};
 </script>
 
 <style scoped>
 .main-hud {
   position: fixed;
   bottom: 10px;
-  left: 5px; /* deslocado para a direita para não ficar em cima do weapon */
+  left: 5px;
   z-index: 1000;
-  font-family: 'VT323', monospace;
   font-size: 16px;
   letter-spacing: 0.5px;
+}
+
+/* Painel de vida e energia */
+.panel-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .stat {
@@ -66,7 +118,6 @@ const gameState = useGameState()
   display: flex;
   justify-content: center;
   align-items: center;
-  position: relative;
 }
 
 .icon {
@@ -103,41 +154,74 @@ const gameState = useGameState()
   letter-spacing: 1px;
 }
 
-.value-container {
-  position: relative;
-  width: 180px;
-  height: 24px;
-  background: rgba(60, 40, 20, 0.8);
-  border: 2px solid #5a4a2d;
+/* Ouro no canto inferior direito */
+.gold-display {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
   display: flex;
-  justify-content: center;
   align-items: center;
+  gap: 4px;
 }
 
-.value-label {
-  font-size: 16px;
+.gold-icon {
+  width: 74px;
+  height: 74px;
+  image-rendering: pixelated;
+}
+
+.gold-value {
+  font-size: 48px;
   color: #fff9d6;
   text-shadow: 2px 2px 0 #000;
   font-weight: bold;
-  letter-spacing: 1px;
 }
 
-/* Cores específicas */
+/* Botões no lado direito */
+.hud-buttons {
+  position: fixed;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map-button,
+.bag-button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  width: 82px;
+  height: 82px;
+}
+
+.map-button:hover img,
+.bag-button:hover img {
+  transform: scale(1.1);
+  transition: transform 0.2s;
+}
+
+.map-button:active img,
+.bag-button:active img {
+  transform: scale(0.95);
+  transition: transform 0.1s;
+}
+
+.button-icon {
+  width: 82px;
+  height: 82px;
+  image-rendering: pixelated;
+}
+
+/* Cores das barras */
 .vida .bar {
   background: linear-gradient(to bottom, #ff3333, #cc0000);
 }
 
 .energia .bar {
   background: linear-gradient(to bottom, #33cc33, #009900);
-}
-
-.ouro .value-container {
-  background: linear-gradient(to bottom, #8b6b23, #5a4a2d);
-  border-color: #c8a951;
-}
-
-.potions .value-container {
-  background: linear-gradient(to bottom, #8b3a23, #5a2d2d);
-  border-color: #c85151;
 }
 </style>

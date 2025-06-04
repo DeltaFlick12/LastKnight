@@ -2,24 +2,20 @@
   <div class="game-view">
     <canvas ref="canvas" class="game-canvas"></canvas>
 
-    <HUD/>
+    <HUD />
 
-    <!-- Prompt de entrada -->
     <div v-if="showEnterPrompt" class="enter-prompt">
       Pressione <span class="key">E</span> para entrar em {{ structureName }}
     </div>
 
-    <!-- Botão do Mapa -->
     <button class="map-button" @click="handleMapClick">
       <img src="/icons/map-icon.png" alt="Mapa" class="button-icon" />
     </button>
 
-    <!-- Botão da Mochila -->
     <button class="bag-button" @click="toggleBag">
       <img src="/icons/bag-icon.png" alt="Mochila" class="button-icon" />
     </button>
 
-    <!-- Mochila -->
     <Inventory 
       v-if="bagOpen"
       :potions="potions"
@@ -29,7 +25,6 @@
       @close="toggleBag"
     />
 
-    <!-- Mostrador de Ouro -->
     <div class="gold-display">
       <img src="/icons/gold-icon.png" alt="Ouro" class="gold-icon" />
       <span>{{ gold }}</span>
@@ -38,14 +33,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Inventory from '@/components/Inventory.vue'
 import HUD from '@/components/HUD.vue'
 
 const router = useRouter()
 
-// Estados principais
 const health = ref(100)
 const stamina = ref(100)
 const gold = ref(150)
@@ -81,7 +75,7 @@ const handleMapClick = () => {
 const canvas = ref(null)
 let ctx
 const player = {
-  x: 830 + 128 / 2, // centro do player
+  x: 830 + 128 / 2,
   y: 1600 + 128 / 2,
   size: 128,
   speed: 6,
@@ -130,16 +124,8 @@ const obstacles = [
   { x: 400, y: 1810, width: 310, height: 55 },
 ]
 
-const minimapCanvas = ref(null)
-let minimapCtx = null
-const minimapScale = 0.15 // escala do minimapa (15% do mundo)
-const minimapPlayerSize = 6 // tamanho do ponto do jogador no minimapa
-
 onMounted(() => {
-  if (!canvas.value) {
-    console.error("Elemento Canvas não encontrado!")
-    return
-  }
+  if (!canvas.value) return
   ctx = canvas.value.getContext('2d')
   resizeCanvas()
   window.addEventListener('resize', resizeCanvas)
@@ -154,21 +140,12 @@ onMounted(() => {
   loadImage(playerSprites.walk_up, '/img/sprites/player/player_walk_up.png')
   loadImage(playerSprites.walk_left, '/img/sprites/player/player_walk_left.png')
   loadImage(playerSprites.walk_right, '/img/sprites/player/player_walk_right.png')
-
-  nextTick(() => {
-    if (minimapCanvas.value) {
-      minimapCtx = minimapCanvas.value.getContext('2d')
-      resizeMinimap()
-      window.addEventListener('resize', resizeMinimap)
-    }
-  })
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeyDown)
   document.removeEventListener('keyup', onKeyUp)
   window.removeEventListener('resize', resizeCanvas)
-  window.removeEventListener('resize', resizeMinimap)
   if (animationFrameId) cancelAnimationFrame(animationFrameId)
 })
 
@@ -178,16 +155,9 @@ function resizeCanvas() {
   canvas.value.height = window.innerHeight
 }
 
-function resizeMinimap() {
-  if (!minimapCanvas.value) return
-  minimapCanvas.value.width = world.width * minimapScale
-  minimapCanvas.value.height = world.height * minimapScale
-}
-
 function onKeyDown(e) {
   const k = e.key.toLowerCase()
   if (keys.hasOwnProperty(k)) keys[k] = true
-
   if (k === 'e') {
     const current = getPlayerNearbyStructure()
     if (current?.route) router.push(current.route)
@@ -208,7 +178,6 @@ function gameLoop() {
   }
   update()
   draw()
-  drawMinimap()
   animationFrameId = requestAnimationFrame(gameLoop)
 }
 
@@ -218,32 +187,13 @@ function update() {
   let dx = 0
   let dy = 0
 
-  if (w) {
-    dy -= player.speed
-    player.direction = 'walk_up'
-    moved = true
-  }
-  if (s) {
-    dy += player.speed
-    player.direction = 'walk_down'
-    moved = true
-  }
-  if (a) {
-    dx -= player.speed
-    player.direction = 'walk_left'
-    moved = true
-  }
-  if (d) {
-    dx += player.speed
-    player.direction = 'walk_right'
-    moved = true
-  }
+  if (w) { dy -= player.speed; player.direction = 'walk_up'; moved = true }
+  if (s) { dy += player.speed; player.direction = 'walk_down'; moved = true }
+  if (a) { dx -= player.speed; player.direction = 'walk_left'; moved = true }
+  if (d) { dx += player.speed; player.direction = 'walk_right'; moved = true }
 
-  if (moved) {
-    move(dx, dy)
-  } else {
-    player.direction = 'idle'
-  }
+  if (moved) move(dx, dy)
+  else player.direction = 'idle'
 
   const nearStructure = getPlayerNearbyStructure()
   showEnterPrompt.value = !!nearStructure?.route
@@ -251,7 +201,7 @@ function update() {
 }
 
 function move(dx, dy) {
-  // Tentativa de mover no eixo X
+  // colisão eixo X
   let nextX = player.x + dx
   let playerBoxX = {
     x: nextX - player.size / 2,
@@ -270,7 +220,7 @@ function move(dx, dy) {
     player.x = Math.max(player.size / 2, Math.min(world.width - player.size / 2, nextX))
   }
 
-  // Tentativa de mover no eixo Y
+  // colisão eixo Y
   let nextY = player.y + dy
   let playerBoxY = {
     x: player.x - player.size / 2,
@@ -289,12 +239,11 @@ function move(dx, dy) {
     player.y = Math.max(player.size / 2, Math.min(world.height - player.size / 2, nextY))
   }
 
-  // Atualiza área atual (se está em algum obstáculo com nome)
   const collidedBlock = obstacles.find(block => (
-    player.x - player.size/2 < block.x + block.width &&
-    player.x + player.size/2 > block.x &&
-    player.y - player.size/2 < block.y + block.height &&
-    player.y + player.size/2 > block.y
+    player.x - player.size / 2 < block.x + block.width &&
+    player.x + player.size / 2 > block.x &&
+    player.y - player.size / 2 < block.y + block.height &&
+    player.y + player.size / 2 > block.y
   ))
   currentArea.value = collidedBlock?.name || 'Reino de Albadia'
 }
@@ -348,7 +297,6 @@ function draw() {
   let currentSprite = playerSprites[player.direction] || playerSprites.idle
 
   if (currentSprite && currentSprite.complete) {
-    // sombra do personagem
     ctx.shadowColor = 'rgba(0, 0, 0, 0.7)'
     ctx.shadowBlur = 15
     ctx.shadowOffsetX = 5
@@ -362,148 +310,10 @@ function draw() {
       player.size
     )
 
-    // resetar sombra para não afetar outros desenhos
     ctx.shadowColor = 'transparent'
     ctx.shadowBlur = 0
     ctx.shadowOffsetX = 0
     ctx.shadowOffsetY = 0
-
-  } else if (playerSprites.idle && playerSprites.idle.complete) {
-    ctx.drawImage(
-      playerSprites.idle,
-      player.x - cam.x - player.size / 2,
-      player.y - cam.y - player.size / 2,
-      player.size,
-      player.size
-    )
-  } else {
-    ctx.fillStyle = 'magenta'
-    ctx.fillRect(player.x - cam.x, player.y - cam.y, player.size, player.size)
   }
-
-  if (foreground.complete) {
-    ctx.drawImage(foreground, cam.x, cam.y, canvas.value.width, canvas.value.height, 0, 0, canvas.value.width, canvas.value.height)
-  }
-}
-
-function drawMinimap() {
-  if (!minimapCtx || !background.complete) return
-
-  minimapCtx.clearRect(0, 0, minimapCanvas.value.width, minimapCanvas.value.height)
-  minimapCtx.drawImage(
-    background,
-    0, 0, world.width, world.height,
-    0, 0, minimapCanvas.value.width, minimapCanvas.value.height
-  )
-
-  minimapCtx.fillStyle = 'red'
-  minimapCtx.beginPath()
-  minimapCtx.arc(
-    player.x * minimapScale,
-    player.y * minimapScale,
-    minimapPlayerSize,
-    0,
-    Math.PI * 2
-  )
-  minimapCtx.fill()
 }
 </script>
-
-
-<style scoped>
-.game-view {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
-}
-
-.game-canvas {
-  display: block; 
-  background-color: #333; 
-}
-
-.enter-prompt {
-  position: absolute;
-  bottom: 10%;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 20px;
-  background-color: rgba(0,0,0,0.75);
-  border-radius: 10px;
-  color: #eee;
-  font-weight: bold;
-  font-family: 'Arial', sans-serif;
-  z-index: 50;
-}
-
-.key {
-  background-color: #444;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: monospace;
-}
-
-.map-button, .bag-button {
-  position: absolute;
-  right: 20px;
-  cursor: pointer;
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  background: transparent; /* Sem fundo */
-  border: none;
-  padding: 0;
-  width: 60px;  /* aumentei de 40px para 60px */
-  height: 60px; /* aumentei de 40px para 60px */
-  transition: filter 0.2s ease-in-out;
-}
-
-.map-button {
-  top: 20px;
-  right: 2%;
-  padding: 2px;
-}
-
-.bag-button {
-  top: 90px;
-  right: 2%;
-}
-
-.map-button:hover, .bag-button:hover {
-  filter: brightness(1.2); /* Efeito visual ao passar o mouse */
-}
-
-.button-icon {
-  width: 82px;
-  height: 82px;
-  margin-top: 800%;
-  filter: drop-shadow(1px 1px 1px #000);
-}
-
-.gold-display {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
-  /* removido background para ficar flutuando */
-  background: none;
-  box-shadow: none;
-  color: gold;
-  font-weight: bold;
-  font-size: 1.8em;
-  padding: 0; /* remove padding para parecer flutuante */
-  border-radius: 0;
-  display: flex;
-  align-items: center;
-  user-select: none;
-  z-index: 100;
-  text-shadow: 1px 1px 4px #000; /* sombra mais forte para destacar */
-}
-
-.gold-icon {
-  width: 60px;
-  height: 60px;
-  margin-right: 10px;
-  filter: drop-shadow(1px 1px 2px #000);
-}
-</style>
