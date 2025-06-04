@@ -6,14 +6,14 @@
       isClosing ? 'fade-out-scale' : 'fade-in-scale'
     ]"
   >
-    <div ref="header" class="modal-header">
-      <h2>INVENTÁRIO</h2>
-      <div class="gold">
-        <img src="/icons/gold-icon.png" alt="Gold Coin" class="gold-icon" />
-        <span>{{ gameState.player.gold }}</span>
-      </div>
-      <button class="close-btn" @click="handleClose">✖</button>
-    </div>
+<div ref="header" class="modal-header">
+  <div class="gold">
+    <img src="/icons/gold-icon.png" alt="Gold Coin" class="gold-icon" />
+    <span>{{ gameState.player.gold }}</span>
+  </div>
+  <h2>INVENTÁRIO</h2>
+  <button class="close-btn" @click="handleClose">✖</button>
+</div>
 
     <div class="filter-bar">
       <button
@@ -143,7 +143,6 @@ const handleClick = (item) => {
   setTimeout(() => (feedbackMessage.value = ''), 3000);
 };
 
-// === Drag modal logic ===
 let isDragging = false;
 let offsetX = 0;
 let offsetY = 0;
@@ -284,28 +283,26 @@ onBeforeUnmount(() => {
   z-index: 1;
 }
 
-/* Cabeçalho */
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
   padding-bottom: 12px;
+  margin-bottom: 20px;
   border-bottom: 3px solid #a6793b;
-  text-shadow: 2px 2px 3px #2f1e0d;
-  position: relative;
   z-index: 2;
-  cursor: grab; /* Adicionado para indicar que o header é arrastável */
+  cursor: grab;
 }
 
 .modal-header h2 {
   font-size: 28px;
-  margin: 0;
   color: #f1d7b1;
+  margin: 0;
   text-shadow:
     1px 1px 0 #4a3118,
     2px 2px 3px #3c2611;
-  font-family: 'UnifrakturCook', cursive;
+  flex-grow: 1;
+  text-align: center;
 }
 
 .gold {
@@ -352,13 +349,12 @@ onBeforeUnmount(() => {
 }
 
 .filter-btn {
-  padding: 8px 18px;
+  padding: 10px 28px;
   background: #5d3a1a;
   color: #f1d7b1;
   border: 2px solid #7f5b24;
-  border-radius: 14px;
-  font-family: 'Cinzel', serif;
   font-weight: 600;
+  margin-left: 3%;
   cursor: pointer;
   box-shadow: 1px 1px 2px #3c2611 inset;
   user-select: none;
@@ -367,9 +363,11 @@ onBeforeUnmount(() => {
 
 .filter-btn:hover,
 .filter-btn.active {
-  background: #a6793b;
-  color: #fff3c4;
-  border-color: #7f5b24;
+  background: #f3d88c;
+  color: #4a3118;
+  border-color: #a6793b;
+  font-weight: bold;
+  box-shadow: 0 0 6px #f3d88c;
 }
 
 /* Conteúdo principal do inventário */
@@ -452,7 +450,6 @@ onBeforeUnmount(() => {
   background: linear-gradient(145deg, #593e16, #4a3118);
   box-shadow: inset 0 0 10px 3px #7f5b24;
   color: #f1d7b1;
-  font-family: 'Cinzel', serif;
   user-select: none;
 }
 
@@ -518,8 +515,10 @@ onBeforeUnmount(() => {
 }
 
 @keyframes fadeinout {
-  0%, 100% { opacity: 0; }
-  10%, 90% { opacity: 1; }
+  0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
 }
 
 /* Transitions do grupo de itens */

@@ -26,7 +26,6 @@ const staminaConsumptionRate = 25 // por segundo
 
 const staminaRounded = computed(() => Math.floor(gameState.player.stamina))
 
-const gold = ref(150)
 const potions = ref(3)
 const currentArea = ref('Reino de Albadia')
 const showEnterPrompt = ref(false)

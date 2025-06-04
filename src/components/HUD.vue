@@ -2,47 +2,42 @@
   <div class="main-hud">
     <!-- Painel com vida e energia -->
     <div class="panel-frame">
-      <!-- Vida -->
-      <div class="stat vida">
-        <div class="icon-container">
-          <img src="/icons/life-icon.png" alt="Vida" class="icon" />
-        </div>
-        <div class="bar-container">
-          <div
-            class="bar"
-            :style="{
-              width: (gameState.player.health / gameState.player.maxHealth) * 100 + '%',
-            }"
-          ></div>
-          <span class="bar-label">
-            {{ Math.floor(gameState.player.health) }}/{{ Math.floor(gameState.player.maxHealth) }}
-          </span>
-        </div>
-      </div>
+<!-- Vida -->
+<div class="stat vida">
+  <div class="icon-container">
+    <img src="/icons/life-icon.png" alt="Vida" class="icon" />
+  </div>
+  <div class="bar-container segmented">
+    <div
+      v-for="i in maxBarSegments"
+      :key="'vida-' + i"
+      class="segment"
+      :class="{ filled: i <= filledHealthSegments }"
+    ></div>
+    <span class="bar-label">
+      {{ Math.floor(gameState.player.health) }}/{{ Math.floor(gameState.player.maxHealth) }}
+    </span>
+  </div>
+</div>
 
-      <!-- Energia -->
-      <div class="stat energia">
-        <div class="icon-container">
-          <img src="/icons/stam-icon.png" alt="Energia" class="icon" />
-        </div>
-        <div class="bar-container">
-          <div
-            class="bar"
-            :style="{
-              width: (gameState.player.stamina / gameState.player.maxStamina) * 100 + '%',
-            }"
-          ></div>
-          <span class="bar-label">
-            {{ Math.floor(gameState.player.stamina) }}/{{ Math.floor(gameState.player.maxStamina) }}
-          </span>
-        </div>
-      </div>
-    </div>
+<!-- Energia -->
+<div class="stat energia">
+  <div class="icon-container">
+    <img src="/icons/stam-icon.png" alt="Energia" class="icon" />
+  </div>
+  <div class="bar-container segmented">
+    <div
+      v-for="i in maxBarSegments"
+      :key="'energia-' + i"
+      class="segment"
+      :class="{ filled: i <= filledStaminaSegments }"
+    ></div>
+    <span class="bar-label">
+      {{ Math.floor(gameState.player.stamina) }}/{{ Math.floor(gameState.player.maxStamina) }}
+    </span>
+  </div>
+</div>
 
-    <!-- Ouro no canto inferior direito -->
-    <div class="gold-display">
-      <img src="/icons/gold-icon.png" alt="Ouro" class="gold-icon" />
-      <span class="gold-value">{{ Math.floor(gameState.player.gold) }}</span>
     </div>
 
     <!-- Botões no lado direito central -->
@@ -64,24 +59,14 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
-import { useGameState } from "@/stores/gameState";
+import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import Inventory from "@/components/Inventory.vue";
-import { computed } from 'vue';
+import { useGameState } from "@/stores/gameState"; // <--- Importa o gameState da Pinia
 
-const healthPercent = computed(() => {
-  return (Math.floor(gameState.player.health) / Math.floor(gameState.player.maxHealth)) * 100;
-});
+const gameState = useGameState(); // <--- Usa o gameState da store
 
-const staminaPercent = computed(() => {
-  return (Math.floor(gameState.player.stamina) / Math.floor(gameState.player.maxStamina)) * 100;
-});
-
-// Instancia o store Pinia
-const gameState = useGameState();
 const router = useRouter();
-
 const inventoryOpen = ref(false);
 
 const toggleBag = () => {
@@ -97,6 +82,20 @@ const handleMapClick = () => {
     router.push("/map");
   }
 };
+
+const maxBarSegments = 10;
+
+const filledHealthSegments = computed(() => {
+  return Math.round(
+    (gameState.player.health / gameState.player.maxHealth) * maxBarSegments
+  );
+});
+
+const filledStaminaSegments = computed(() => {
+  return Math.round(
+    (gameState.player.stamina / gameState.player.maxStamina) * maxBarSegments
+  );
+});
 </script>
 
 <style scoped>
@@ -105,7 +104,7 @@ const handleMapClick = () => {
   bottom: 10px;
   left: 5px;
   z-index: 1000;
-  font-size: 16px;
+  font-size: 6px;
   letter-spacing: 0.5px;
 }
 
@@ -113,7 +112,7 @@ const handleMapClick = () => {
 .panel-frame {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 18px; /* mais espaço vertical entre vida e energia */
 }
 
 .stat {
@@ -131,15 +130,17 @@ const handleMapClick = () => {
 }
 
 .icon {
-  width: 32px;
-  height: 32px;
+  width: 64px;
+  height: 64px;
   image-rendering: pixelated;
+  margin-left: 20px;
+  z-index: 100;
 }
 
 .bar-container {
   position: relative;
-  width: 180px;
-  height: 24px;
+  width: 280px;
+  height: 34px;
   background: rgba(0, 0, 0, 0.7);
   border: 2px solid #333;
   overflow: hidden;
@@ -163,29 +164,30 @@ const handleMapClick = () => {
   letter-spacing: 1px;
 }
 
-/* Ouro no canto inferior direito */
-.gold-display {
-  position: fixed;
-  bottom: 10px;
-  right: 10px;
+.bar-container.segmented {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 0.5px; /* Menor espaço entre barrinhas */
+  padding: 1px; /* Margem interna menor */
 }
 
-.gold-icon {
-  width: 74px;
-  height: 74px;
-  image-rendering: pixelated;
+.segment {
+  flex: none;
+  width: 26px;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 0.2px solid #222;
+  box-shadow: inset 0 0 3px #000;
 }
 
-.gold-value {
-  font-size: 48px;
-  color: #fff9d6;
-  text-shadow: 2px 2px 0 #000;
-  font-weight: bold;
+.vida .segment.filled {
+  background: linear-gradient(to bottom, #ff3333,rgb(106, 15, 15));
 }
 
+.energia .segment.filled {
+  background: linear-gradient(to bottom, #33cc33,rgb(11, 112, 11));
+}
 /* Botões no lado direito */
 .hud-buttons {
   position: fixed;
@@ -203,14 +205,15 @@ const handleMapClick = () => {
   border: none;
   cursor: pointer;
   padding: 0;
-  width: 82px;
-  height: 82px;
+  width: 122px;
+  height: 122px;
 }
 
 .map-button:hover img,
 .bag-button:hover img {
   transform: scale(1.1);
   transition: transform 0.2s;
+
 }
 
 .map-button:active img,
@@ -220,8 +223,8 @@ const handleMapClick = () => {
 }
 
 .button-icon {
-  width: 82px;
-  height: 82px;
+  width: 122px;
+  height: 122px;
   image-rendering: pixelated;
 }
 
@@ -233,4 +236,5 @@ const handleMapClick = () => {
 .energia .bar {
   background: linear-gradient(to bottom, #33cc33, #009900);
 }
+
 </style>
