@@ -15,7 +15,6 @@
       <button class="close-btn" @click="handleClose">✖</button>
     </div>
 
-    <!-- Filtros -->
     <div class="filter-bar">
       <button
         v-for="cat in categories"
@@ -28,7 +27,6 @@
     </div>
 
     <div class="inventory-content">
-      <!-- Lista de Itens -->
       <div class="item-grid">
         <transition-group name="item-fade" tag="div" class="grid-container">
           <div
@@ -48,13 +46,12 @@
             <div class="item-info">
               <span class="item-name">{{ item.name }}</span>
               <span v-if="item.quantity > 1" class="item-quantity">×{{ item.quantity }}</span>
-              <span v-if="item.equipped" class="equipped-tag">Equipado</span>
+              <span v-if="item.equipped" class="equipped-tag"></span>
             </div>
           </div>
         </transition-group>
       </div>
 
-      <!-- Painel de Detalhes -->
       <div class="details-panel" v-if="hoverItem">
         <div class="details-header">
           <img :src="hoverItem.icon" class="item-icon large" :alt="hoverItem.name" />
@@ -67,7 +64,6 @@
         <p v-if="hoverItem.equipped" class="equipped-notice">Item atualmente equipado</p>
       </div>
 
-      <!-- Mensagem de Feedback -->
       <p v-if="feedbackMessage" class="feedback-message">{{ feedbackMessage }}</p>
     </div>
   </div>
@@ -77,7 +73,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { gameState, actions, ITEMS, ITEM_ICONS } from '@/stores/game.js';
 
-const emits = defineEmits(['close']);
+const emits = defineEmits(['update:show']);
 
 const hoverItem = ref(null);
 const feedbackMessage = ref('');
@@ -89,41 +85,39 @@ const categories = ['Todos', 'Consumíveis', 'Armas', 'Armadura', 'Chave'];
 const inventoryModal = ref(null);
 const header = ref(null);
 
-const getItemIcon = (itemId) => {
-  return ITEM_ICONS[itemId] || '/assets/icons/unknown-item.png';
-};
+const getItemIcon = (itemId) => ITEM_ICONS[itemId] || '/assets/icons/unknown-item.png';
 
 const allItems = computed(() => {
-  return gameState.player.inventory
-    .map((invItem) => {
-      const itemData = ITEMS[invItem.itemId];
-      if (!itemData) return null;
+  return gameState.player.inventory.map((invItem) => {
+    const itemData = ITEMS[invItem.itemId];
+    if (!itemData) return null;
 
-      return {
-        itemId: invItem.itemId,
-        name: itemData.name,
-        icon: getItemIcon(invItem.itemId),
-        quantity: invItem.quantity,
-        description: itemData.description,
-        type: itemData.type === 'Armadura' ? 'Armadura' : itemData.type,
-        usable: itemData.type === 'Consumível' || itemData.type === 'Consumível Especial',
-        equipable: itemData.slot === 'weapon' || itemData.slot === 'armor',
-        equipped: gameState.player.equipment[itemData.slot] === invItem.itemId,
-        stats: itemData.stats,
-        action: itemData.slot
-          ? () => {
-              if (gameState.player.equipment[itemData.slot] === invItem.itemId) {
-                actions.unequipItem(itemData.slot);
-              } else {
-                actions.equipItem(invItem.itemId);
-              }
+    const slot = itemData.slot;
+
+    return {
+      itemId: invItem.itemId,
+      name: itemData.name,
+      icon: getItemIcon(invItem.itemId),
+      quantity: invItem.quantity,
+      description: itemData.description,
+      type: itemData.type === 'Armadura' ? 'Armadura' : itemData.type,
+      usable: ['Consumível', 'Consumível Especial'].includes(itemData.type),
+      equipable: slot === 'weapon' || slot === 'armor',
+      equipped: gameState.player.equipment[slot] === invItem.itemId,
+      stats: itemData.stats,
+      action: slot
+        ? () => {
+            if (gameState.player.equipment[slot] === invItem.itemId) {
+              actions.unequipItem(slot);
+            } else {
+              actions.equipItem(invItem.itemId);
             }
-          : itemData.type === 'Consumível' || itemData.type === 'Consumível Especial'
-          ? () => actions.useItem(invItem.itemId)
-          : null,
-      };
-    })
-    .filter(Boolean);
+          }
+        : itemData.type.startsWith('Consumível')
+        ? () => actions.useItem(invItem.itemId)
+        : null,
+    };
+  }).filter(Boolean);
 });
 
 const filteredItems = computed(() => {
@@ -156,20 +150,16 @@ let offsetY = 0;
 
 const handleMouseDown = (e) => {
   isDragging = true;
-
   const modal = inventoryModal.value;
   const rect = modal.getBoundingClientRect();
-
   offsetX = e.clientX - rect.left;
   offsetY = e.clientY - rect.top;
-
   modal.style.position = 'fixed';
   modal.style.left = `${rect.left}px`;
   modal.style.top = `${rect.top}px`;
   modal.style.transform = 'none';
   modal.style.margin = '0';
   modal.classList.add('dragging');
-
   document.addEventListener('mousemove', handleMouseMove);
   document.addEventListener('mouseup', handleMouseUp);
   e.preventDefault();
@@ -177,7 +167,6 @@ const handleMouseDown = (e) => {
 
 const handleMouseMove = (e) => {
   if (!isDragging) return;
-
   const modal = inventoryModal.value;
   modal.style.left = `${e.clientX - offsetX}px`;
   modal.style.top = `${e.clientY - offsetY}px`;
@@ -186,16 +175,12 @@ const handleMouseMove = (e) => {
 const handleMouseUp = () => {
   if (!isDragging) return;
   isDragging = false;
-
   const modal = inventoryModal.value;
   modal.classList.remove('dragging');
-
-  // Salvar posição no localStorage
   localStorage.setItem('inventoryModalPos', JSON.stringify({
     left: modal.style.left,
     top: modal.style.top,
   }));
-
   document.removeEventListener('mousemove', handleMouseMove);
   document.removeEventListener('mouseup', handleMouseUp);
 };
@@ -210,11 +195,8 @@ onMounted(() => {
   if (header.value) {
     header.value.addEventListener('mousedown', handleMouseDown);
   }
-
-  // Ler posição salva
   const savedPos = localStorage.getItem('inventoryModalPos');
   const modal = inventoryModal.value;
-
   if (savedPos && modal) {
     const pos = JSON.parse(savedPos);
     modal.style.position = 'fixed';
@@ -269,8 +251,8 @@ onBeforeUnmount(() => {
 .inventory-modal {
   position: fixed;
   z-index: 10000;
-  left: 30%;
-  top: 25%;
+  left: 50%; /* Corrigido de 30% para 50% */
+  top: 50%;  /* Centralização vertical */
   transform: translate(-50%, -50%);
   width: 800px;
   height: 500px;
@@ -282,11 +264,10 @@ onBeforeUnmount(() => {
   flex-direction: column;
   box-sizing: border-box;
   overflow: hidden;
-  /* cursor: grab; */ /* Removido para arrastar apenas pelo header */
-  color: white;
   color: white;
 }
 
+/* Removido: estilo condicional que sobrescrevia a centralização */
 .inventory-modal:not([style*="left"]) {
   transform: translate(-50%, -50%);
 }
@@ -400,73 +381,53 @@ onBeforeUnmount(() => {
 
 /* Grid de itens */
 .item-grid {
-  flex: 1 1 60%;
-  max-height: 420px;
-  overflow-y: auto;
-  border: 3px solid #7f5b24;
-  border-radius: 14px;
-  padding: 10px;
-  background: linear-gradient(145deg, #593e16, #4a3118);
-  box-shadow: inset 0 0 10px 3px #7f5b24;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: none; /* Remova qualquer fundo ou borda geral */
+  border: none;     /* Remova borda geral */
 }
 
-/* Container para transition-group */
-.grid-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-  gap: 12px;
-}
-
-/* Cartão de item */
 .item-card {
-  background: #7f5b24;
-  border-radius: 12px;
-  padding: 8px;
-  text-align: center;
+  width: 100px;
+  height: 100px;
+  border: 2px solid #a6793b; /* cor mais visível e temática */
+  border-radius: 8px;
+  background-color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
   cursor: default;
-  color: #f1d7b1;
-  font-weight: 600;
-  box-shadow:
-    inset 0 0 4px #3c2611,
-    1px 1px 3px #3c2611;
-  user-select: none;
-  transition: box-shadow 0.3s ease, background 0.3s ease;
+  transition: transform 0.15s ease, border-color 0.2s;
+  box-shadow: inset 0 0 4px #3c2611; /* opcional: reforça a moldura */
+} 
+
+.item-card:hover {
+  border-color: #aaa;
+  transform: scale(1.05);
 }
 
 .item-card.clickable {
   cursor: pointer;
-}
-
-.item-card.clickable:hover {
-  background: #a6793b;
-  box-shadow:
-    0 0 12px 3px #ffdb66,
-    inset 0 0 8px #fff5b1;
-  color: #fff3c4;
+  border-color: #777;
 }
 
 .item-card.equipped {
-  border: 3px solid #f3d88c;
-  box-shadow: 0 0 12px 3px #f3d88c;
-}
-
-.item-card.low-quantity {
-  border: 2px solid #e85c3f;
-  box-shadow: 0 0 8px 2px #e85c3f;
+  border-color: gold;
 }
 
 .item-icon {
-  width: 44px;
-  height: 44px;
-  image-rendering: pixelated;
-  margin-bottom: 6px;
+  width: 64px;
+  height: 64px;
 }
 
 .item-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 14px;
+  text-align: center;
+  font-size: 10px;
+  color: #eee;
 }
 
 .item-quantity {
