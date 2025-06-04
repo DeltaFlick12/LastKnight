@@ -148,7 +148,6 @@ const handleMapClick = () => {
 
 .bar {
   height: 100%;
-  transition: width 0.3s ease-in-out;
 }
 
 .bar-label {

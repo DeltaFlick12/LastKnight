@@ -31,19 +31,17 @@
     </div>
 
     <div class="stamina-bar">
-<span>Stamina: {{ staminaRounded }}</span>
-<progress max="100" :value="staminaRounded"></progress>
+      <span>Stamina: {{ staminaRounded }}</span>
+      <progress max="100" :value="staminaRounded"></progress>
     </div>
   </div>
 </template>
 
 <script setup>
-import { useGameState } from '@/stores/gameState'  // ajuste o caminho conforme o seu projeto
-import { ref, onMounted, onUnmounted } from 'vue'
+import { useGameState } from '@/stores/gameState'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import Inventory from '@/components/Inventory.vue'
 import HUD from '@/components/HUD.vue'
-import { computed } from 'vue'
-
 
 const gameState = useGameState()
 
@@ -51,10 +49,7 @@ const maxStamina = gameState.player.maxStamina
 const staminaRecoveryRate = 10 // por segundo
 const staminaConsumptionRate = 25 // por segundo
 
-const staminaRounded = computed(() => {
-  return Math.floor(gameState.player.stamina)
-})
-
+const staminaRounded = computed(() => Math.floor(gameState.player.stamina))
 
 const gold = ref(150)
 const potions = ref(3)
@@ -103,14 +98,14 @@ const foreground = new Image()
 
 const playerSprites = {
   idle: new Image(),
-  walk_down: new Image(),
+  walk_down: [new Image(), new Image()], // array com dois frames
   walk_up: new Image(),
   walk_left: new Image(),
   walk_right: new Image()
 }
 let allImagesLoaded = false
 let imagesLoadedCount = 0
-const totalImagesToLoad = 2 + Object.keys(playerSprites).length
+const totalImagesToLoad = 2 + Object.keys(playerSprites).length + 1 // contando os dois frames extra
 
 function imageLoadedCallback() {
   imagesLoadedCount++
@@ -151,7 +146,8 @@ onMounted(() => {
   loadImage(foreground, '/public/img/albadia/albadiaDetalhes.png')
 
   loadImage(playerSprites.idle, '/img/sprites/player/player_idle.png')
-  loadImage(playerSprites.walk_down, '/img/sprites/player/player_walk_down.png')
+  loadImage(playerSprites.walk_down[0], '/img/sprites/player/player_walk_down.png')
+  loadImage(playerSprites.walk_down[1], '/img/sprites/player/player_walk_down2.png')
   loadImage(playerSprites.walk_up, '/img/sprites/player/player_walk_up.png')
   loadImage(playerSprites.walk_left, '/img/sprites/player/player_walk_left.png')
   loadImage(playerSprites.walk_right, '/img/sprites/player/player_walk_right.png')
@@ -186,6 +182,11 @@ function onKeyUp(e) {
 
 let animationFrameId = null
 let lastUpdateTime = 0
+
+// Variáveis de controle da animação walk_down
+let walkDownFrameIndex = 0
+let walkDownFrameTimer = 0
+const walkDownFrameInterval = 300 // ms entre frames
 
 function gameLoop(timestamp) {
   if (!allImagesLoaded) {
@@ -251,6 +252,18 @@ function update(deltaSeconds) {
     if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
   }
 
+  // Atualiza a animação do walk_down
+  if (player.direction === 'walk_down') {
+    walkDownFrameTimer += deltaSeconds * 1000
+    if (walkDownFrameTimer >= walkDownFrameInterval) {
+      walkDownFrameTimer = 0
+      walkDownFrameIndex = (walkDownFrameIndex + 1) % playerSprites.walk_down.length
+    }
+  } else {
+    walkDownFrameIndex = 0
+    walkDownFrameTimer = 0
+  }
+
   const nearStructure = getPlayerNearbyStructure()
   showEnterPrompt.value = !!nearStructure?.route
   structureName.value = nearStructure?.name || ''
@@ -294,63 +307,42 @@ function move(dx, dy) {
   if (!collidedY) {
     player.y = Math.max(player.size / 2, Math.min(world.height - player.size / 2, nextY))
   }
-
-  const collidedBlock = obstacles.find(block => (
-    player.x - player.size / 2 < block.x + block.width &&
-    player.x + player.size / 2 > block.x &&
-    player.y - player.size / 2 < block.y + block.height &&
-    player.y + player.size / 2 > block.y
-  ))
-  currentArea.value = collidedBlock?.name || 'Reino de Albadia'
-}
-
-function getPlayerNearbyStructure() {
-  return obstacles.find((b) => {
-    if (!b.route) return false
-    const buffer = 20
-    const playerHitbox = {
-      x: player.x - player.size / 2,
-      y: player.y - player.size / 2,
-      width: player.size,
-      height: player.size
-    }
-    const structureHitbox = {
-      x: b.x - buffer,
-      y: b.y - buffer,
-      width: b.width + 2 * buffer,
-      height: b.height + 2 * buffer
-    }
-
-    return (
-      playerHitbox.x < structureHitbox.x + structureHitbox.width &&
-      playerHitbox.x + playerHitbox.width > structureHitbox.x &&
-      playerHitbox.y < structureHitbox.y + structureHitbox.height &&
-      playerHitbox.y + playerHitbox.height > structureHitbox.y
-    )
-  })
-}
-
-function getCamera() {
-  if (!canvas.value) return { x: 0, y: 0 }
-  const cw = canvas.value.width
-  const ch = canvas.value.height
-  return {
-    x: Math.max(0, Math.min(player.x - cw / 2, world.width - cw)),
-    y: Math.max(0, Math.min(player.y - ch / 2, world.height - ch))
-  }
 }
 
 function draw() {
-  if (!ctx || !canvas.value || !allImagesLoaded) return
+  if (!ctx || !allImagesLoaded) return
 
-  const cam = getCamera()
   ctx.clearRect(0, 0, canvas.value.width, canvas.value.height)
 
-  if (background.complete) {
-    ctx.drawImage(background, cam.x, cam.y, canvas.value.width, canvas.value.height, 0, 0, canvas.value.width, canvas.value.height)
+  // Centraliza a câmera no jogador
+  const cam = {
+    x: player.x - canvas.value.width / 2,
+    y: player.y - canvas.value.height / 2
   }
 
-  let currentSprite = playerSprites[player.direction] || playerSprites.idle
+  // Limita a câmera dentro do mundo
+  cam.x = Math.max(0, Math.min(cam.x, world.width - canvas.value.width))
+  cam.y = Math.max(0, Math.min(cam.y, world.height - canvas.value.height))
+
+  // Desenha fundo
+  ctx.drawImage(background, -cam.x, -cam.y, world.width, world.height)
+
+  // Desenha obstáculos (debug)
+  /*
+  ctx.fillStyle = 'rgba(255,0,0,0.3)'
+  for (const block of obstacles) {
+    ctx.fillRect(block.x - cam.x, block.y - cam.y, block.width, block.height)
+  }
+  */
+
+  // Seleciona o sprite atual para desenhar
+  let currentSprite
+
+  if (player.direction === 'walk_down') {
+    currentSprite = playerSprites.walk_down[walkDownFrameIndex]
+  } else {
+    currentSprite = playerSprites[player.direction] || playerSprites.idle
+  }
 
   if (currentSprite && currentSprite.complete) {
     ctx.shadowColor = 'rgba(0, 0, 0, 0.7)'
@@ -371,5 +363,57 @@ function draw() {
     ctx.shadowOffsetX = 0
     ctx.shadowOffsetY = 0
   }
+
+  // Desenha o foreground
+  ctx.drawImage(foreground, -cam.x, -cam.y, world.width, world.height)
+}
+
+function getPlayerNearbyStructure() {
+  for (const block of obstacles) {
+    if (
+      player.x > block.x &&
+      player.x < block.x + block.width &&
+      player.y > block.y &&
+      player.y < block.y + block.height
+    ) {
+      return block
+    }
+  }
+  return null
 }
 </script>
+
+<style scoped>
+.game-view {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.enter-prompt {
+  position: absolute;
+  bottom: 5%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  padding: 10px 20px;
+  font-size: 1.1rem;
+  border-radius: 5px;
+}
+
+.key {
+  font-weight: bold;
+  background: #ddd;
+  color: #333;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+</style>
