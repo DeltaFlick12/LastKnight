@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia';
 
+// Suponho que você tenha um objeto ITEMS em algum lugar para dados dos itens
+// Se não tiver, precisa importar ou definir ele no contexto deste store
+
 export const useGameState = defineStore('gameState', {
   state: () => ({
     player: {
@@ -35,8 +38,18 @@ export const useGameState = defineStore('gameState', {
     ending: null,
   }),
 
+  getters: {
+    isPlayerAlive: (state) => state.player.health > 0,
+    isBossAlive: (state) => state.boss.health > 0,
+    isPlayerStaminaFull: (state) => state.player.stamina >= state.player.maxStamina,
+    isBossStaminaFull: (state) => state.boss.stamina >= state.boss.maxStamina,
+    getItemQuantity: (state) => (itemId) => {
+      const item = state.player.inventory.find(i => i.itemId === itemId);
+      return item ? item.quantity : 0;
+    },
+  },
+
   actions: {
-    // Dano e recuperação
     damagePlayer(amount) {
       this.player.health = Math.max(0, this.player.health - amount);
     },
@@ -56,7 +69,6 @@ export const useGameState = defineStore('gameState', {
       this.boss.stamina = this.boss.maxStamina;
     },
 
-    // Finais
     markFinalBossDefeated() {
       this.boss.health = 0;
       this.ending = 3;
@@ -65,12 +77,10 @@ export const useGameState = defineStore('gameState', {
       this.ending = type;
     },
 
-    // Classe
     setPlayerClass(classe) {
       this.player.classe = classe;
     },
 
-    // Equipar item
     equipItem(itemId) {
       const item = this.player.inventory.find(i => i.itemId === itemId);
       if (!item) return;
@@ -78,11 +88,28 @@ export const useGameState = defineStore('gameState', {
       const itemData = ITEMS[itemId];
       if (!itemData || !itemData.slot) return;
 
-      this.player.equipment[itemData.slot] = itemId;
+      const slot = itemData.slot;
+      const currentEquipped = this.player.equipment[slot];
+
+      if (currentEquipped) {
+        this.addItem(currentEquipped, 1);
+      }
+
+      this.player.equipment[slot] = itemId;
+      this.removeItem(itemId, 1);
     },
 
-    // Usar item
+    unequipItem(slot) {
+      const equippedItem = this.player.equipment[slot];
+      if (!equippedItem) return;
+
+      this.addItem(equippedItem, 1);
+      this.player.equipment[slot] = null;
+    },
+
     useItem(itemId) {
+      if (!this.isPlayerAlive) return false;
+
       const index = this.player.inventory.findIndex(i => i.itemId === itemId && i.quantity > 0);
       if (index === -1) return false;
 
@@ -103,7 +130,6 @@ export const useGameState = defineStore('gameState', {
       return true;
     },
 
-    // Modificar ouro
     addGold(amount) {
       this.player.gold += amount;
     },
@@ -111,7 +137,6 @@ export const useGameState = defineStore('gameState', {
       this.player.gold = Math.max(0, this.player.gold - amount);
     },
 
-    // Manipular inventário
     addItem(itemId, quantity = 1) {
       const item = this.player.inventory.find(i => i.itemId === itemId);
       if (item) {
@@ -119,6 +144,23 @@ export const useGameState = defineStore('gameState', {
       } else {
         this.player.inventory.push({ itemId, quantity });
       }
+    },
+
+    removeItem(itemId, quantity = 1) {
+      const item = this.player.inventory.find(i => i.itemId === itemId);
+      if (!item) return;
+
+      item.quantity -= quantity;
+      if (item.quantity <= 0) {
+        const index = this.player.inventory.findIndex(i => i.itemId === itemId);
+        if (index !== -1) {
+          this.player.inventory.splice(index, 1);
+        }
+      }
+    },
+
+    hasItem(itemId) {
+      return this.player.inventory.some(i => i.itemId === itemId && i.quantity > 0);
     },
   },
 });

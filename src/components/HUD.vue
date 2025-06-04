@@ -15,7 +15,7 @@
             }"
           ></div>
           <span class="bar-label">
-            {{ gameState.player.health }}/{{ gameState.player.maxHealth }}
+            {{ Math.floor(gameState.player.health) }}/{{ Math.floor(gameState.player.maxHealth) }}
           </span>
         </div>
       </div>
@@ -33,7 +33,7 @@
             }"
           ></div>
           <span class="bar-label">
-            {{ gameState.player.stamina }}/{{ gameState.player.maxStamina }}
+            {{ Math.floor(gameState.player.stamina) }}/{{ Math.floor(gameState.player.maxStamina) }}
           </span>
         </div>
       </div>
@@ -42,7 +42,7 @@
     <!-- Ouro no canto inferior direito -->
     <div class="gold-display">
       <img src="/icons/gold-icon.png" alt="Ouro" class="gold-icon" />
-      <span class="gold-value">{{ gameState.player.gold }}</span>
+      <span class="gold-value">{{ Math.floor(gameState.player.gold) }}</span>
     </div>
 
     <!-- Botões no lado direito central -->
@@ -68,7 +68,17 @@ import { ref } from "vue";
 import { useGameState } from "@/stores/gameState";
 import { useRouter } from "vue-router";
 import Inventory from "@/components/Inventory.vue";
+import { computed } from 'vue';
 
+const healthPercent = computed(() => {
+  return (Math.floor(gameState.player.health) / Math.floor(gameState.player.maxHealth)) * 100;
+});
+
+const staminaPercent = computed(() => {
+  return (Math.floor(gameState.player.stamina) / Math.floor(gameState.player.maxStamina)) * 100;
+});
+
+// Instancia o store Pinia
 const gameState = useGameState();
 const router = useRouter();
 

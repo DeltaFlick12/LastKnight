@@ -29,19 +29,33 @@
       <img src="/icons/gold-icon.png" alt="Ouro" class="gold-icon" />
       <span>{{ gold }}</span>
     </div>
+
+    <div class="stamina-bar">
+<span>Stamina: {{ staminaRounded }}</span>
+<progress max="100" :value="staminaRounded"></progress>
+    </div>
   </div>
 </template>
 
 <script setup>
+import { useGameState } from '@/stores/gameState'  // ajuste o caminho conforme o seu projeto
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
 import Inventory from '@/components/Inventory.vue'
 import HUD from '@/components/HUD.vue'
+import { computed } from 'vue'
 
-const router = useRouter()
 
-const health = ref(100)
-const stamina = ref(100)
+const gameState = useGameState()
+
+const maxStamina = gameState.player.maxStamina
+const staminaRecoveryRate = 10 // por segundo
+const staminaConsumptionRate = 25 // por segundo
+
+const staminaRounded = computed(() => {
+  return Math.floor(gameState.player.stamina)
+})
+
+
 const gold = ref(150)
 const potions = ref(3)
 const currentArea = ref('Reino de Albadia')
@@ -56,7 +70,7 @@ const equipWeapon = (name) => (equippedWeapon.value = name)
 
 const usePotion = () => {
   if (potions.value > 0) {
-    health.value = Math.min(100, health.value + 30)
+    gameState.player.health = Math.min(gameState.player.maxHealth, gameState.player.health + 30)
     potions.value--
   }
 }
@@ -79,9 +93,10 @@ const player = {
   y: 1600 + 128 / 2,
   size: 128,
   speed: 6,
+  runSpeed: 12,
   direction: 'idle'
 }
-const keys = { w: false, a: false, s: false, d: false }
+const keys = { w: false, a: false, s: false, d: false, shift: false }
 const world = { width: 3000, height: 2000 }
 const background = new Image()
 const foreground = new Image()
@@ -101,7 +116,7 @@ function imageLoadedCallback() {
   imagesLoadedCount++
   if (imagesLoadedCount >= totalImagesToLoad) {
     allImagesLoaded = true
-    gameLoop()
+    requestAnimationFrame(gameLoop)
   }
 }
 
@@ -170,30 +185,71 @@ function onKeyUp(e) {
 }
 
 let animationFrameId = null
+let lastUpdateTime = 0
 
-function gameLoop() {
+function gameLoop(timestamp) {
   if (!allImagesLoaded) {
     animationFrameId = requestAnimationFrame(gameLoop)
     return
   }
-  update()
+
+  if (!lastUpdateTime) lastUpdateTime = timestamp
+
+  const delta = timestamp - lastUpdateTime
+
+  if (delta >= 15) { // 15 ms para ~30 FPS
+    update(delta / 1000) // delta em segundos
+    lastUpdateTime = timestamp
+  }
+
   draw()
   animationFrameId = requestAnimationFrame(gameLoop)
 }
 
-function update() {
-  const { w, a, s, d } = keys
+function update(deltaSeconds) {
+  const { w, a, s, d, shift } = keys
   let moved = false
   let dx = 0
   let dy = 0
 
-  if (w) { dy -= player.speed; player.direction = 'walk_up'; moved = true }
-  if (s) { dy += player.speed; player.direction = 'walk_down'; moved = true }
-  if (a) { dx -= player.speed; player.direction = 'walk_left'; moved = true }
-  if (d) { dx += player.speed; player.direction = 'walk_right'; moved = true }
+  if (w) { dy -= 1; moved = true }
+  if (s) { dy += 1; moved = true }
+  if (a) { dx -= 1; moved = true }
+  if (d) { dx += 1; moved = true }
 
-  if (moved) move(dx, dy)
-  else player.direction = 'idle'
+  if (dx !== 0 && dy !== 0) {
+    const invSqrt2 = 1 / Math.sqrt(2)
+    dx *= invSqrt2
+    dy *= invSqrt2
+  }
+
+  if (moved) {
+    let speed = player.speed
+
+    if (shift && gameState.player.stamina > 0) {
+      speed = player.runSpeed
+
+      // Gasta stamina proporcional ao tempo
+      gameState.player.stamina -= staminaConsumptionRate * deltaSeconds
+      if (gameState.player.stamina < 0) gameState.player.stamina = 0
+    } else {
+      // Recupera stamina se não estiver correndo
+      gameState.player.stamina += staminaRecoveryRate * deltaSeconds
+      if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
+    }
+
+    if (dy < 0) player.direction = 'walk_up'
+    else if (dy > 0) player.direction = 'walk_down'
+    else if (dx < 0) player.direction = 'walk_left'
+    else if (dx > 0) player.direction = 'walk_right'
+
+    move(dx * speed, dy * speed)
+  } else {
+    player.direction = 'idle'
+    // Recupera stamina quando parado
+    gameState.player.stamina += staminaRecoveryRate * deltaSeconds
+    if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
+  }
 
   const nearStructure = getPlayerNearbyStructure()
   showEnterPrompt.value = !!nearStructure?.route

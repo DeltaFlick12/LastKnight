@@ -1,12 +1,18 @@
 <template>
-  <div class="inventory-modal scroll-unroll">
-    <div class="modal-header">
+  <div
+    ref="inventoryModal"
+    :class="[
+      'inventory-modal scroll-unroll',
+      isClosing ? 'fade-out-scale' : 'fade-in-scale'
+    ]"
+  >
+    <div ref="header" class="modal-header">
       <h2>INVENTÁRIO</h2>
       <div class="gold">
         <img src="/icons/gold-icon.png" alt="Gold Coin" class="gold-icon" />
         <span>{{ gameState.player.gold }}</span>
       </div>
-      <button class="close-btn" @click="$emit('close')">✖</button>
+      <button class="close-btn" @click="handleClose">✖</button>
     </div>
 
     <!-- Filtros -->
@@ -68,15 +74,20 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { gameState, actions, ITEMS, ITEM_ICONS } from '@/stores/game.js';
 
 const emits = defineEmits(['close']);
+
 const hoverItem = ref(null);
 const feedbackMessage = ref('');
 const activeCategory = ref('Todos');
+const isClosing = ref(false);
 
 const categories = ['Todos', 'Consumíveis', 'Armas', 'Armadura', 'Chave'];
+
+const inventoryModal = ref(null);
+const header = ref(null);
 
 const getItemIcon = (itemId) => {
   return ITEM_ICONS[itemId] || '/assets/icons/unknown-item.png';
@@ -86,10 +97,8 @@ const allItems = computed(() => {
   return gameState.player.inventory
     .map((invItem) => {
       const itemData = ITEMS[invItem.itemId];
-      if (!itemData) {
-        console.warn(`Item com ID ${invItem.itemId} não encontrado em ITEMS`);
-        return null;
-      }
+      if (!itemData) return null;
+
       return {
         itemId: invItem.itemId,
         name: itemData.name,
@@ -114,7 +123,7 @@ const allItems = computed(() => {
           : null,
       };
     })
-    .filter((item) => item !== null);
+    .filter(Boolean);
 });
 
 const filteredItems = computed(() => {
@@ -127,74 +136,161 @@ const filteredItems = computed(() => {
 const handleClick = (item) => {
   feedbackMessage.value = '';
   if (item.usable && item.quantity > 0) {
-    const used = item.action?.();
-    feedbackMessage.value = used
-      ? `Você usou ${item.name}!`
-      : `Não foi possível usar ${item.name}.`;
+    item.action?.();
+    feedbackMessage.value = `Você usou ${item.name}!`;
   } else if (item.equipable) {
     const wasEquipped = item.equipped;
     item.action?.();
     feedbackMessage.value = wasEquipped ? `${item.name} desequipado!` : `${item.name} equipado!`;
-  } else if (item.usable) {
-    feedbackMessage.value = `Você não tem ${item.name}!`;
   } else {
     feedbackMessage.value = `${item.name} não pode ser usado ou equipado.`;
   }
 
   setTimeout(() => (feedbackMessage.value = ''), 3000);
 };
+
+// === Drag modal logic ===
+let isDragging = false;
+let offsetX = 0;
+let offsetY = 0;
+
+const handleMouseDown = (e) => {
+  isDragging = true;
+
+  const modal = inventoryModal.value;
+  const rect = modal.getBoundingClientRect();
+
+  offsetX = e.clientX - rect.left;
+  offsetY = e.clientY - rect.top;
+
+  modal.style.position = 'fixed';
+  modal.style.left = `${rect.left}px`;
+  modal.style.top = `${rect.top}px`;
+  modal.style.transform = 'none';
+  modal.style.margin = '0';
+  modal.classList.add('dragging');
+
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+  e.preventDefault();
+};
+
+const handleMouseMove = (e) => {
+  if (!isDragging) return;
+
+  const modal = inventoryModal.value;
+  modal.style.left = `${e.clientX - offsetX}px`;
+  modal.style.top = `${e.clientY - offsetY}px`;
+};
+
+const handleMouseUp = () => {
+  if (!isDragging) return;
+  isDragging = false;
+
+  const modal = inventoryModal.value;
+  modal.classList.remove('dragging');
+
+  // Salvar posição no localStorage
+  localStorage.setItem('inventoryModalPos', JSON.stringify({
+    left: modal.style.left,
+    top: modal.style.top,
+  }));
+
+  document.removeEventListener('mousemove', handleMouseMove);
+  document.removeEventListener('mouseup', handleMouseUp);
+};
+
+const handleClose = () => {
+  if (isClosing.value) return;
+  isClosing.value = true;
+  setTimeout(() => emits('update:show', false), 300);
+};
+
+onMounted(() => {
+  if (header.value) {
+    header.value.addEventListener('mousedown', handleMouseDown);
+  }
+
+  // Ler posição salva
+  const savedPos = localStorage.getItem('inventoryModalPos');
+  const modal = inventoryModal.value;
+
+  if (savedPos && modal) {
+    const pos = JSON.parse(savedPos);
+    modal.style.position = 'fixed';
+    modal.style.left = pos.left;
+    modal.style.top = pos.top;
+    modal.style.transform = 'none';
+    modal.style.margin = '0';
+  }
+});
+
+onBeforeUnmount(() => {
+  if (header.value) {
+    header.value.removeEventListener('mousedown', handleMouseDown);
+  }
+});
 </script>
 
 <style scoped>
-/* Animação de abertura (scroll unroll) */
-.scroll-unroll {
-  animation: unroll 1s ease-out forwards;
+.fade-in-scale {
+  animation: fadeInScale 0.3s ease forwards;
+  opacity: 0;
+  transform: scale(0.9);
 }
 
-@keyframes unroll {
-  0% {
-    transform: translate(-50%, -50%) scaleY(0);
+.fade-out-scale {
+  animation: fadeOutScale 0.3s ease forwards;
+}
+
+@keyframes fadeInScale {
+  from {
     opacity: 0;
+    transform: scale(0.9);
   }
-  60% {
-    transform: translate(-50%, -50%) scaleY(1.15);
-    opacity: 0.9;
-  }
-  100% {
-    transform: translate(-50%, -50%) scaleY(1);
+  to {
     opacity: 1;
+    transform: scale(1);
   }
 }
 
+@keyframes fadeOutScale {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+/* Animação de abertura (scroll unroll) */
 /* Modal principal - couro envelhecido com costura */
 .inventory-modal {
   position: fixed;
-  bottom: -20%;  /* mais próximo do rodapé (mais para baixo) */
-  right: 2%;   /* mais próximo da borda direita (mais para direita) */
-
-  transform: translate(0, 0); /* sem deslocamento */
-  
-  background: linear-gradient(145deg, #4a3118, #3c2611);
-  border: 6px solid #5d3a1a;
-  border-radius: 18px;
-  padding: 0px 0px;
-  color: #f1d7b1;
-  width: 90%;
-  max-width: 820px;
-  min-height: 520px;
-  box-shadow:
-    inset 0 0 15px 3px #7f5b24,
-    0 0 25px 3px #4a3118;
-  image-rendering: pixelated;
   z-index: 10000;
-  /* Costura ao redor */
-  box-shadow:
-    inset 0 0 15px 3px #7f5b24,
-    0 0 25px 3px #4a3118,
-    0 0 0 4px #6e4a23 inset,
-    0 0 0 7px #593e16 inset;
-  position: flex;
+  left: 30%;
+  top: 25%;
+  transform: translate(-50%, -50%);
+  width: 800px;
+  height: 500px;
+  background: #533200;
+  border: 2px solid #00000044;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  /* cursor: grab; */ /* Removido para arrastar apenas pelo header */
+  color: white;
+  color: white;
 }
+
+.inventory-modal:not([style*="left"]) {
+  transform: translate(-50%, -50%);
+}
+
 
 /* Costura estilo pontos */
 .inventory-modal::before {
@@ -218,6 +314,7 @@ const handleClick = (item) => {
   text-shadow: 2px 2px 3px #2f1e0d;
   position: relative;
   z-index: 2;
+  cursor: grab; /* Adicionado para indicar que o header é arrastável */
 }
 
 .modal-header h2 {
@@ -241,10 +338,8 @@ const handleClick = (item) => {
 }
 
 .gold-icon {
-  width: 26px;
-  height: 26px;
-  image-rendering: pixelated;
-  filter: drop-shadow(1px 1px 1px #2c1a06);
+  width: 24px;
+  height: 24px;
 }
 
 .close-btn {
@@ -476,5 +571,9 @@ const handleClick = (item) => {
 .item-fade-leave-to {
   opacity: 0;
   transform: translateY(12px);
+}
+.inventory-modal.dragging {
+  cursor: grabbing !important;
+  user-select: none;
 }
 </style>
