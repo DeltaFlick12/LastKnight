@@ -3,24 +3,28 @@
     <img src="@/assets/Mapa.png" class="map-image" alt="Mapa de Albadia" @load="onImageLoad" />
 
     <!-- Áreas clicáveis do mapa -->
-    <div
-      v-for="(area, index) in areas"
-      :key="index"
-      class="map-area"
-      :style="{ top: area.top, left: area.left, width: area.width, height: area.height }"
-      :class="{ unlocked: area.unlocked, locked: !area.unlocked, 'newly-unlocked': area.newlyUnlocked }"
-      @click="goToArea(area)"
-      role="button"
-      :aria-label="area.unlocked ? `Ir para ${area.name}` : `${area.name} (bloqueado)`"
-      :tabindex="area.unlocked ? 0 : -1"
-      @keydown.enter="goToArea(area)"
-      @mouseover="showTooltip(area)"
-      @mouseout="hideTooltip"
-    >
-      <span v-if="area.unlocked && area.showTooltip" class="tooltip">
-        {{ area.description }}
-      </span>
-    </div>
+<div
+  v-for="(area, index) in areas"
+  :key="index"
+  class="map-area"
+  :style="{ top: area.top, left: area.left, width: area.width, height: area.height }"
+  :class="{ unlocked: area.unlocked, locked: !area.unlocked, 'newly-unlocked': area.newlyUnlocked }"
+  @click="goToArea(area)"
+  role="button"
+  :aria-label="area.unlocked ? `Ir para ${area.name}` : `${area.name} (bloqueado)`"
+  :tabindex="area.unlocked ? 0 : -1"
+  @keydown.enter="goToArea(area)"
+  @mouseover="showTooltip(area)"
+  @mouseout="hideTooltip"
+>
+  <!-- Sombra preta sobre áreas bloqueadas -->
+  <div v-if="!area.unlocked" class="locked-overlay"></div>
+
+  <!-- Tooltip -->
+  <span v-if="area.unlocked && area.showTooltip" class="tooltip">
+    {{ area.description }}
+  </span>
+</div>
 
     <button
       class="back-btn"
@@ -83,7 +87,7 @@ const areas = ref([
     width: '20%',
     height: '30%',
     route: '/level/ruinas',
-    unlocked: true,
+    unlocked: false,
     description: 'Restos de uma civilização antiga.',
     newlyUnlocked: false,
     showTooltip: false,
@@ -95,7 +99,7 @@ const areas = ref([
     width: '25%',
     height: '30%',
     route: '/level/caverna',
-    unlocked: true,
+    unlocked: false,
     description: 'Uma caverna sombria.',
     newlyUnlocked: false,
     showTooltip: false,
@@ -107,7 +111,7 @@ const areas = ref([
     width: '23%',
     height: '30%',
     route: '/level/montanha',
-    unlocked: true,
+    unlocked: false,
     description: 'Picos gelados e perigosos.',
     newlyUnlocked: false,
     showTooltip: false,
@@ -119,7 +123,7 @@ const areas = ref([
     width: '35%',
     height: '30%',
     route: '/level/castelo',
-    unlocked: true,
+    unlocked: false,
     description: 'Um castelo imponente.',
     newlyUnlocked: false,
     showTooltip: false,
@@ -210,7 +214,8 @@ watch(
 
 .map-image {
   width: 90%;
-  height: 1000%;
+  height: 110%;
+  margin-left: 10%;
   object-fit: contain;
   filter: brightness(0.9);
   border: 3px solid #4a4a4a;
@@ -229,6 +234,10 @@ watch(
   align-items: center;
   transition: all 0.3s ease;
   pointer-events: none;
+  z-index: 100;
+
+  /* 🔧 ESSENCIAL para a borda funcionar corretamente */
+  box-sizing: border-box;
 }
 
 .map-area.unlocked {
@@ -237,17 +246,30 @@ watch(
 }
 
 .map-area.unlocked:hover .area-label {
-  background-color: rgba(0, 0, 0, 0.8);
-  transform: scale(1.1);
+  filter: brightness(1.2);
 }
 
 .map-area.locked {
-  filter: brightness(0.4);
+  position: relative;
   cursor: not-allowed;
+  pointer-events: none;
+  filter: brightness(0.6);
 }
 
 .map-area.newly-unlocked .area-label {
   animation: pulse 1.5s infinite;
+}
+
+.locked-overlay {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 999999;
 }
 
 .area-label {
