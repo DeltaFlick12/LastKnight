@@ -11,7 +11,7 @@
         </div>
       </div>
       <div class="boss-visual" :class="{ vulnerable: gameState.boss.isVulnerable }">
-        <img src="@/assets/magnus.png" alt="Magnus" />
+        <!-- <img src="@/assets/magnus.png" alt="Magnus" /> -->
       </div>
     </div>
 
@@ -139,7 +139,6 @@ onMounted(() => {
   playAudio('music_final_battle', { loop: true });
 });
 </script>
-
 
 <style scoped>
 .final-battle {

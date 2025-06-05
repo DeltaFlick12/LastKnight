@@ -1,107 +1,124 @@
 <template>
-  <div class="background-container">
-    <!-- Névoa -->
+  <div class="background-container" :style="{ backgroundImage: `url(${bgImage})` }">
+    <!-- Overlay Sombrio Intensificado -->
+    <div class="dark-overlay"></div>
+
+    <!-- Efeito de Água Sombria -->
+    <div class="water-effect"></div>
+
+    <!-- Névoa Densa -->
     <div class="fog-layer"></div>
 
-    <!-- Partículas -->
-    <div class="particle" v-for="n in 10" :key="n" :style="randomParticleStyle()"></div>
+    <!-- Partículas Fantasmagóricas -->
+    <div class="particle" v-for="n in 12" :key="`particle-${n}`" :style="randomParticleStyle()"></div>
 
     <!-- HUD -->
-    <div class="hud">
-      <div class="hud-box left">
-        <div class="hud-label">Status</div>
-        <p>❤️ Vida: <span>{{ health }}/100</span></p>
-        <p>⚡ Stamina: <span>{{ stamina }}/100</span></p>
+    <Hud
+    />
+
+    <!-- Caixa de diálogo (z-index garante que fique acima dos efeitos) -->
+    <div class="dialog-box" v-if="showDialog">
+      <p>{{ displayedText }}</p>
+      <div class="dialog-actions" v-if="!typing">
+        <button @click="atravessar">Tentar Atravessar</button>
+        <button @click="voltar">Voltar para o mapa</button>
       </div>
-
-      <div class="hud-box center">
-        <div class="hud-label">Recursos</div>
-        <p>🪙 Ouro: <span>{{ gold }}</span></p>
-        <p>🧪 Poções: <span>{{ potions }}</span></p>
-      </div>
-
-      <div class="hud-box right">
-        <div class="hud-label">Local</div>
-        <p>📍 <span>{{ area }}</span></p>
-      </div>
-
-      <p class="fps">{{ fps }} FPS</p>
-    </div>
-
-    <!-- Conteúdo -->
-    <div class="rio-content">
-      <p>Você chega à margem do Rio das Almas Perdidas. As águas escuras parecem puxar sua energia vital.</p>
-      <p class="placeholder">(Placeholder: Cenário do Rio das Almas Perdidas) ~~~~~~~ Rio ~~~~~~~</p>
-      <button @click="atravessar">Tentar Atravessar</button>
-      <button @click="voltar">Voltar para Floresta</button>
     </div>
   </div>
 </template>
 
 <script setup>
-<<<<<<< Updated upstream
-import { ref, computed, onMounted } from 'vue';
+import bgImage from '@/assets/backviews/rio-bg.gif'; // Mantém o GIF original
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { gameState, actions } from '@/store/gfame.js'; // Ajuste o caminho
-import { playAudio } from '@/utils/audioManager.js';
-=======
-import { ref, onMounted } from 'vue'
->>>>>>> Stashed changes
+import Hud from '@/components/Hud.vue';
+// Assume que gameState e actions estão em @/stores/game.js
+import { gameState, actions } from '@/stores/game.js'; 
 
-defineProps({
-  health: Number,
-  stamina: Number,
-  gold: Number,
-  potions: Number,
-  area: String,
-})
+const router = useRouter();
+const fps = ref(0);
+let frameCount = 0;
+let lastTime = performance.now();
 
-const fps = ref(0)
-let frameCount = 0
-let lastTime = performance.now()
+const showDialog = ref(true);
+const displayedText = ref('');
+const typing = ref(false);
+
+const line =
+  'Ao chegar à margem do Rio das Almas Perdidas, uma névoa gélida e espessa envolve teus pés. As águas negras, quase imóveis, parecem observar-te... famintas.';
+
+// --- Reatividade com gameState ---
+const playerHealth = computed(() => gameState.player.health);
+const playerStamina = computed(() => gameState.player.stamina);
+const playerGold = computed(() => gameState.player.gold);
+const playerPotionsCount = computed(() => {
+  const healthPotions = gameState.player.inventory.find(item => item.itemId.includes('potion_health'));
+  return healthPotions ? healthPotions.quantity : 0;
+});
+const currentArea = computed(() => gameState.currentArea);
+const hasBlessing = computed(() => gameState.player.hasRiverBlessing);
+// --------------------------------
+
+function typeText() {
+  typing.value = true;
+  displayedText.value = '';
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i < line.length) {
+      displayedText.value += line[i];
+      i++;
+    } else {
+      clearInterval(interval);
+      typing.value = false;
+    }
+  }, 45); // Ainda mais lento
+}
+
+function atravessar() {
+  if (!hasBlessing.value) {
+    const damage = 35; // Dano ligeiramente aumentado
+    actions.takeDamage(damage);
+    alert(`As águas negras gelam seus ossos! Você sente sua vitalidade diminuir... Saúde atual: ${playerHealth.value}`);
+    if (playerHealth.value <= 0) {
+       alert("Sua alma foi reivindicada pelo rio...");
+       // actions.gameOver(); router.push('/gameover');
+    }
+  } else {
+    alert('A bênção protege você das profundezas sombrias. Você atravessou o rio!');
+    // actions.completeArea('rio'); actions.changeArea('proxima_area'); router.push('/proxima_area');
+  }
+}
+
+function voltar() {
+  // actions.changeArea('map'); 
+  router.push('/map');
+}
 
 onMounted(() => {
-  updateFPS()
-  playAmbientSound()
-})
+  gameState.currentArea = 'Rio das Almas Perdidas';
+  updateFPS();
+  typeText();
+});
 
 // FPS Tracker
 function updateFPS() {
-  const now = performance.now()
-  frameCount++
+  const now = performance.now();
+  frameCount++;
   if (now - lastTime >= 1000) {
-    fps.value = frameCount
-    frameCount = 0
-    lastTime = now
+    fps.value = frameCount;
+    frameCount = 0;
+    lastTime = now;
   }
-  requestAnimationFrame(updateFPS)
+  requestAnimationFrame(updateFPS);
 }
 
-// Áudio ambiente com fade-in
-function playAmbientSound() {
-  const audio = new Audio('/assets/audio/rio-ambiente.mp3')
-  audio.volume = 0
-  audio.loop = true
-  audio.play()
-
-  let vol = 0
-  const fadeIn = setInterval(() => {
-    if (vol < 1) {
-      vol += 0.02
-      audio.volume = Math.min(vol, 1)
-    } else {
-      clearInterval(fadeIn)
-    }
-  }, 200)
-}
-
-// Estilo de partículas
+// Estilo de partículas (mais sombrio/fantasmagórico)
 function randomParticleStyle() {
-  const top = Math.random() * 100
-  const left = Math.random() * 100
-  const duration = 8 + Math.random() * 4
-  const delay = Math.random() * 5
-  const size = 12 + Math.random() * 12
+  const top = Math.random() * 100;
+  const left = Math.random() * 100;
+  const duration = 12 + Math.random() * 8; // Mais lentas
+  const delay = Math.random() * 10;
+  const size = 8 + Math.random() * 8; // Menores
 
   return {
     top: `${top}%`,
@@ -109,16 +126,10 @@ function randomParticleStyle() {
     width: `${size}px`,
     height: `${size}px`,
     animationDuration: `${duration}s`,
-    animationDelay: `${delay}s`
-  }
-}
-
-function atravessar() {
-  console.log("Tentando atravessar o rio...")
-}
-
-function voltar() {
-  console.log("Voltando para a floresta...")
+    animationDelay: `${delay}s`,
+    // Usar uma partícula diferente se disponível, senão ajustar a atual
+    // backgroundImage: 'url(\'/assets/particles/ghostly_particle.png\')',
+  };
 }
 </script>
 
@@ -127,130 +138,136 @@ function voltar() {
   position: relative;
   width: 100%;
   height: 100vh;
-  background: url('@/assets/backviews/rio-bg.gif') no-repeat center center;
   background-size: cover;
+  background-position: center;
+  background-image: url('/assets/backviews/rio-bg.gif'); 
   overflow: hidden;
+  /* Filtro intensificado para clima sombrio */
+  filter: brightness(0.6) contrast(1.05) saturate(0.6) grayscale(0.1);
 }
 
-/* Névoa */
+/* Overlay sombrio mais forte */
+.dark-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(5, 0, 10, 0.35); /* Mais escuro e roxo */
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Efeito de água escura e quase parada */
+.water-effect {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 40%; /* Ligeiramente mais alto */
+  background: linear-gradient(
+    180deg, /* Direção ajustada */
+    rgba(5, 8, 12, 0) 0%,
+    rgba(5, 8, 12, 0.5) 40%,
+    rgba(8, 10, 15, 0.8) 75%,
+    rgba(10, 12, 18, 0.95) 100% /* Cores bem escuras */
+  );
+  opacity: 0.9;
+  mix-blend-mode: multiply; /* Modo de mesclagem mais escuro */
+  pointer-events: none;
+  z-index: 4; 
+  /* Animação removida ou muito sutil para água parada */
+  /* animation: waterFlow 45s linear infinite alternate; */ 
+}
+
+/* Névoa mais densa */
 .fog-layer {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(ellipse at center, rgba(200,200,200,0.15), rgba(0,0,0,0.1));
+  background: radial-gradient(ellipse at bottom, rgba(40, 40, 50, 0.6), rgba(10, 10, 15, 0.8) 65%, rgba(0, 0, 5, 0.95) 100%);
+  opacity: 0.92;
   pointer-events: none;
   z-index: 2;
+  animation: fogDrift 70s linear infinite alternate; /* Mais lenta */
 }
 
-/* Partículas */
+@keyframes fogDrift {
+  from {
+    transform: translateX(-4%);
+  }
+  to {
+    transform: translateX(4%);
+  }
+}
+
+/* Partículas fantasmagóricas */
 .particle {
   position: absolute;
-  background-image: url('@/assets/particles/particle.png');
+  /* Idealmente, usar uma imagem de partícula mais adequada */
+  background-image: url('/assets/particles/particle.png'); 
   background-size: contain;
   background-repeat: no-repeat;
-  opacity: 0.4;
+  opacity: 0.15; /* Bem sutis */
   z-index: 3;
-  animation: floatUp linear infinite;
+  animation: floatUp ease-in-out infinite; /* Movimento mais suave */
+  filter: grayscale(0.5) blur(1.5px); /* Cinza e desfocado */
 }
 
 @keyframes floatUp {
   from {
-    transform: translateY(0px) scale(1);
-    opacity: 0.4;
+    transform: translateY(0px) scale(0.8) rotate(-5deg);
+    opacity: 0.15;
+  }
+  50% {
+      opacity: 0.05;
+      transform: translateY(-70px) scale(1) rotate(0deg);
   }
   to {
-    transform: translateY(-120px) scale(1.1);
+    transform: translateY(-160px) scale(1.3) rotate(10deg);
     opacity: 0;
   }
 }
 
-/* HUD */
-.hud {
+/* Caixa de diálogo permanece clara */
+.dialog-box {
+  background-color: rgba(10, 5, 15, 0.9); 
+  padding: 25px;
+  border: 2px solid #a07c4f; 
+  border-radius: 8px;
+  text-align: center;
+  max-width: 650px;
   position: absolute;
-  top: 0;
-  width: 100%;
-  padding: 10px 30px;
-  display: flex;
-  justify-content: space-between;
-  z-index: 4;
-  font-family: 'Press Start 2P', cursive;
-  image-rendering: pixelated;
-}
-
-.hud-box {
-  background: url('/img/ui/pergaminho.png') repeat;
-  border: 3px solid #af8a58;
-  padding: 14px 20px;
-  border-radius: 12px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.6);
-  min-width: 180px;
-  color: #f8e3b7;
-  text-shadow: 1px 1px 1px #000;
-}
-
-.hud-box.left { border-left: 6px solid #b53a3a; }
-.hud-box.center { text-align: center; border-left: 6px solid #d4a127; }
-.hud-box.right { text-align: right; border-left: 6px solid #3e9356; }
-
-.hud-label {
-  font-size: 13px;
-  text-transform: uppercase;
-  margin-bottom: 8px;
-  color: #ffe9b5;
-  border-bottom: 1px solid #e0c48f;
-  padding-bottom: 4px;
-}
-
-.hud p {
-  margin: 4px 0;
-  font-size: 12px;
-}
-
-.hud p span {
-  font-weight: bold;
-  color: #fffbe0;
-}
-
-.fps {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  font-size: 12px;
-  color: #b6ffba;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid #76c976;
-  z-index: 5;
-}
-
-/* Conteúdo */
-.rio-content {
-  position: absolute;
-  top: 55%;
+  top: 60%; 
   left: 50%;
   transform: translate(-50%, -50%);
-  color: white;
-  text-align: center;
-  z-index: 4;
+  z-index: 10; /* Garante que fique acima dos efeitos */
+  font-size: 24px; 
+  color: #e0d8c0; 
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
 }
 
-.placeholder {
-  font-style: italic;
-  color: rgba(255, 255, 255, 0.3);
-  margin-bottom: 12px;
-}
-
-button {
-  margin: 5px;
-  background-color: #234e7d;
-  color: #fff;
-  border: none;
-  padding: 8px 14px;
-  border-radius: 8px;
+.dialog-actions button {
+  margin: 0 12px;
+  padding: 12px 24px;
+  background: linear-gradient(to bottom, #5a3a1f, #2a1408); 
+  color: #c5b08a; 
+  font-family: 'Uncial Antiqua', serif;
+  font-size: 17px;
+  border: 2px solid #8a6c4a;
+  border-radius: 6px;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.5) inset, 0 0 8px rgba(0, 0, 0, 0.5);
   cursor: pointer;
-  font-size: 12px;
+  transition: transform 0.2s, box-shadow 0.2s, background 0.3s;
+}
+
+.dialog-actions button:hover {
+  transform: scale(1.03);
+  background: linear-gradient(to bottom, #6b4a2f, #3b2418);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.7) inset, 0 0 12px #b49f67;
+  color: #f0e0b8;
 }
 </style>

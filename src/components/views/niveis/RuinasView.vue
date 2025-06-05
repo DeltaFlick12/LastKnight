@@ -54,7 +54,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { gameState, actions } from '@/store/gfame.js'; // Ajuste o caminho
+import { gameState, actions } from '@/stores/game.js'; // Ajuste o caminho
 import { playAudio } from '@/utils/audioManager.js';
 
 const router = useRouter();

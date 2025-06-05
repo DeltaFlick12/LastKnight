@@ -1,121 +1,240 @@
 <template>
-  <div class="hud">
-    <div class="hud-box left">
-      <div class="hud-label">Status</div>
-      <p>❤️ Vida: <span>{{ health }}/100</span></p>
-      <p>⚡ Stamina: <span>{{ stamina }}/100</span></p>
+  <div class="main-hud">
+    <!-- Painel com vida e energia -->
+    <div class="panel-frame">
+<!-- Vida -->
+<div class="stat vida">
+  <div class="icon-container">
+    <img src="/icons/life-icon.png" alt="Vida" class="icon" />
+  </div>
+  <div class="bar-container segmented">
+    <div
+      v-for="i in maxBarSegments"
+      :key="'vida-' + i"
+      class="segment"
+      :class="{ filled: i <= filledHealthSegments }"
+    ></div>
+    <span class="bar-label">
+      {{ Math.floor(gameState.player.health) }}/{{ Math.floor(gameState.player.maxHealth) }}
+    </span>
+  </div>
+</div>
+
+<!-- Energia -->
+<div class="stat energia">
+  <div class="icon-container">
+    <img src="/icons/stam-icon.png" alt="Energia" class="icon" />
+  </div>
+  <div class="bar-container segmented">
+    <div
+      v-for="i in maxBarSegments"
+      :key="'energia-' + i"
+      class="segment"
+      :class="{ filled: i <= filledStaminaSegments }"
+    ></div>
+    <span class="bar-label">
+      {{ Math.floor(gameState.player.stamina) }}/{{ Math.floor(gameState.player.maxStamina) }}
+    </span>
+  </div>
+</div>
+
     </div>
 
-    <div class="hud-box center">
-      <div class="hud-label">Recursos</div>
-      <p>🪙 Ouro: <span>{{ gold }}</span></p>
-      <p>🧪 Poções: <span>{{ potions }}</span></p>
+    <!-- Botões no lado direito central -->
+    <div class="hud-buttons">
+      <!-- Botão MAPA -->
+      <button class="map-button" @click="handleMapClick">
+        <img src="/icons/map-icon.png" alt="Mapa" class="button-icon" />
+      </button>
+
+      <!-- Botão MOCHILA -->
+      <button class="bag-button" @click="toggleBag">
+        <img src="/icons/bag-icon.png" alt="Mochila" class="button-icon" />
+      </button>
     </div>
 
-    <div class="hud-box right">
-      <div class="hud-label">Local</div>
-      <p>📍 <span>{{ area }}</span></p>
-    </div>
-<<<<<<< Updated upstream
-=======
-
-    <p class="fps">{{ fps }} FPS</p>
->>>>>>> Stashed changes
+    <!-- Inventário: renderiza somente se aberto -->
+    <Inventory v-if="inventoryOpen" />
   </div>
 </template>
 
 <script setup>
-defineProps({
-  health: Number,
-  stamina: Number,
-  gold: Number,
-  potions: Number,
-  area: String,
-})
+import { ref, computed } from "vue";
+import { useRouter } from "vue-router";
+import Inventory from "@/components/Inventory.vue";
+import { useGameState } from "@/stores/gameState"; // <--- Importa o gameState da Pinia
+
+const gameState = useGameState(); // <--- Usa o gameState da store
+
+const router = useRouter();
+const inventoryOpen = ref(false);
+
+const toggleBag = () => {
+  inventoryOpen.value = !inventoryOpen.value;
+};
+
+const handleMapClick = () => {
+  const tutorialDone = localStorage.getItem("tutorialCompleted");
+  if (!tutorialDone) {
+    localStorage.setItem("tutorialCompleted", "true");
+    router.push("/tutorial");
+  } else {
+    router.push("/map");
+  }
+};
+
+const maxBarSegments = 10;
+
+const filledHealthSegments = computed(() => {
+  return Math.round(
+    (gameState.player.health / gameState.player.maxHealth) * maxBarSegments
+  );
+});
+
+const filledStaminaSegments = computed(() => {
+  return Math.round(
+    (gameState.player.stamina / gameState.player.maxStamina) * maxBarSegments
+  );
+});
 </script>
 
 <style scoped>
-.hud {
+.main-hud {
+  position: fixed;
+  bottom: 10px;
+  left: 5px;
+  z-index: 1000;
+  font-size: 6px;
+  letter-spacing: 0.5px;
+}
+
+/* Painel de vida e energia */
+.panel-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 18px; /* mais espaço vertical entre vida e energia */
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-container {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.icon {
+  width: 64px;
+  height: 64px;
+  image-rendering: pixelated;
+  margin-left: 20px;
+  z-index: 100;
+}
+
+.bar-container {
+  position: relative;
+  width: 280px;
+  height: 34px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid #333;
+  overflow: hidden;
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+}
+
+.bar {
+  height: 100%;
+}
+
+.bar-label {
   position: absolute;
   top: 0;
-  width: 100%;
-  padding: 10px 30px;
-  display: flex;
-  justify-content: space-between;
-<<<<<<< Updated upstream
-  align-items: flex-start;
-  padding: 12px 30px;
-  background: rgba(34, 17, 5, 0.85);
-  font-family: 'Press Start 2P', cursive;
-  font-size: 14px;
-  border-bottom: 4px solid #5c2c1d;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.7);
-  z-index: 100;
-=======
-  z-index: 1000;
-  font-family: 'Press Start 2P', cursive;
-  image-rendering: pixelated;
->>>>>>> Stashed changes
-}
-
-.hud-box {
-  background: url('/img/ui/pergaminho.png') repeat;
-  border: 3px solid #af8a58;
-  padding: 14px 20px;
-  border-radius: 12px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.6);
-  min-width: 180px;
-  color: #f8e3b7;
-  text-shadow: 1px 1px 1px #000;
-}
-
-.hud-box.left {
-  border-left: 6px solid #b53a3a;
-}
-
-.hud-box.center {
-  text-align: center;
-  border-left: 6px solid #d4a127;
-}
-
-.hud-box.right {
-  text-align: right;
-  border-left: 6px solid #3e9356;
-}
-
-.hud-label {
-  font-size: 13px;
-  text-transform: uppercase;
-  margin-bottom: 8px;
-  color: #ffe9b5;
-  border-bottom: 1px solid #e0c48f;
-  padding-bottom: 4px;
-}
-
-.hud p {
-  margin: 4px 0;
-  font-size: 12px;
-}
-
-.hud p span {
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  color: #fff9d6;
+  text-shadow: 2px 2px 0 #000;
   font-weight: bold;
-  color: #fffbe0;
+  line-height: 24px;
+  letter-spacing: 1px;
 }
-<<<<<<< Updated upstream
-</style>
-=======
 
-.fps {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  font-size: 12px;
-  color: #b6ffba;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid #76c976;
-  z-index: 1001;
+.bar-container.segmented {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5px; /* Menor espaço entre barrinhas */
+  padding: 1px; /* Margem interna menor */
 }
+
+.segment {
+  flex: none;
+  width: 26px;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 0.2px solid #222;
+  box-shadow: inset 0 0 3px #000;
+}
+
+.vida .segment.filled {
+  background: linear-gradient(to bottom, #ff3333,rgb(106, 15, 15));
+}
+
+.energia .segment.filled {
+  background: linear-gradient(to bottom, #33cc33,rgb(11, 112, 11));
+}
+/* Botões no lado direito */
+.hud-buttons {
+  position: fixed;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map-button,
+.bag-button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  width: 122px;
+  height: 122px;
+}
+
+.map-button:hover img,
+.bag-button:hover img {
+  transform: scale(1.1);
+  transition: transform 0.2s;
+
+}
+
+.map-button:active img,
+.bag-button:active img {
+  transform: scale(0.95);
+  transition: transform 0.1s;
+}
+
+.button-icon {
+  width: 122px;
+  height: 122px;
+  image-rendering: pixelated;
+}
+
+/* Cores das barras */
+.vida .bar {
+  background: linear-gradient(to bottom, #ff3333, #cc0000);
+}
+
+.energia .bar {
+  background: linear-gradient(to bottom, #33cc33, #009900);
+}
+
 </style>
->>>>>>> Stashed changes

@@ -1,253 +1,796 @@
+```vue
 <template>
-  <div class="bruxa-screen" :style="{ backgroundImage: `url(${bgImage})` }">
-    <!-- Partículas mágicas no fundo -->
-    <div class="particle-overlay"></div>
+  <div class="bruxa-screen">
+    <img :src="bgImage" alt="Background" class="background-image" />
+    <img :src="margaretImage" alt="Margaret, a Bruxa" class="margaret-image" :class="{ breathing: !typing }" />
 
-    <div v-if="showDialog" class="dialog-box">
-      <p>{{ displayedText }}</p>
-      <button class="btn-continuar" @click="nextDialog" :disabled="typing">Continuar</button>
-    </div>
+    <!-- Névoa de fundo para tema místico -->
+    <div class="fog-layer"></div>
 
-    <transition name="fade-zoom">
-      <div v-if="showShop" class="shop-box pergaminho">
-        <p class="shop-title">Bem-vindo à loja de Margaret!</p>
-        <div class="shop-item" v-for="item in weapons" :key="item.name">
-          <strong>{{ item.name }} - {{ item.price }} ouro</strong>
-          <p>{{ item.description }}</p>
-          <button class="btn-comprar" @click="buyWeapon(item)">Comprar</button>
+    <transition name="fade">
+      <div v-if="showDialog" class="dialog-box dialog-style centered-dialog" key="dialog">
+        <p>{{ displayedText }}</p>
+        <button @click="nextDialog" :disabled="typing" class="dialog-button">Continuar</button>
+      </div>
+    </transition>
+
+    <transition name="fade">
+      <div v-if="showHoverDialog" class="dialog-box dialog-style hover-dialog" key="hoverDialog">
+        <p>{{ displayedText }}</p>
+      </div>
+    </transition>
+
+    <transition name="shop-fade">
+      <div v-if="showShop" class="shop-box dialog-style" key="shop">
+        <button class="dialog-button exit-button" @click="exitShop">Sair</button>
+        <h3 class="shop-name">CASA DAS POÇÕES DE MARGARET</h3>
+        <h4 class="shop-title">Escolha sua poção:</h4>
+        <div class="gold-display">
+          <img :src="goldIcon" alt="Gold Icon" class="gold-icon" />
+          : {{ gameState.player.gold }}
         </div>
-        <p v-if="message" class="message">{{ message }}</p>
-        <button class="btn-sair" @click="router.push('/level/albadia')">Sair</button>
+        <div class="shop-content">
+          <div class="backpack">
+            <div class="backpack-header">
+              <img :src="backpackIcon" alt="Backpack Icon" class="backpack-icon" />
+            </div>
+            <p v-if="gameState.player.inventory.length === 0">Sua mochila está vazia.</p>
+            <ul v-else>
+              <li v-for="invItem in gameState.player.inventory" :key="invItem.itemId">
+                <img
+                  :src="ITEMS[invItem.itemId]?.icon || '/icons/default-item.png'"
+                  alt="Item Icon"
+                  class="item-icon"
+                />
+                {{ ITEMS[invItem.itemId]?.name || invItem.itemId }} - {{ ITEMS[invItem.itemId]?.description || 'Item desconhecido' }}
+              </li>
+            </ul>
+          </div>
+          <div class="shop-items-container">
+            <div
+              class="shop-item"
+              v-for="item in allItems"
+              :key="item.id || item.name"
+              @mouseover="hoverItemDescription(item)"
+              @mouseleave="hideHoverDialog"
+            >
+              <img
+                :src="item.icon || '/icons/default-item.png'"
+                :alt="item.name"
+                class="potion-icon"
+              />
+              <div>
+                <strong>{{ item.name }}</strong>
+                <span>
+                  <img :src="goldIcon" alt="Gold Icon" class="gold-icon small" />
+                  Custo: {{ item.price }} Ouro
+                </span>
+              </div>
+              <p>{{ item.description }}</p>
+              <button @click="buyItem(item)" class="dialog-button buy-button">Comprar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <transition name="fade">
+      <div v-if="showShopDialog" class="dialog-box dialog-style shop-dialog" key="shopDialog">
+        <p>{{ displayedText }}</p>
+      </div>
+    </transition>
+
+    <transition name="fade">
+      <div v-if="showMessageDialog" class="dialog-box dialog-style message-dialog" key="messageDialog">
+        <p>{{ displayedText }}</p>
+      </div>
+    </transition>
+
+    <transition name="farewell-fade" @after-leave="onFarewellLeave">
+      <div v-if="showFarewell" class="dialog-box dialog-style centered-dialog farewell" key="farewell">
+        <p>{{ displayedText }}</p>
       </div>
     </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import bgImage from '@/assets/interior/bruxa-bg.png'
-import { useAudio } from '@/composables/audio'
+import { gameState, actions, ITEMS, ITEM_ICONS } from '@/stores/game.js'
+import bgImage from '@/assets/interior/bruxa-bg.gif'
+import margaretParada from '/public/img/sprites/margaret/margaret-parada.png'
+import margaretFalando from '/public/img/sprites/margaret/margaret-falando.gif'
+
+const goldIcon = computed(() => ITEM_ICONS.gold || '/icons/gold-icon.png')
+const backpackIcon = computed(() => ITEM_ICONS.backpack || '/icons/bag-icon.png')
 
 const router = useRouter()
-const { playAudio } = useAudio()
 
 const showDialog = ref(true)
 const dialogIndex = ref(0)
-const dialogLines = [
-  'Olá jovem rapaz, sou Margaret, a bruxa do reino!',
-  'Minhas poções são as melhores de toda Albadia, pode ter certeza.',
-  'Porém, escolha com cuidado... nunca se sabe o que uma bruxa pode fazer.',
-  'Brincadeirinha... ou não.'
-]
+const showHoverDialog = ref(false)
+const showShopDialog = ref(false)
+const showMessageDialog = ref(false)
+const showShop = ref(false)
+const showFarewell = ref(false)
+const farewellDone = ref(false)
 const displayedText = ref('')
 const typing = ref(false)
-const showShop = ref(false)
+const hoverItemDescriptionText = ref('')
+const farewellMessage = ref('Volte quando precisar de mais magia, jovem! Que as sombras te protejam!')
 const message = ref('')
+let typingInterval = null
+let currentHoverItem = null
 
-const gold = ref(150)
-const ownedWeapons = ref([])
+const margaretImage = ref(margaretParada)
 
-const weapons = [
-  { name: 'Poção de Cura', price: 80, description: 'Cura 10 de vida.' },
-  { name: 'Poção Azul Misteriosa', price: 120, description: 'É azul. Talvez mágica.' },
-  { name: 'Poção da Morte', price: 999, description: 'Essa poção... te mata. Evite.' }
+const firstVisitLines = [
+  'Olá, jovem viajante! Sou Margaret, a bruxa de Albadia, guardiã dos segredos alquímicos.',
+  'Minhas poções são forjadas com a essência da noite e sussurros de espíritos.',
+  'Escolha com cuidado... o poder de uma poção pode salvar ou condenar.',
+  'Vamos aos negócios, queridinho!'
 ]
 
-const typeLine = () => {
-  typing.value = true
+const repeatVisitLines = [
+  'De volta à minha morada, hein? Espero que tenha vindo por mais do meu... toque mágico.',
+]
+
+const shopDialogLines = ['Escolha uma poção para sua jornada, jovem!']
+
+const dialogLines = ref([])
+
+const localItems = [
+  {
+    id: 'potion_health',
+    name: 'Poção de Cura',
+    price: 80,
+    description: 'Restaura 50 de vida.',
+    effect: { heal: 50 },
+    icon: '/icons/potion-health.png',
+  },
+  {
+    id: 'potion_mystery',
+    name: 'Poção Azul Misteriosa',
+    price: 120,
+    description: 'Um líquido enigmático que pode revelar segredos... ou não.',
+    effect: { mystery: true },
+    icon: '/icons/potion-mystery.png',
+  },
+  {
+    id: 'potion_death',
+    name: 'Poção da Morte',
+    price: 999,
+    description: 'Uma poção letal. Use por sua conta e risco.',
+    effect: { heal: -999 },
+    icon: '/icons/potion-death.png',
+  },
+]
+
+const globalItems = [
+  {
+    id: 'potion_stamina_small',
+    name: 'Poção de Vigor Pequena',
+    price: 20,
+    description: 'Restaura uma pequena quantidade de stamina.',
+    effect: { stamina: 50 },
+    icon: '/icons/potion-stamina-small.png',
+  },
+  {
+    id: 'potion_forbidden',
+    name: 'Poção Proibida',
+    price: 500,
+    description: 'Um líquido instável que pulsa com poder... Dizem que pode trocar vida por vida.',
+    effect: { forbidden: true },
+    icon: '/icons/potion-forbidden.png',
+  },
+]
+
+const allItems = computed(() => [...localItems, ...globalItems])
+
+const typeLine = (text) => {
+  return new Promise((resolve) => {
+    if (typingInterval) clearInterval(typingInterval)
+    displayedText.value = ''
+    typing.value = true
+    margaretImage.value = margaretFalando
+
+    const line = text || dialogLines.value[dialogIndex.value] || farewellMessage.value || hoverItemDescriptionText.value || shopDialogLines[0] || message.value
+    let index = 0
+
+    typingInterval = setInterval(() => {
+      if (index < line.length) {
+        displayedText.value += line[index]
+        index++
+      } else {
+        clearInterval(typingInterval)
+        typingInterval = null
+        typing.value = false
+        margaretImage.value = margaretParada
+        resolve()
+      }
+    }, 40)
+  })
+}
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+const resetState = () => {
+  showDialog.value = true
+  dialogIndex.value = 0
+  showHoverDialog.value = false
+  showShopDialog.value = false
+  showMessageDialog.value = false
+  showShop.value = false
+  showFarewell.value = false
+  farewellDone.value = false
   displayedText.value = ''
-  const line = dialogLines[dialogIndex.value]
-  let index = 0
-  const interval = setInterval(() => {
-    if (index < line.length) {
-      displayedText.value += line[index]
-      index++
-    } else {
-      clearInterval(interval)
-      typing.value = false
-    }
-  }, 40)
+  typing.value = false
+  hoverItemDescriptionText.value = ''
+  message.value = ''
+  if (typingInterval) {
+    clearInterval(typingInterval)
+    typingInterval = null
+  }
+  currentHoverItem = null
 }
 
-const nextDialog = () => {
+const nextDialog = async () => {
   if (typing.value) return
-  if (dialogIndex.value < dialogLines.length - 1) {
-    dialogIndex.value++
-    typeLine()
-  } else {
-    localStorage.setItem('visitedMargaret', 'true')
-    showDialog.value = false
-    showShop.value = true
-    playAudio('sfx_shop_open')
+  try {
+    if (dialogIndex.value < dialogLines.value.length - 1) {
+      dialogIndex.value++
+      await typeLine(dialogLines.value[dialogIndex.value])
+      await delay(2000)
+    } else {
+      showDialog.value = false
+      showShop.value = true
+      showShopDialog.value = true
+      await typeLine(shopDialogLines[0])
+    }
+  } catch (error) {
+    console.error('Error in nextDialog:', error)
   }
 }
 
-const buyWeapon = (item) => {
-  if (ownedWeapons.value.includes(item.name)) {
-    message.value = 'Você já comprou esta poção.'
-    return
+const hideHoverDialog = () => {
+  showHoverDialog.value = false
+  currentHoverItem = null
+  if (typingInterval) {
+    clearInterval(typingInterval)
+    typingInterval = null
+    typing.value = false
+    margaretImage.value = margaretParada
   }
-  if (gold.value >= item.price) {
-    gold.value -= item.price
-    ownedWeapons.value.push(item.name)
-    message.value = `Você comprou ${item.name}!`
-  } else {
-    message.value = 'Você não tem ouro suficiente.'
+}
+
+const hideAllDialogs = () => {
+  showHoverDialog.value = false
+  showShopDialog.value = false
+  showMessageDialog.value = false
+  currentHoverItem = null
+  if (typingInterval) {
+    clearInterval(typingInterval)
+    typingInterval = null
+    typing.value = false
+    margaretImage.value = margaretParada
   }
-  setTimeout(() => (message.value = ''), 3000)
+}
+
+const hoverItemDescription = async (item) => {
+  if (!showShop.value) return
+  if (currentHoverItem === (item.id || item.name)) return
+  try {
+    hideAllDialogs()
+    currentHoverItem = item.id || item.name
+    hoverItemDescriptionText.value = item.description
+    dialogLines.value = [item.description]
+    dialogIndex.value = 0
+    showHoverDialog.value = true
+    await typeLine(item.description)
+  } catch (error) {
+    console.error('Error in hoverItemDescription:', error)
+  }
+}
+
+const buyItem = async (item) => {
+  try {
+    hideAllDialogs()
+    const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === (item.id || item.name))
+    if (existingItem) {
+      message.value = `Você já possui ${item.name}.`
+    } else if (gameState.player.gold >= item.price) {
+      actions.removeGold(item.price)
+      actions.addItemToInventory(item.id || item.name, 1)
+      if (item.id === 'potion_forbidden') {
+        if (actions.collectForbiddenPotion) {
+          actions.collectForbiddenPotion()
+        } else {
+          gameState.player.hasForbiddenPotion = true
+        }
+      }
+      message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`
+    } else {
+      message.value = 'Você não tem ouro suficiente.'
+    }
+    showMessageDialog.value = true
+    await typeLine(message.value)
+    await delay(2000)
+    hideAllDialogs()
+    message.value = ''
+    if (showShop.value) {
+      showShopDialog.value = true
+      await typeLine(shopDialogLines[0])
+    }
+  } catch (error) {
+    console.error('Error buying item:', error)
+    message.value = 'Erro ao comprar o item.'
+    showMessageDialog.value = true
+    await typeLine(message.value)
+    await delay(2000)
+    hideAllDialogs()
+  }
+}
+
+const exitShop = async () => {
+  try {
+    console.log('Starting exitShop')
+    hideAllDialogs()
+    showShop.value = false
+    showFarewell.value = true
+    farewellDone.value = false
+    console.log('Showing farewell dialog')
+    await typeLine(farewellMessage.value)
+    console.log('Farewell message typed')
+    await delay(3000) // Time to read
+    console.log('Hiding farewell dialog')
+    showFarewell.value = false
+    await delay(1000) // Wait for 1s transition
+    console.log('Farewell transition should be complete')
+  } catch (error) {
+    console.error('Error in exitShop:', error)
+    showFarewell.value = false
+    router.push('/level/albadia') // Fallback
+  }
+}
+
+const onFarewellLeave = () => {
+  console.log('Farewell transition complete, redirecting to /level/albadia')
+  farewellDone.value = true
+  router.push('/level/albadia')
 }
 
 onMounted(() => {
-  const visited = localStorage.getItem('visitedMargaret')
-  if (visited) {
-    displayedText.value = 'Bem-vindo de volta à loja de Margaret!'
-    showDialog.value = true
-    setTimeout(() => {
-      showDialog.value = false
-      showShop.value = true
-    }, 2500)
-  } else {
-    typeLine()
+  try {
+    console.log('BruxaView mounted')
+    resetState()
+    const visited = localStorage.getItem('visitedWitchShop')
+    dialogLines.value = visited ? repeatVisitLines : firstVisitLines
+    localStorage.setItem('visitedWitchShop', 'true')
+    dialogIndex.value = 0
+    typeLine(dialogLines.value[dialogIndex.value])
+  } catch (error) {
+    console.error('Error in onMounted:', error)
+  }
+})
+
+onUnmounted(() => {
+  console.log('BruxaView unmounted')
+  if (typingInterval) {
+    clearInterval(typingInterval)
+    typingInterval = null
+  }
+})
+
+watch(() => showShop, (newVal) => {
+  if (newVal) {
+    hideAllDialogs()
+    showShopDialog.value = true
+    typeLine(shopDialogLines[0])
   }
 })
 </script>
 
 <style scoped>
 .bruxa-screen {
-  background-size: cover;
-  background-position: center;
+  position: relative;
   height: 100vh;
   width: 100vw;
-  color: white;
+  color: #ffffff;
   font-family: 'Press Start 2P', cursive;
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  padding: 40px;
-  position: relative;
   overflow: hidden;
 }
 
-.particle-overlay {
+.background-image {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -1;
+  filter: brightness(0.9) contrast(1.1) saturate(0.9);
+}
+
+.margaret-image {
+  position: fixed;
+  bottom: 0;
+  left: 5%;
+  width: auto;
+  height: 85vh;
+  max-height: 700px;
+  z-index: 1;
+  object-fit: contain;
+  object-position: bottom left;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.5));
+}
+
+.breathing {
+  animation: breathe 5s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.008); }
+}
+
+.fog-layer {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
+  background: linear-gradient(
+    to bottom,
+    rgba(20, 20, 40, 0.2),
+    rgba(10, 10, 30, 0.4)
+  );
   pointer-events: none;
-  background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
-  background-size: 20px 20px;
-  animation: magicParticles 10s linear infinite;
   z-index: 0;
+  animation: fogMove 20s linear infinite;
 }
 
-@keyframes magicParticles {
-  from { background-position: 0 0; }
-  to { background-position: 100px 100px; }
+@keyframes fogMove {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(-50px); }
+  100% { transform: translateX(0); }
 }
 
-.dialog-box {
-  position: absolute;
-  bottom: 100px;
+.dialog-style {
+  position: fixed;
+  background-color: rgba(50, 50, 80, 0.8);
+  padding: 25px 35px;
+  border: 4px solid #4a3a5a;
+  border-radius: 8px;
+  text-align: center;
+  width: 90vw;
+  max-width: 750px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.8);
+  color: #ffffff;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.centered-dialog {
+  bottom: 5vh;
   left: 50%;
   transform: translateX(-50%);
-  background-color: rgba(0, 0, 0, 0.8);
-  color: white;
-  width: 700px;
-  padding: 25px 30px;
-  text-align: center;
-  border-radius: 8px;
-  box-shadow: 0 0 15px black;
-  z-index: 2;
+  z-index: 10;
+}
+
+.shop-dialog {
+  top: 15vh;
+  left: 1%;
+  transform: translateX(0);
+  z-index: 5;
+}
+
+.hover-dialog {
+  top: 15vh;
+  left: 1%;
+  transform: translateX(0);
+  z-index: 15;
+}
+
+.message-dialog {
+  top: 15vh;
+  left: 1%;
+  transform: translateX(0);
+  z-index: 15;
 }
 
 .shop-box {
-  position: absolute;
-  right: 5%;
-  bottom: 160px;
-  max-width: 90vw;
-  width: 360px;
-  background: rgba(255, 245, 220, 0.95);
-  color: #2c1b10;
-  padding: 25px;
-  border-radius: 8px;
-  text-align: left;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  top: 10vh;
+  bottom: 5vh;
+  left: 65%;
+  transform: translateX(-35%);
   z-index: 2;
-  overflow-y: auto;
-  max-height: 80vh;
 }
 
-
-.fade-zoom-enter-active {
-  animation: fadeZoomIn 0.6s ease-out forwards;
-}
-.fade-zoom-leave-active {
-  animation: fadeZoomOut 0.3s ease-in forwards;
+.dialog-style p {
+  margin: 0 0 20px 0;
 }
 
-@keyframes fadeZoomIn {
-  from {
-    opacity: 0;
-    transform: scale(0.8);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+.dialog-button {
+  display: block;
+  margin-left: auto;
+  margin-right: 0;
+  margin-top: 10px;
+  padding: 10px 20px;
+  background-color: #6a4a8a;
+  color: #ffffff;
+  border: 4px solid #3a2a4a;
+  border-radius: 6px;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
+  box-shadow: inset -6px -6px #4a3a5a, inset 6px 6px #8a6aaa;
+  text-transform: uppercase;
 }
 
-@keyframes fadeZoomOut {
-  from {
-    opacity: 1;
-    transform: scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: scale(0.8);
-  }
+.dialog-button:hover:not(:disabled) {
+  background-color: #7a5a9a;
+  box-shadow: inset -6px -6px #3a2a4a, inset 6px 6px #9a7aba;
+}
+
+.dialog-button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset -3px -3px #4a3a5a, inset 3px 3px #8a6aaa;
+}
+
+.dialog-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.shop-name {
+  text-align: center;
+  color: #8a6aaa;
+  font-size: 18px;
+  margin-bottom: 5px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
 }
 
 .shop-title {
-  font-size: 14px;
-  color: #4b2e19;
+  text-align: center;
+  color: #8a6aaa;
+  margin-top: 0;
+  margin-bottom: 10px;
+  animation: pulseGlow 3s ease-in-out infinite;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.5));
+}
+
+@keyframes pulseGlow {
+  0% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1) drop-shadow(0 8px 12px rgba(0, 0, 0, 0.5));
+  }
+  50% {
+    transform: scale(1.05) rotate(2deg);
+    filter: brightness(1.2) drop-shadow(0 8px 12px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 10px rgba(138, 106, 170, 0.7));
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1) drop-shadow(0 8px 12px rgba(0, 0, 0, 0.5));
+  }
+}
+
+.gold-display {
+  text-align: right;
+  font-size: 13px;
   margin-bottom: 20px;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 #000;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.gold-icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.gold-icon.small {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+}
+
+.shop-content {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.backpack {
+  flex: 1;
+  max-width: 30%;
+  border: 2px solid #4a3a5a;
+  padding: 15px;
+  background-color: rgba(50, 50, 80, 0.8);
+  border-radius: 6px;
+}
+
+.backpack-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.backpack-icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.backpack p {
+  text-align: center;
+  font-style: italic;
+  color: #a090b0;
+  margin-bottom: 0;
+}
+
+.backpack ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.backpack li {
+  display: flex;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 0.9em;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.item-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.shop-items-container {
+  flex: 2;
+  max-width: 65%;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding-right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
 .shop-item {
-  margin-bottom: 16px;
-  padding-bottom: 10px;
-  border-bottom: 1px dashed #4b2e19;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 5px 15px;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid #4a3a5a;
+  background-color: rgba(50, 50, 80, 0.8);
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
 }
 
-button {
-  font-family: 'Press Start 2P', cursive;
-  font-size: 12px;
-  cursor: pointer;
+.shop-item:hover {
+  background-color: rgba(80, 80, 100, 0.5);
 }
 
-.btn-continuar,
-.btn-comprar,
-.btn-sair {
-  margin-top: 10px;
-  padding: 8px 16px;
-  background-color: #e0a867;
-  color: #3e1e14;
-  border: 2px solid #5c2c1d;
-  border-radius: 4px;
-  box-shadow: inset -3px -3px #c96a32, inset 3px 3px #ffd9a1;
+.shop-item img.potion-icon {
+  grid-row: 1 / 3;
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
 }
 
-.btn-continuar:hover,
-.btn-comprar:hover,
-.btn-sair:hover {
-  background-color: #f4b76a;
+.shop-item div {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.message {
-  color: #5c2c1d;
-  margin-top: 10px;
-  font-weight: bold;
+.shop-item div strong {
+  font-size: 1.1em;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.shop-item div span {
+  font-size: 0.9em;
+  color: #ffffff;
+  text-shadow: 1px 1px 0 #000;
+  display: flex;
+  align-items: center;
+}
+
+.shop-item p {
+  grid-column: 2 / 3;
+  grid-row: 2 / 3;
+  font-size: 0.9em;
+  color: #a090b0;
+  margin: 0;
+}
+
+.shop-item button.buy-button {
+  grid-column: 3 / 4;
+  grid-row: 1 / 3;
+  margin: 0;
+  align-self: center;
+}
+
+.exit-button {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  margin: 0;
+  background-color: #3a2a4a;
+  color: #ffffff;
+  border-color: #2a1a3a;
+}
+
+.exit-button:hover:not(:disabled) {
+  background-color: #4a3a5a;
+  box-shadow: inset -6px -6px 4px #2a4a, inset 6px 6px #9a7aba;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+.shop-fade-enter-active,
+.shop-fade-leave-active {
+  transition: opacity 1s ease, transform 1s ease;
+}
+
+.shop-fade-enter-from,
+.shop-fade-leave-to {
+  opacity: 0;
+  transform: translateX(50px);
+}
+
+.farewell-fade-enter-active,
+.farewell-fade-leave-active {
+  transition: opacity 1s ease, transform 1s ease;
+}
+
+.farewell-fade-enter-from,
+.farewell-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.farewell p {
+  text-align: center;
+  font-weight: 1.1em;
+  margin-bottom: 0;
+  text-shadow: 1px 1px 0 #000;
 }
 </style>

@@ -1,16 +1,42 @@
 <template>
   <div class="tutorial-screen">
-    <!-- Diálogo com Bartolomeu Dummy -->
+    <img src="@/assets/bartolomeu.png" alt="Bartolomeu" class="bartolomeu-image" v-if="showDialog" />
+
+    <!-- Caixa de diálogo -->
     <div v-if="showDialog" class="dialog-box">
       <p>{{ displayedText }}</p>
       <button @click="nextDialog">Continuar</button>
     </div>
 
-    <!-- Combate simulado -->
-    <div v-if="combatStarted && !enemyDefeated" class="combat-box">
-      <p>Dummy de Treino - Vida: {{ enemyHp }}/{{ enemyMaxHp }}</p>
-      <button @click="attackEnemy">Atacar</button>
-      <button @click="usePotion" :disabled="potions <= 0">Usar Poção</button>
+    <!-- Simulação de batalha -->
+    <div v-if="combatStarted && !enemyDefeated" class="combat-area">
+      <div class="battle-sprites">
+        <img src="@/assets/sprites/player/player_idle.png" alt="Você" class="player-sprite" />
+        <!-- <img src="@/assets/sprites/enemies/dummy.png" alt="Dummy" class="enemy-sprite" /> -->
+      </div>
+
+      <div class="status-bars">
+        <div class="status">
+          <span>Você</span>
+          <div class="bar">
+            <div class="hp" :style="{ width: health + '%' }"></div>
+          </div>
+          <small>HP: {{ health }}/100 | Poções: {{ potions }}</small>
+        </div>
+
+        <div class="status">
+          <span>Dummy de Treino</span>
+          <div class="bar">
+            <div class="hp" :style="{ width: (enemyHp / enemyMaxHp) * 100 + '%' }"></div>
+          </div>
+          <small>HP: {{ enemyHp }}/{{ enemyMaxHp }}</small>
+        </div>
+      </div>
+
+      <div class="combat-controls">
+        <button @click="attackEnemy">⚔️ Atacar</button>
+        <button @click="usePotion" :disabled="potions <= 0">🧪 Usar Poção</button>
+      </div>
     </div>
 
     <!-- Vitória -->
@@ -22,13 +48,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import typingSound from '@/assets/bartolomeu-voz.mp3'
+// import attackSound from '@/assets/sfx/attack.mp3'
+// import potionSound from '@/assets/sfx/potion.mp3'
 
 const router = useRouter()
 
-// Estados do diálogo
+// Diálogo
 const showDialog = ref(true)
 const dialogIndex = ref(0)
 const dialogLines = [
@@ -40,38 +68,32 @@ const dialogLines = [
 const displayedText = ref('')
 const typing = ref(false)
 
-// Som
 let audio = new Audio(typingSound)
 
-// Digitação
 const typeLine = async () => {
   typing.value = true
   displayedText.value = ''
   const line = dialogLines[dialogIndex.value]
   let index = 0
 
-  // Toca o áudio da fala
   try {
     audio.pause()
     audio.currentTime = 0
     await audio.play()
-  } catch (e) {
-    console.warn('Não foi possível tocar o som:', e)
-  }
+  } catch {}
 
   const interval = setInterval(() => {
     if (index < line.length) {
-      displayedText.value += line[index]
-      index++
+      displayedText.value += line[index++]
     } else {
       clearInterval(interval)
       typing.value = false
     }
-  }, 40) // Velocidade da digitação
+  }, 40)
 }
 
 const nextDialog = () => {
-  if (typing.value) return // Ignora cliques enquanto está digitando
+  if (typing.value) return
   if (dialogIndex.value < dialogLines.length - 1) {
     dialogIndex.value++
     typeLine()
@@ -81,7 +103,6 @@ const nextDialog = () => {
   }
 }
 
-// Iniciar digitação na montagem
 onMounted(() => {
   typeLine()
 })
@@ -102,12 +123,15 @@ const attackEnemy = () => {
     enemyHp.value = 0
     enemyDefeated.value = true
   }
+
+  // new Audio(attackSound).play()
 }
 
 const usePotion = () => {
   if (potions.value > 0) {
     health.value = Math.min(100, health.value + 30)
     potions.value--
+    // new Audio(potionSound).play()
   }
 }
 </script>
@@ -121,34 +145,96 @@ const usePotion = () => {
   width: 100vw;
   color: white;
   font-family: 'Press Start 2P', cursive;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   position: relative;
+  flex-direction: column;
 }
 
 .dialog-box,
-.combat-box,
 .victory-box {
-  position: absolute;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.85);
   padding: 20px;
   border: 2px solid #8b5e3c;
-  border-radius: 10px;
-  text-align: center;
+  border-radius: 12px;
   max-width: 500px;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.bartolomeu-image {
+  position: absolute;
+  width: 600px;
+  margin-bottom: -400px;
+  margin-left: -900px;
+}
+
+.combat-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.battle-sprites {
+  display: flex;
+  justify-content: space-around;
+  width: 100%;
+  max-width: 600px;
+}
+
+.player-sprite,
+.enemy-sprite {
+  width: 100px;
+  image-rendering: pixelated;
+}
+
+.status-bars {
+  display: flex;
+  justify-content: space-around;
+  gap: 40px;
+  width: 100%;
+  max-width: 600px;
+  font-size: 12px;
+}
+
+.status .bar {
+  width: 100px;
+  height: 10px;
+  background: #555;
+  border: 1px solid #000;
+  margin: 4px 0;
+}
+
+.status .hp {
+  height: 100%;
+  background: #ff4040;
+  transition: width 0.3s ease;
+}
+
+.combat-controls {
+  display: flex;
+  gap: 20px;
 }
 
 button {
-  margin-top: 15px;
-  padding: 10px 20px;
+  padding: 10px 18px;
   background-color: #8b5e3c;
   color: white;
   border: none;
   border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
+  transition: background 0.2s;
 }
 
+button:hover {
+  background-color: #a46d45;
+}
 
+button:disabled {
+  background-color: #444;
+  cursor: not-allowed;
+}
 </style>

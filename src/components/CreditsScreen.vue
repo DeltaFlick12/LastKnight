@@ -1,211 +1,176 @@
 <template>
-  <div class="credits-screen" :style="creditsBackgroundStyle">
-    <div class="credits-scroll-container" ref="scrollContainer">
+ <img src="@/assets/menu-bg.jpg" class="background-image" alt="Background" />
+  <div class="credits-container slide-down">
+    <div class="credits-box">
+      <h1 class="credits-title">CRÉDITOS</h1>
       <div class="credits-content">
-        <!-- Logo Placeholder -->
-        <h1 class="game-title">LastKnight</h1>
-        <div class="spacer"></div>
+        <h2>Equipe de Desenvolvimento</h2>
+        <p>- Leonardo Fratoni</p>
+        <p>- Eduardo Viana</p>
+        <p>- Pedro Lucas</p>
+        <p>- Matheus Costa</p>
+        <p>- Lucas Leonardo</p>
 
-        <!-- Créditos -->
-        <div class="credit-section">
-          <h2>Desenvolvimento</h2>
-          <p><span>Diretor Criativo:</span> [Seu Nome / Nome do Estúdio]</p>
-          <p><span>Programador Líder:</span> [Seu Nome / Nome do Programador]</p>
-          <p><span>Artista Líder:</span> [Nome do Artista]</p>
-          <p><span>Designer de Som:</span> [Nome do Designer]</p>
-          <p><span>Roteirista:</span> [Nome do Roteirista]</p>
-        </div>
+        <h2>Agradecimentos Especiais</h2>
+        <p>Prof. Hugo Fumero</p>
+        <p>Univesidade Unicesumar</p>
 
-        <div class="credit-section">
-          <h2>Arte</h2>
-          <p><span>Pixel Art:</span> [Nome do Artista]</p>
-          <p><span>Arte Conceitual:</span> [Nome do Artista]</p>
-          <p><span>Animação:</span> [Nome do Animador]</p>
-        </div>
-
-        <div class="credit-section">
-          <h2>Música</h2>
-          <p><span>Compositor:</span> [Nome do Compositor]</p>
-          <p><span>Trilha Sonora Adicional:</span> [Nomes Adicionais]</p>
-        </div>
-
-        <div class="credit-section">
-          <h2>Agradecimentos Especiais</h2>
-          <p>[Nome Playtester 1]</p>
-          <p>[Nome Playtester 2]</p>
-          <p>Família e Amigos</p>
-          <p>Comunidade Vue.js</p>
-          <p>Você, por jogar!</p>
-        </div>
-
-        <div class="credit-section">
-          <h2>Ferramentas</h2>
-          <p>Vue 3</p>
-          <p>Vite</p>
-          <p>[Software de Arte]</p>
-          <p>[Software de Áudio]</p>
-        </div>
-
-        <div class="spacer"></div>
-        <p class="copyright">© {{ currentYear }} [Seu Nome / Nome do Estúdio]. Todos os direitos reservados.</p>
-        <div class="spacer"></div>
-        <div class="spacer"></div>
-
+        <h2>Ferramentas e Tecnologias</h2>
+        <p>Framework: Vue.js</p>
+        <p>Motor de Áudio: Howler.js</p>
+        <p>Gráficos e sprites: ChatGPT</p>
+        <p>Código: ChatGPT</p>
       </div>
+      <div class="menu-button back-button" @click="goToMenu">MENU</div>
     </div>
-    <button class="skip-button" @click="goToMainMenu">Voltar ao Menu</button>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { playAudio, stopAudio } from '@/utils/audioManager.js'; // Ajuste o caminho
+import { useRouter } from 'vue-router'
+import { onMounted } from 'vue'
 
-const route = useRoute();
-const router = useRouter();
+const router = useRouter()
 
-const scrollContainer = ref(null);
-const currentYear = new Date().getFullYear();
-const endingType = ref(route.params.type || '3'); // Default to true ending if type is missing
-
-let scrollInterval = null;
-
-// Mapeamento de estilos e música por final
-const endingStyles = {
-  1: { // Sacrifício
-    background: 'linear-gradient(to bottom, #5a5a7a, #a0a0c0)', // Céu melancólico com sol nascente
-    music: 'credits_ending_sacrifice'
-  },
-  2: { // Trágico
-    background: 'linear-gradient(to bottom, #1a1a2e, #404050)', // Tempestade escura
-    music: 'credits_ending_tragic'
-  },
-  3: { // Verdadeiro
-    background: 'linear-gradient(to bottom, #87ceeb, #c0b0a0)', // Céu claro sobre reino reconstruído
-    music: 'credits_ending_true'
-  }
-};
-
-const creditsBackgroundStyle = computed(() => {
-  const style = endingStyles[endingType.value] || endingStyles['3'];
-  return { background: style.background };
-});
-
+let clickSound
 onMounted(() => {
-  const style = endingStyles[endingType.value] || endingStyles['3'];
-  playAudio(style.music, { loop: true });
+  clickSound = new Audio('/audio/click.ogg')
+  clickSound.volume = 0.4
+})
 
-  // Iniciar a rolagem
-  const container = scrollContainer.value;
-  if (container) {
-    let scrollTop = 0;
-    const scrollSpeed = 1; // Pixels por frame (ajustar)
-    const contentHeight = container.scrollHeight;
-    const containerHeight = container.clientHeight;
+function playClick() {
+  if (clickSound) clickSound.play()
+}
 
-    scrollInterval = setInterval(() => {
-      scrollTop += scrollSpeed;
-      container.scrollTop = scrollTop;
-      // Parar quando o conteúdo sair da tela
-      if (scrollTop >= contentHeight - containerHeight) {
-        // clearInterval(scrollInterval);
-        // Opcional: voltar ao menu automaticamente ou parar a rolagem
-        // goToMainMenu();
-      }
-    }, 16); // Aproximadamente 60fps
-  }
-});
-
-onUnmounted(() => {
-  stopAudio(); // Para toda a música ao sair
-  clearInterval(scrollInterval);
-});
-
-const goToMainMenu = () => {
-  router.push('/');
-};
-
+function goToMenu() {
+  playClick()
+  router.push('/')
+}
 </script>
 
 <style scoped>
-.credits-screen {
+/* Animação de descida */
+.slide-down {
+  animation: slideDown 1s ease-out;
+}
+@keyframes slideDown {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Estilo do container */
+
+.background-image {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+  filter: blur(1px);
+}
+
+.credits-container {
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100vw;
   height: 100vh;
   display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
-  color: white;
-  font-family: 'Press Start 2P', cursive; /* Ou outra fonte pixelada */
-  overflow: hidden;
-  position: relative;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.7); /* Fundo semi-transparente */
+  z-index: 100;
 }
 
-.credits-scroll-container {
+/* Caixa de créditos */
+.credits-box {
+  background: #e0a867;
+  border: 6px solid #5c2c1d;
+  border-radius: 10px;
+  padding: 20px;
   width: 80%;
-  max-width: 700px;
-  height: 80%;
-  overflow-y: hidden; /* A rolagem é feita via JS */
-  position: relative;
-  border: 3px solid #ccc; /* Borda estilizada */
-  background-color: rgba(0, 0, 0, 0.5); /* Fundo semi-transparente para legibilidade */
-  padding: 0 20px;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
+  image-rendering: pixelated;
 }
 
-.credits-content {
+/* Título */
+.credits-title {
+  font-size: 40px;
+  color: #5c2c1d;
   text-align: center;
-  padding-top: 100%; /* Começa fora da tela em cima */
-  padding-bottom: 50px;
+  margin-bottom: 20px;
+  text-shadow: 2px 2px #d17844;
 }
 
-.game-title {
-  font-size: 3rem;
-  margin-bottom: 40px;
-  color: #ffd700; /* Dourado */
+/* Conteúdo rolável */
+.credits-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  color: #5c2c1d;
+  font-size: 18px;
+  text-align: left;
+  margin-bottom: 20px;
 }
 
-.credit-section {
-  margin-bottom: 40px;
+.credits-content h2 {
+  font-size: 24px;
+  margin: 15px 0 10px;
+  color: #3e1e14;
+  border-bottom: 2px solid #5c2c1d;
 }
 
-.credit-section h2 {
-  font-size: 1.5rem;
-  color: #aaa;
-  margin-bottom: 15px;
+.credits-content p {
+  margin: 5px 0;
 }
 
-.credit-section p {
-  font-size: 1rem;
-  line-height: 1.6;
-  margin-bottom: 5px;
+/* Estilo da barra de rolagem */
+.credits-content::-webkit-scrollbar {
+  width: 10px;
+}
+.credits-content::-webkit-scrollbar-track {
+  background: #d17844;
+}
+.credits-content::-webkit-scrollbar-thumb {
+  background: #5c2c1d;
+  border-radius: 5px;
 }
 
-.credit-section p span {
-  color: #ccc; /* Destaca a função */
-  margin-right: 10px;
-}
-
-.copyright {
-  font-size: 0.8rem;
-  color: #aaa;
-  margin-top: 50px;
-}
-
-.spacer {
-  height: 50px;
-}
-
-.skip-button {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
-  padding: 10px 15px;
-  font-family: 'Press Start 2P', cursive;
+/* Botão de voltar */
+.back-button {
+  background-color: #e0a867;
+  color: #5c2c1d;
+  border: 4px solid #5c2c1d;
+  padding: 10px 40px;
+  width: 200px;
+  height: 30px;
+  font-size: 30px;
+  text-align: center;
   cursor: pointer;
-  background-color: rgba(0, 0, 0, 0.7);
-  color: white;
-  border: 1px solid white;
-  z-index: 10;
+  margin: 0 auto;
+  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
+  font-weight: bold;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
+}
+
+.back-button:hover {
+  background-color: #f4b76a;
+  color: #3e1e14;
+  box-shadow: inset -6px -6px #c96a32, inset 6px 6px #ffd9a1;
+}
+
+.back-button:active {
+  transform: translateY(2px);
+  box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8e;
 }
 </style>
