@@ -48,7 +48,7 @@
             :class="{ 'is-attacking': enemyAttacking === index, 'is-damaged': damagedEnemy === index }"
             :style="{ top: enemy.top + 'px', left: `calc(80vw - ${index * 50}px)` }"
           >
-            <img :src="enemySprite" alt="Enemy" class="character-sprite" />
+            <img :src="enemy.sprite" alt="Enemy" class="character-sprite" />
           </div>
         </div>
         <div
@@ -56,7 +56,7 @@
           class="unit enemy-character fainted"
           :style="{ top: initialEnemyPositions[index].top + 'px', left: initialEnemyPositions[index].left + 'px' }"
         >
-          <img :src="enemySprite" alt="Enemy" class="character-sprite" />
+          <img :src="enemy.sprite" alt="Enemy" class="character-sprite" />
         </div>
       </div>
 
@@ -110,6 +110,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { gameState, actions, ITEMS } from '@/stores/game.js';
 
+
 // Sprites
 // import playerSprite from '@/assets/sprites/player-warrior.png';
 // import enemySprite from '@/assets/sprites/wolf-enemy.png';
@@ -138,13 +139,85 @@ const tooltip = {
 };
 
 // Props
+const frameSize = 32; // Cada quadro do rato é 32x32
+
 const props = defineProps({
   enemiesConfig: {
     type: Array,
     default: () => [
-      { name: 'Lobo Cinzento', hpPercent: 100, currentHp: 60, maxHp: 60, top: 200, left: 1100, attackPower: 12 },
-      { name: 'Lobo Negro', hpPercent: 100, currentHp: 70, maxHp: 70, top: 400, left: 1100, attackPower: 10 },
-    ],
+      {
+        name: 'Rato Cinzento',
+        hpPercent: 100,
+        currentHp: 40,
+        maxHp: 40,
+        top: 200,
+        left: 1100,
+        attackPower: 8,
+        currentAnimation: 'idle',
+        currentFrame: 0,
+        frameTick: 0,
+        frameDelay: 8,
+        sprite: new URL('@/assets/sprites/rat/rat-idle.png', import.meta.url).href,
+        animations: {
+          idle: {
+            src: new URL('@/assets/sprites/rat/rat-idle.png', import.meta.url).href,
+            frames: 5,
+          },
+          run: {
+            src: new URL('@/assets/sprites/rat/rat-run.png', import.meta.url).href,
+            frames: 5,
+          },
+          attack1: {
+            src: new URL('@/assets/sprites/rat/rat-attack.png', import.meta.url).href,
+            frames: 9,
+          },
+          hurt: {
+            src: new URL('@/assets/sprites/rat/rat-hurt.png', import.meta.url).href,
+            frames: 1,
+          },
+          death: {
+            src: new URL('@/assets/sprites/rat/rat-death.png', import.meta.url).href,
+            frames: 9,
+          },
+        }
+      },
+      {
+        name: 'Rato Negro',
+        hpPercent: 100,
+        currentHp: 50,
+        maxHp: 50,
+        top: 400,
+        left: 1100,
+        attackPower: 10,
+        currentAnimation: 'idle',
+        currentFrame: 0,
+        frameTick: 0,
+        frameDelay: 8,
+        sprite: new URL('@/assets/sprites/rat/rat-idle.png', import.meta.url).href,
+        animations: {
+          idle: {
+            src: new URL('@/assets/sprites/rat/rat-idle.png', import.meta.url).href,
+            frames: 5,
+          },
+          run: {
+            src: new URL('@/assets/sprites/rat/rat-run.png', import.meta.url).href,
+            frames: 5,
+          },
+          attack1: {
+            src: new URL('@/assets/sprites/rat/rat-attack.png', import.meta.url).href,
+            frames: 9,
+          },
+          hurt: {
+            src: new URL('@/assets/sprites/rat/rat-hurt.png', import.meta.url).href,
+            frames: 1,
+          },
+          death: {
+            src: new URL('@/assets/sprites/rat/rat-death.png', import.meta.url).href,
+            frames: 9,
+          },
+        }
+      },
+    ]
   },
   rewards: {
     type: Object,
@@ -162,6 +235,7 @@ const props = defineProps({
     default: null,
   },
 });
+
 
 const router = useRouter();
 
