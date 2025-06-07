@@ -66,7 +66,7 @@ const player = {
   direction: 'idle'
 }
 const keys = { w: false, a: false, s: false, d: false, shift: false }
-const world = { width: 3000, height: 2000 }
+const world = { width: 4096, height: 2732 }
 const background = new Image()
 const foreground = new Image()
 
@@ -109,16 +109,16 @@ function loadImage(img, src) {
 }
 
 const obstacles = [
-  { x: 480, y: 380, width: 480, height: 180, name: 'Ferreiro', route: '/interior/ferreiro' },
-  { x: 1310, y: 820, width: 350, height: 150, name: 'Loja de Poções', route: '/interior/bruxa' },
-  { x: 2080, y: 590, width: 330, height: 140, name: 'Igreja', route: '/interior/igreja' },
-  { x: 1165, y: 1300, width: 290, height: 20, name: 'Fonte' },
-  { x: 1155, y: 1320, width: 315, height: 25 },
-  { x: 1145, y: 1345, width: 335, height: 120 },
-  { x: 1165, y: 1465, width: 290, height: 20 },
-  { x: 400, y: 1545, width: 310, height: 20 },
-  { x: 380, y: 1545, width: 20, height: 320 },
-  { x: 400, y: 1810, width: 310, height: 55 },
+  // { x: 480, y: 380, width: 480, height: 180, name: 'Ferreiro', route: '/interior/ferreiro' },
+  // { x: 1310, y: 820, width: 350, height: 150, name: 'Loja de Poções', route: '/interior/bruxa' },
+  // { x: 2080, y: 590, width: 330, height: 140, name: 'Igreja', route: '/interior/igreja' },
+  // { x: 1165, y: 1300, width: 290, height: 20, name: 'Fonte' },
+  // { x: 1155, y: 1320, width: 315, height: 25 },
+  // { x: 1145, y: 1345, width: 335, height: 120 },
+  // { x: 1165, y: 1465, width: 290, height: 20 },
+  // { x: 400, y: 1545, width: 310, height: 20 },
+  // { x: 380, y: 1545, width: 20, height: 320 },
+  // { x: 400, y: 1810, width: 310, height: 55 },
 ]
 
 onMounted(() => {
@@ -283,7 +283,17 @@ function draw() {
   cam.x = Math.max(0, Math.min(cam.x, world.width - canvas.value.width))
   cam.y = Math.max(0, Math.min(cam.y, world.height - canvas.value.height))
 
+  // Desenha o fundo
   ctx.drawImage(background, -cam.x, -cam.y, world.width, world.height)
+
+  // === NOVO BLOCO: VISUALIZAÇÃO DOS OBSTÁCULOS ===
+  ctx.save()
+  ctx.fillStyle = 'rgba(255, 0, 0, 0.3)' // vermelho semi-transparente
+  for (const obs of obstacles) {
+    ctx.fillRect(obs.x - cam.x, obs.y - cam.y, obs.width, obs.height)
+  }
+  ctx.restore()
+  // ===============================================
 
   // cálculo da animação
   const anim = animations[player.direction] || animations.idle
@@ -294,7 +304,6 @@ function draw() {
     frameTimer = 0
   }
 
-  // frame atual para desenhar
   const frame = anim.frames[currentFrameIndex]
   const sx = frame * frameWidth
   const sy = anim.row * frameHeight
