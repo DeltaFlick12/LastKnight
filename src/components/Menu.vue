@@ -10,12 +10,17 @@
       <div class="menu-button story" @click="goToStory">{{ texts[language].story }}</div>
       <div class="menu-button endless" @click="goTo('endless')">{{ texts[language].endless }}</div>
       <div class="menu-button options" @click="goTo('options')">{{ texts[language].options }}</div>
-      <div class="menu-button credits" @click="goTo('creditsScreen')">{{ texts[language].credits }}</div>
+      <div class="menu-button credits" @click="goTo('creditsscreen')">{{ texts[language].credits }}</div>
     </div>
 
     <!-- BOTÃO FULLSCREEN -->
     <div class="btn-fullscreen" @click="toggleFullscreen">
       <img src="@/assets/fullscreen-icon.png" alt="Fullscreen" class="fullscreen-icon" />
+    </div>
+
+    <!-- BOTÃO DE SOM -->
+    <div class="btn-sound" @click="toggleMute">
+      <img :src="isMuted ? '/src/assets/music-icon.png' : '/src/assets/mute-music-icon.png'" alt="Sound Toggle" class="sound-icon" />
     </div>
   </div>
 </template>
@@ -42,6 +47,10 @@ const texts = {
 }
 
 const language = ref('pt')
+const isMuted = ref(localStorage.getItem('isMuted') === 'true')
+
+let clickSound
+let backgroundMusic
 
 onMounted(() => {
   const savedLang = localStorage.getItem('language')
@@ -49,19 +58,43 @@ onMounted(() => {
     language.value = savedLang
   }
 
-  clickSound = new Audio('/audio/click.ogg')
-  clickSound.volume = 0.4
+  clickSound = new Audio('/public/sounds/click.wav')
+  clickSound.volume = isMuted.value ? 0 : 1
+
+  backgroundMusic = new Audio('/audio/musica-menu.ogg')
+  backgroundMusic.loop = true
+  backgroundMusic.volume = 0
+
+  const tryPlayMusic = () => {
+    if (!isMuted.value) {
+      backgroundMusic.play().then(() => {
+        fadeInMusic()
+      }).catch(err => {
+        console.warn('Erro ao tocar música após clique:', err)
+      })
+    }
+    document.removeEventListener('click', tryPlayMusic)
+  }
+
+  document.addEventListener('click', tryPlayMusic)
 })
+
+function playClick() {
+  if (!isMuted.value && clickSound) {
+    clickSound.currentTime = 0
+    clickSound.play()
+  }
+}
 
 function goTo(route) {
   playClick()
-  router.push(`/${route}`)
+  fadeOutMusic(() => router.push(`/${route}`))
 }
 
-const goToStory = () => {
+function goToStory() {
   playClick()
   const hasClass = localStorage.getItem('playerClass')
-  router.push(hasClass ? '/map' : '/class')
+  fadeOutMusic(() => router.push(hasClass ? '/map' : '/class'))
 }
 
 function toggleFullscreen() {
@@ -72,20 +105,46 @@ function toggleFullscreen() {
     })
   } else {
     document.exitFullscreen().catch(err => {
-      console.error(`Erro ao sair do tela cheia: ${err.message}`)
+      console.error(`Erro ao sair da tela cheia: ${err.message}`)
     })
   }
 }
 
-let clickSound
+function toggleMute() {
+  isMuted.value = !isMuted.value
+  localStorage.setItem('isMuted', isMuted.value)
+  if (clickSound) clickSound.volume = isMuted.value ? 0 : 1
+  if (backgroundMusic) backgroundMusic.volume = isMuted.value ? 0 : 0.4
+}
 
-function playClick() {
-  if (clickSound) clickSound.play()
+function fadeOutMusic(callback) {
+  if (!backgroundMusic || isMuted.value) return callback()
+  const fadeInterval = setInterval(() => {
+    if (backgroundMusic.volume > 0.05) {
+      backgroundMusic.volume -= 0.05
+    } else {
+      backgroundMusic.pause()
+      clearInterval(fadeInterval)
+      callback()
+    }
+  }, 50)
+}
+
+function fadeInMusic() {
+  if (!backgroundMusic || isMuted.value) return
+  backgroundMusic.volume = 0
+  const fadeInterval = setInterval(() => {
+    if (backgroundMusic.volume < 0.4) {
+      backgroundMusic.volume += 0.02
+    } else {
+      backgroundMusic.volume = 0.4
+      clearInterval(fadeInterval)
+    }
+  }, 100)
 }
 </script>
 
 <style scoped>
-/* FADE */
 .fade-in {
   animation: fadeIn 1.5s ease-in;
 }
@@ -95,7 +154,6 @@ function playClick() {
 }
 
 /* CONTAINER */
-
 .menu-container {
   position: relative;
   width: 100vw;
@@ -113,16 +171,6 @@ function playClick() {
   filter: blur(1px);
 }
 
-.river-image {
-  position: fixed;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: -1;
-  opacity: 0.4;
-  pointer-events: none;
-}
-
 /* LOGO ANIMADA */
 .game-logo {
   width: 450px;
@@ -136,17 +184,14 @@ function playClick() {
   0% {
     transform: scale(1) rotate(0deg);
     filter: brightness(1) drop-shadow(0 8px 12px rgba(0, 0, 0, 0.5));
-    overflow: hidden;
   }
   50% {
     transform: scale(1.05) rotate(2deg);
     filter: brightness(1.2) drop-shadow(0 8px 12px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 10px rgba(249, 231, 159, 0.7));
-    overflow: hidden;
   }
   100% {
-    transform: scale(1) rotate(0d eg);
+    transform: scale(1) rotate(0deg);
     filter: brightness(1) drop-shadow(0 8px 12px rgba(0, 0, 0, 0.5));
-    overflow: hidden;
   }
 }
 
@@ -216,6 +261,40 @@ function playClick() {
 }
 
 .fullscreen-icon {
+  width: 24px;
+  height: 24px;
+}
+
+/* BOTÃO DE SOM */
+.btn-sound {
+  position: fixed;
+  bottom: 85px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  background: #e0a867;
+  border: 3px solid #5c2c1d;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: inset -4px -4px #d17844, inset 4px 4px #ffcb8e;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
+  z-index: 10;
+}
+
+.btn-sound:hover {
+  background-color: #f4b76a;
+  box-shadow: inset -4px -4px #c96a32, inset 4px 4px #ffd9a1;
+}
+
+.btn-sound:active {
+  transform: translateY(2px);
+  box-shadow: inset -2px -2px #d17844, inset 2px 2px #ffcb8e;
+}
+
+.sound-icon {
   width: 24px;
   height: 24px;
 }

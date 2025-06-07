@@ -1,152 +1,240 @@
 <template>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap" rel="stylesheet">
+  <div class="main-hud">
+    <!-- Painel com vida e energia -->
+    <div class="panel-frame">
+<!-- Vida -->
+<div class="stat vida">
+  <div class="icon-container">
+    <img src="/icons/life-icon.png" alt="Vida" class="icon" />
+  </div>
+  <div class="bar-container segmented">
+    <div
+      v-for="i in maxBarSegments"
+      :key="'vida-' + i"
+      class="segment"
+      :class="{ filled: i <= filledHealthSegments }"
+    ></div>
+    <span class="bar-label">
+      {{ Math.floor(gameState.player.health) }}/{{ Math.floor(gameState.player.maxHealth) }}
+    </span>
+  </div>
+</div>
 
-  <div class="hud">
-    <div class="panel panel-left">
-      <p class="stat vida">❤️ Vida: {{ health }}/100</p>
-      <p class="stat energia">⚡ Energia: {{ stamina }}/100</p>
-      <p class="resource ouro">🥇 Ouro: {{ gold }}</p>
-      <p class="resource potions">🧪 Poções: {{ potions }}</p>
-      <p class="loc">📍 {{ area }}</p>
+<!-- Energia -->
+<div class="stat energia">
+  <div class="icon-container">
+    <img src="/icons/stam-icon.png" alt="Energia" class="icon" />
+  </div>
+  <div class="bar-container segmented">
+    <div
+      v-for="i in maxBarSegments"
+      :key="'energia-' + i"
+      class="segment"
+      :class="{ filled: i <= filledStaminaSegments }"
+    ></div>
+    <span class="bar-label">
+      {{ Math.floor(gameState.player.stamina) }}/{{ Math.floor(gameState.player.maxStamina) }}
+    </span>
+  </div>
+</div>
+
     </div>
-    <p class="fps">{{ fps }} FPS</p>
+
+    <!-- Botões no lado direito central -->
+    <div class="hud-buttons">
+      <!-- Botão MAPA -->
+      <button class="map-button" @click="handleMapClick">
+        <img src="/icons/map-icon.png" alt="Mapa" class="button-icon" />
+      </button>
+
+      <!-- Botão MOCHILA -->
+      <button class="bag-button" @click="toggleBag">
+        <img src="/icons/bag-icon.png" alt="Mochila" class="button-icon" />
+      </button>
+    </div>
+
+    <!-- Inventário: renderiza somente se aberto -->
+    <Inventory v-if="inventoryOpen" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed } from "vue";
+import { useRouter } from "vue-router";
+import Inventory from "@/components/Inventory.vue";
+import { useGameState } from "@/stores/gameState"; // <--- Importa o gameState da Pinia
 
-defineProps({
-  health: Number,
-  stamina: Number,
-  gold: Number,
-  potions: Number,
-  area: String,
-})
+const gameState = useGameState(); // <--- Usa o gameState da store
 
-const fps = ref(0)
-let frameCount = 0
-let lastTime = performance.now()
+const router = useRouter();
+const inventoryOpen = ref(false);
 
-onMounted(() => {
-  function updateFPS() {
-    const now = performance.now()
-    frameCount++
-    if (now - lastTime >= 1000) {
-      fps.value = frameCount
-      frameCount = 0
-      lastTime = now
-    }
-    requestAnimationFrame(updateFPS)
+const toggleBag = () => {
+  inventoryOpen.value = !inventoryOpen.value;
+};
+
+const handleMapClick = () => {
+  const tutorialDone = localStorage.getItem("tutorialCompleted");
+  if (!tutorialDone) {
+    localStorage.setItem("tutorialCompleted", "true");
+    router.push("/tutorial");
+  } else {
+    router.push("/map");
   }
-  updateFPS()
-})
+};
+
+const maxBarSegments = 10;
+
+const filledHealthSegments = computed(() => {
+  return Math.round(
+    (gameState.player.health / gameState.player.maxHealth) * maxBarSegments
+  );
+});
+
+const filledStaminaSegments = computed(() => {
+  return Math.round(
+    (gameState.player.stamina / gameState.player.maxStamina) * maxBarSegments
+  );
+});
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&display=swap');
-
-.hud {
+.main-hud {
   position: fixed;
-  top: 0px;
-  left: -10px;
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-end;
-  padding: 12px 24px;
-  font-family: 'Cinzel', serif;
-  font-size: 14px;
+  bottom: 10px;
+  left: 5px;
   z-index: 1000;
+  font-size: 6px;
   letter-spacing: 0.5px;
-  flex-direction: column;
 }
 
-.loc {
-  position: fixed;
-  top: 0px;
-  right: 10px;
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-end;
-  padding: 12px 24px;
-  font-family: 'Cinzel', serif;
-  font-size: 14px;
-  z-index: 1000;
-  letter-spacing: 0.5px;
-  flex-direction: column;
-}
-
-.panel {
+/* Painel de vida e energia */
+.panel-frame {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 300px;
+  gap: 18px; /* mais espaço vertical entre vida e energia */
 }
 
-.panel-left {
-  color: #f0d9a9;
-}
-
-.stat,
-.resource,
-.location {
-  margin: 0;
-  padding: 6px 10px;
-  border-radius: 5px;
-  box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.1);
-  text-shadow: 1px 1px 1px #000;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.stat {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: bold;
 }
 
-/* Fundo colorido leve para cada item */
-.vida {
-  background: rgba(255, 0, 0, 1); /* Vermelho claro */
-  border-color: rgba(255, 0, 0, 0.3);
+.icon-container {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-.energia {
-  background: rgba(255, 255, 0, 0.45); /* Amarelo claro */
-  border-color: rgba(255, 255, 0, 0.3);
+.icon {
+  width: 64px;
+  height: 64px;
+  image-rendering: pixelated;
+  margin-left: 20px;
+  z-index: 100;
 }
 
-.ouro {
-  background: rgba(255, 255, 255, 1); /* Branco claro */
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #fff; /* Ajuste cor do texto para melhor visibilidade */
-  text-shadow: 1px 1px 2px #000;
+.bar-container {
+  position: relative;
+  width: 280px;
+  height: 34px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid #333;
+  overflow: hidden;
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
 }
 
-.potions {
-  background: rgba(0, 255, 0, 0.45); /* Verde claro */
-  border-color: rgba(0, 255, 0, 0.3);
+.bar {
+  height: 100%;
 }
 
-/* Adiciona espaçamento e estilo aos ícones */
-.stat::before,
-.resource::before,
-.location::before {
-  font-size: 1.2em;
-  display: inline-block;
-}
-
-/* FPS visual melhorado */
-.fps {
+.bar-label {
   position: absolute;
-  bottom: 550px;
-  left: -1060px;
+  top: 0;
+  left: 50%;
   transform: translateX(-50%);
-  font-size: 20px;
-  color: #caffc6;
-  background: rgba(0, 0, 0, 0.5);
-  padding: 8px 14px;
-  border-radius: 6px;
-  border: 1px solid #76c976;
-  font-family: monospace;
-  box-shadow: 0 0 5px #76c976;
-  z-index: 5;
+  font-size: 16px;
+  color: #fff9d6;
+  text-shadow: 2px 2px 0 #000;
+  font-weight: bold;
+  line-height: 24px;
+  letter-spacing: 1px;
 }
+
+.bar-container.segmented {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5px; /* Menor espaço entre barrinhas */
+  padding: 1px; /* Margem interna menor */
+}
+
+.segment {
+  flex: none;
+  width: 26px;
+  height: 28px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 0.2px solid #222;
+  box-shadow: inset 0 0 3px #000;
+}
+
+.vida .segment.filled {
+  background: linear-gradient(to bottom, #ff3333,rgb(106, 15, 15));
+}
+
+.energia .segment.filled {
+  background: linear-gradient(to bottom, #33cc33,rgb(11, 112, 11));
+}
+/* Botões no lado direito */
+.hud-buttons {
+  position: fixed;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map-button,
+.bag-button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  width: 122px;
+  height: 122px;
+}
+
+.map-button:hover img,
+.bag-button:hover img {
+  transform: scale(1.1);
+  transition: transform 0.2s;
+
+}
+
+.map-button:active img,
+.bag-button:active img {
+  transform: scale(0.95);
+  transition: transform 0.1s;
+}
+
+.button-icon {
+  width: 122px;
+  height: 122px;
+  image-rendering: pixelated;
+}
+
+/* Cores das barras */
+.vida .bar {
+  background: linear-gradient(to bottom, #ff3333, #cc0000);
+}
+
+.energia .bar {
+  background: linear-gradient(to bottom, #33cc33, #009900);
+}
+
 </style>
