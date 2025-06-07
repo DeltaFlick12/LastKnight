@@ -11,88 +11,154 @@
 </template>
 
 <script setup>
-import { useGameState } from '@/stores/gameState'
-import { ref, onMounted, onUnmounted, computed } from 'vue'
-import Inventory from '@/components/Inventory.vue'
-import HUD from '@/components/HUD.vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import HUD from '@/components/HUD.vue'
+import { useGameState } from '@/stores/gameState'
 
 const router = useRouter()
 const gameState = useGameState()
 
-const maxStamina = gameState.player.maxStamina
-const staminaRecoveryRate = 10 // por segundo
-const staminaConsumptionRate = 25 // por segundo
+const canvas = ref(null)
+let ctx = null
 
-const staminaRounded = computed(() => Math.floor(gameState.player.stamina))
+const world = { width: 4096, height: 2732 }
 
-const potions = ref(3)
-const currentArea = ref('Reino de Albadia')
 const showEnterPrompt = ref(false)
 const structureName = ref('')
+const obstacles = [
+  // Exemplo de obstáculos
+  // { x: 480, y: 380, width: 480, height: 180, name: 'Ferreiro', route: '/interior/ferreiro' },
+]
 
-const bagOpen = ref(false)
-const toggleBag = () => (bagOpen.value = !bagOpen.value)
+const keys = {
+  ArrowUp: false,
+  ArrowDown: false,
+  ArrowLeft: false,
+  ArrowRight: false,
+  e: false,
+}
 
-const equippedWeapon = ref('Espada de Treinamento')
-const equipWeapon = (name) => (equippedWeapon.value = name)
+// Classe Sprite com múltiplas animações
+class Sprite {
+  constructor({ position, animations, frameBuffer = 10, scale = 1 }) {
+    this.position = position
+    this.animations = animations
+    this.frameBuffer = frameBuffer
+    this.scale = scale
+    this.currentAnimation = 'idle'
+    this.currentFrame = 0
+    this.elapsedFrames = 0
+    this.loadedImages = {}
 
-const usePotion = () => {
-  if (potions.value > 0) {
-    gameState.player.health = Math.min(gameState.player.maxHealth, gameState.player.health + 30)
-    potions.value--
+    for (const key in animations) {
+      const image = new Image()
+      image.src = animations[key].imageSrc
+      this.loadedImages[key] = {
+        image,
+        frameRate: animations[key].frameRate,
+      }
+
+      image.onload = () => {
+        if (!this.width) {
+          this.width = (image.width / animations[key].frameRate) * this.scale
+          this.height = image.height * this.scale
+        }
+      }
+    }
+  }
+
+  setAnimation(name) {
+    if (this.currentAnimation !== name && this.loadedImages[name]) {
+      this.currentAnimation = name
+      this.currentFrame = 0
+      this.elapsedFrames = 0
+    }
+  }
+
+  draw(ctx, camera) {
+    const { image, frameRate } = this.loadedImages[this.currentAnimation]
+    if (!image.complete) return
+
+    const cropWidth = image.width / frameRate
+    const cropHeight = image.height
+    const sx = this.currentFrame * cropWidth
+    const sy = 0
+
+    ctx.drawImage(
+      image,
+      sx, sy, cropWidth, cropHeight,
+      this.position.x - camera.x,
+      this.position.y - camera.y,
+      this.width,
+      this.height
+    )
+  }
+
+  update(ctx, camera) {
+    this.draw(ctx, camera)
+    this.updateFrames()
+  }
+
+  updateFrames() {
+    const { frameRate } = this.loadedImages[this.currentAnimation]
+    this.elapsedFrames++
+    if (this.elapsedFrames % this.frameBuffer === 0) {
+      this.currentFrame = (this.currentFrame + 1) % frameRate
+    }
+  }
+
+  setPosition(x, y) {
+    this.position.x = x
+    this.position.y = y
   }
 }
 
-const handleMapClick = () => {
-  const tutorialDone = localStorage.getItem('tutorialCompleted')
-  if (!tutorialDone) {
-    localStorage.setItem('tutorialCompleted', 'true')
-    router.push('/tutorial')
-  } else {
-    router.push('/map')
-  }
-}
-
-// Canvas + mapa
-const canvas = ref(null)
-let ctx
-const player = {
-  x: 830 + 128 / 2,
-  y: 1600 + 128 / 2,
+// Estado do player (posição, direção e movimento)
+const player = reactive({
+  x: 830,
+  y: 1600,
+  speed: 4,
+  direction: 'down',
+  moving: false,
   size: 128,
-  speed: 6,
-  runSpeed: 12,
-  direction: 'idle'
-}
-const keys = { w: false, a: false, s: false, d: false, shift: false }
-const world = { width: 4096, height: 2732 }
+})
+
+// Inicializa o sprite do player com suas animações
+const playerSprite = new Sprite({
+  position: { x: player.x, y: player.y },
+  frameBuffer: 8,
+  scale: 5,
+  animations: {
+    idle: {
+      imageSrc: 'src/assets/sprites/player/idle.png', // Substitua pelo caminho correto
+      frameRate: 5,
+    },
+    walk_down: {
+      imageSrc: 'src/assets/sprites/player/walk_down.png',
+      frameRate: 5,
+    },
+    walk_up: {
+      imageSrc: 'src/assets/sprites/player/walk_up.png',
+      frameRate: 5,
+    },
+    walk_left: {
+      imageSrc: 'src/assets/sprites/player/walk_left.png',
+      frameRate: 5,
+    },
+    walk_right: {
+      imageSrc: 'src/assets/sprites/player/walk_right.png',
+      frameRate: 5,
+    },
+  },
+})
+
 const background = new Image()
 const foreground = new Image()
 
-// Spritesheet do player
-const playerSpriteSheet = new Image()
-
-// Controle de animação
-const frameWidth = 32
-const frameHeight = 32
-
-// Ajuste aqui conforme sua spritesheet
-const animations = {
-  idle: { row: 0, frames: [0] },
-  walk_down: { row: 0, frames: [1, 2] },
-  walk_up: { row: 1, frames: [0, 1] },
-  walk_left: { row: 1, frames: [2, 3] },
-  walk_right: { row: 2, frames: [0, 1] }
-}
-
-let currentFrameIndex = 0
-let frameTimer = 0
-const frameInterval = 300 // ms entre frames
-
 let allImagesLoaded = false
 let imagesLoadedCount = 0
-const totalImagesToLoad = 3 // background, foreground, spritesheet
+const totalImagesToLoad = 2 + Object.keys(playerSprite.animations).length
 
 function imageLoadedCallback() {
   imagesLoadedCount++
@@ -108,37 +174,35 @@ function loadImage(img, src) {
   img.src = src
 }
 
-const obstacles = [
-  // { x: 480, y: 380, width: 480, height: 180, name: 'Ferreiro', route: '/interior/ferreiro' },
-  // { x: 1310, y: 820, width: 350, height: 150, name: 'Loja de Poções', route: '/interior/bruxa' },
-  // { x: 2080, y: 590, width: 330, height: 140, name: 'Igreja', route: '/interior/igreja' },
-  // { x: 1165, y: 1300, width: 290, height: 20, name: 'Fonte' },
-  // { x: 1155, y: 1320, width: 315, height: 25 },
-  // { x: 1145, y: 1345, width: 335, height: 120 },
-  // { x: 1165, y: 1465, width: 290, height: 20 },
-  // { x: 400, y: 1545, width: 310, height: 20 },
-  // { x: 380, y: 1545, width: 20, height: 320 },
-  // { x: 400, y: 1810, width: 310, height: 55 },
-]
-
 onMounted(() => {
   if (!canvas.value) return
   ctx = canvas.value.getContext('2d')
+  if (!ctx) {
+    console.error('Erro: ctx é null.')
+    return
+  }
+
   resizeCanvas()
   window.addEventListener('resize', resizeCanvas)
-  document.addEventListener('keydown', onKeyDown)
-  document.addEventListener('keyup', onKeyUp)
+  window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('keyup', onKeyUp)
 
-  loadImage(background, '/public/img/albadia/albadia-bg.png')
-  loadImage(foreground, '/public/img/albadia/albadiaDetalhes.png')
+  // Carrega fundo e camada superior
+  loadImage(background, 'public/img/albadia/albadia-bg.png')
+  loadImage(foreground, 'public/img/albadia/albadiaDetalhes.png')
 
-  loadImage(playerSpriteSheet, '/img/sprites/player/player_sprite.png')
+  // Carrega todas as animações do player
+  for (const key in playerSprite.animations) {
+    const { imageSrc } = playerSprite.animations[key]
+    const image = playerSprite.loadedImages[key].image
+    loadImage(image, imageSrc)
+  }
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', onKeyDown)
-  document.removeEventListener('keyup', onKeyUp)
   window.removeEventListener('resize', resizeCanvas)
+  window.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('keyup', onKeyUp)
   if (animationFrameId) cancelAnimationFrame(animationFrameId)
 })
 
@@ -149,97 +213,48 @@ function resizeCanvas() {
 }
 
 function onKeyDown(e) {
-  const k = e.key.toLowerCase()
-  if (keys.hasOwnProperty(k)) keys[k] = true
-  if (k === 'e') {
+  if (e.key in keys) keys[e.key] = true
+  if (e.key.toLowerCase() === 'e') {
     const current = getPlayerNearbyStructure()
     if (current?.route) router.push(current.route)
   }
 }
 
 function onKeyUp(e) {
-  const k = e.key.toLowerCase()
-  if (keys.hasOwnProperty(k)) keys[k] = false
+  if (e.key in keys) keys[e.key] = false
 }
 
-let animationFrameId = null
-let lastUpdateTime = 0
+function updatePlayer() {
+  player.moving = false
 
-function gameLoop(timestamp) {
-  if (!allImagesLoaded) {
-    animationFrameId = requestAnimationFrame(gameLoop)
-    return
+  if (keys.ArrowUp) {
+    player.y -= player.speed
+    player.direction = 'up'
+    player.moving = true
+  } else if (keys.ArrowDown) {
+    player.y += player.speed
+    player.direction = 'down'
+    player.moving = true
+  } else if (keys.ArrowLeft) {
+    player.x -= player.speed
+    player.direction = 'left'
+    player.moving = true
+  } else if (keys.ArrowRight) {
+    player.x += player.speed
+    player.direction = 'right'
+    player.moving = true
   }
 
-  if (!lastUpdateTime) lastUpdateTime = timestamp
+  // Define a animação conforme o movimento
+  const anim = player.moving ? `walk_${player.direction}` : 'idle'
+  playerSprite.setAnimation(anim)
+  playerSprite.setPosition(player.x - player.size / 2, player.y - player.size / 2)
 
-  const delta = timestamp - lastUpdateTime
+  // Mantém player dentro do mundo
+  player.x = Math.min(Math.max(player.x, 0), world.width)
+  player.y = Math.min(Math.max(player.y, 0), world.height)
 
-  if (delta >= 15) { // ~30 FPS
-    update(delta / 1000) // delta em segundos
-    lastUpdateTime = timestamp
-  }
-
-  draw()
-  animationFrameId = requestAnimationFrame(gameLoop)
-}
-
-function update(deltaSeconds) {
-  const { w, a, s, d, shift } = keys
-  let moved = false
-  let dx = 0
-  let dy = 0
-
-  if (w) { dy -= 1; moved = true }
-  if (s) { dy += 1; moved = true }
-  if (a) { dx -= 1; moved = true }
-  if (d) { dx += 1; moved = true }
-
-  if (dx !== 0 && dy !== 0) {
-    const invSqrt2 = 1 / Math.sqrt(2)
-    dx *= invSqrt2
-    dy *= invSqrt2
-  }
-
-  if (moved) {
-    let speed = player.speed
-
-    if (shift && gameState.player.stamina > 0) {
-      speed = player.runSpeed
-
-      gameState.player.stamina -= staminaConsumptionRate * deltaSeconds
-      if (gameState.player.stamina < 0) gameState.player.stamina = 0
-    } else {
-      gameState.player.stamina += staminaRecoveryRate * deltaSeconds
-      if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
-    }
-
-    if (dy < 0) player.direction = 'walk_up'
-    else if (dy > 0) player.direction = 'walk_down'
-    else if (dx < 0) player.direction = 'walk_left'
-    else if (dx > 0) player.direction = 'walk_right'
-
-    let newX = player.x + dx * speed
-    let newY = player.y + dy * speed
-
-    // colisões simples
-    for (const obs of obstacles) {
-      if (rectCircleColliding(newX, newY, player.size, player.size, obs.x, obs.y, obs.width, obs.height)) {
-        newX = player.x
-        newY = player.y
-        break
-      }
-    }
-
-    player.x = Math.min(Math.max(newX, 0), world.width)
-    player.y = Math.min(Math.max(newY, 0), world.height)
-  } else {
-    player.direction = 'idle'
-    gameState.player.stamina += staminaRecoveryRate * deltaSeconds
-    if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
-  }
-
-  // detectar estruturas para "Pressione E"
+  // Detecta estruturas próximas para mostrar prompt "Pressione E"
   const nearbyStructure = getPlayerNearbyStructure()
   if (nearbyStructure && nearbyStructure.name) {
     showEnterPrompt.value = true
@@ -261,14 +276,26 @@ function getPlayerNearbyStructure() {
   return null
 }
 
-function rectCircleColliding(cx, cy, cwidth, cheight, rx, ry, rw, rh) {
-  // aproximação AABB para colisão circular
-  return !(
-    cx + cwidth < rx ||
-    cx > rx + rw ||
-    cy + cheight < ry ||
-    cy > ry + rh
-  )
+let animationFrameId = null
+let lastUpdateTime = 0
+
+function gameLoop(timestamp) {
+  if (!allImagesLoaded) {
+    animationFrameId = requestAnimationFrame(gameLoop)
+    return
+  }
+
+  if (!lastUpdateTime) lastUpdateTime = timestamp
+
+  const delta = timestamp - lastUpdateTime
+
+  if (delta >= 15) {
+    updatePlayer()
+    draw()
+    lastUpdateTime = timestamp
+  }
+
+  animationFrameId = requestAnimationFrame(gameLoop)
 }
 
 function draw() {
@@ -278,110 +305,55 @@ function draw() {
 
   const cam = {
     x: player.x - canvas.value.width / 2,
-    y: player.y - canvas.value.height / 2
+    y: player.y - canvas.value.height / 2,
   }
   cam.x = Math.max(0, Math.min(cam.x, world.width - canvas.value.width))
   cam.y = Math.max(0, Math.min(cam.y, world.height - canvas.value.height))
 
-  // Desenha o fundo
-  ctx.drawImage(background, -cam.x, -cam.y, world.width, world.height)
+  // Desenha o fundo (background)
+  ctx.drawImage(background, -cam.x, -cam.y)
 
-  // === NOVO BLOCO: VISUALIZAÇÃO DOS OBSTÁCULOS ===
-  ctx.save()
-  ctx.fillStyle = 'rgba(255, 0, 0, 0.3)' // vermelho semi-transparente
-  for (const obs of obstacles) {
-    ctx.fillRect(obs.x - cam.x, obs.y - cam.y, obs.width, obs.height)
-  }
-  ctx.restore()
-  // ===============================================
+  // Atualiza e desenha o sprite do player
+  playerSprite.update(ctx, cam)
 
-  // cálculo da animação
-  const anim = animations[player.direction] || animations.idle
-
-  // Atualizar frame da animação (feito no update, mas aqui só garante caso idle)
-  if (player.direction === 'idle') {
-    currentFrameIndex = 0
-    frameTimer = 0
-  }
-
-  const frame = anim.frames[currentFrameIndex]
-  const sx = frame * frameWidth
-  const sy = anim.row * frameHeight
-
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.7)'
-  ctx.shadowBlur = 15
-  ctx.shadowOffsetX = 5
-  ctx.shadowOffsetY = 10
-
-  ctx.drawImage(
-    playerSpriteSheet,
-    sx, sy, frameWidth, frameHeight,
-    player.x - cam.x - player.size / 2,
-    player.y - cam.y - player.size / 2,
-    player.size,
-    player.size
-  )
-
-  ctx.shadowColor = 'transparent'
-  ctx.shadowBlur = 0
-  ctx.shadowOffsetX = 0
-  ctx.shadowOffsetY = 0
-
-  ctx.drawImage(foreground, -cam.x, -cam.y, world.width, world.height)
+  // Desenha a camada superior (foreground)
+  ctx.drawImage(foreground, -cam.x, -cam.y)
 }
-
-// Atualiza frame da animação
-function updateAnimation(deltaSeconds) {
-  if (player.direction !== 'idle') {
-    frameTimer += deltaSeconds * 1000
-    if (frameTimer >= frameInterval) {
-      frameTimer = 0
-      currentFrameIndex++
-      const anim = animations[player.direction]
-      if (currentFrameIndex >= anim.frames.length) currentFrameIndex = 0
-    }
-  } else {
-    currentFrameIndex = 0
-    frameTimer = 0
-  }
-}
-
-// No update() chamar updateAnimation
-const originalUpdate = update
-update = (deltaSeconds) => {
-  originalUpdate(deltaSeconds)
-  updateAnimation(deltaSeconds)
-}
-
 </script>
 
 <style scoped>
-.game-canvas {
+.game-view {
+  position: relative;
   width: 100vw;
   height: 100vh;
-  display: block;
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 1;
+  overflow: hidden;
 }
+
+.game-canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
 .enter-prompt {
-  position: fixed;
-  bottom: 150px;
+  position: absolute;
+  bottom: 60px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: rgba(20, 20, 20, 0.8);
+  background: rgba(0, 0, 0, 0.75);
   color: white;
-  padding: 10px 25px;
-  border-radius: 10px;
-  font-size: 20px;
-  font-weight: bold;
-  user-select: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 18px;
+  font-family: monospace;
   z-index: 10;
 }
+
 .key {
-  background-color: #444;
-  padding: 2px 10px;
-  border-radius: 6px;
+  background: #fff;
+  color: #000;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: bold;
 }
 </style>

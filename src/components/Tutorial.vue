@@ -11,7 +11,7 @@
     <!-- Simulação de batalha -->
     <div v-if="combatStarted && !enemyDefeated" class="combat-area">
       <div class="battle-sprites">
-        <img src="@/assets/sprites/player/player_idle.png" alt="Você" class="player-sprite" />
+        <img src="@/assets/sprites/player/idle.png" alt="Você" class="player-sprite" />
         <!-- <img src="@/assets/sprites/enemies/dummy.png" alt="Dummy" class="enemy-sprite" /> -->
       </div>
 
