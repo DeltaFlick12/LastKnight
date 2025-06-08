@@ -35,7 +35,7 @@
 
       <div v-else-if="currentCastleSection === 'Escadaria Oeste'">
         <p>Uma escadaria em espiral leva para cima. Alguns degraus estão quebrados.</p>
-         <div class="interactions">
+        <div class="interactions">
           <p><strong>Inimigos:</strong> Placeholder para Esqueleto Arqueiro (x1) no topo.</p>
           <button @click="moveToSection('Ponte Sobre Espinhos')">Continuar Subindo</button>
           <button @click="moveToSection('Salão Principal')">Descer para Salão Principal</button>
@@ -52,29 +52,27 @@
         </div>
       </div>
 
-       <div v-else-if="currentCastleSection === 'Antecamara Final'">
+      <div v-else-if="currentCastleSection === 'Antecamara Final'">
         <p>Após a ponte, você entra em uma antecâmara silenciosa. Uma porta maciça e imponente bloqueia o caminho adiante. Ela pulsa com uma energia sombria e possui três entalhes: um floco de neve, uma chama e um crânio antigo.</p>
         <div class="interactions">
-           <p><strong>Puzzle:</strong> A porta está selada magicamente. As três chaves dos dragões (Gelo, Fogo, Ancestral) parecem ser necessárias para abrir os entalhes.</p>
-           <p><strong>Item:</strong> Placeholder para Poção de Cura Maior.</p>
+          <p><strong>Puzzle:</strong> A porta está selada magicamente. As três chaves dos dragões (Gelo, Fogo, Ancestral) parecem ser necessárias para abrir os entalhes.</p>
+          <p><strong>Item:</strong> Placeholder para Poção de Cura Maior.</p>
           <button @click="tryOpenFinalDoor">Usar Chaves na Porta Final</button>
           <button @click="moveToSection('Ponte Sobre Espinhos')">Voltar pela Ponte</button>
         </div>
       </div>
 
       <!-- Adicionar mais seções conforme necessário -->
-
       <div v-else>
         <p>Seção desconhecida.</p>
         <button @click="moveToSection('Salão Principal')">Voltar ao Início</button>
       </div>
 
-       <!-- Caixa de Diálogo para feedback -->
+      <!-- Caixa de Diálogo para feedback -->
       <div v-if="showFeedback" class="dialog-box feedback-box">
         <p>{{ feedbackMessage }}</p>
         <button @click="showFeedback = false">Ok</button>
       </div>
-
     </div>
 
     <div class="navigation-placeholder">
@@ -86,10 +84,11 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
-import { gameState, actions } from '@/stores/game.js'; // Ajuste o caminho
+import { useGameState } from '@/stores/gamestate.js'; // Correct import
 import { playAudio } from '@/utils/audioManager.js';
 
 const router = useRouter();
+const gameState = useGameState(); // Initialize the Pinia store
 
 // Estado local para a seção atual dentro do castelo
 const currentCastleSection = ref('Salão Principal');
@@ -112,7 +111,7 @@ const getCollectedKeysStatus = () => {
 };
 
 onMounted(() => {
-  actions.setCurrentArea('Castelo de Magnus');
+  gameState.setCurrentArea('Castelo de Magnus');
   playAudio('music_castle_exploration', { loop: true });
   // Inicializar estado do castelo se não existir
   if (!gameState.castleState) {
@@ -140,10 +139,10 @@ const moveToSection = (sectionName) => {
 const tryOpenNorthDoor = () => {
   playAudio('sfx_door_try_open_heavy');
   if (foundSmallKey.value) {
-     feedbackMessage.value = 'Placeholder: A chave pequena destranca a porta norte! (Leva para onde?)';
-     // moveToSection('Nova Seção Norte');
+    feedbackMessage.value = 'Placeholder: A chave pequena destranca a porta norte! (Leva para onde?)';
+    // moveToSection('Nova Seção Norte');
   } else {
-     feedbackMessage.value = 'Placeholder: A porta está trancada.';
+    feedbackMessage.value = 'Placeholder: A porta está trancada.';
   }
   showFeedback.value = true;
 };
@@ -185,13 +184,12 @@ const tryCrossBridge = () => {
   } else {
     playAudio('sfx_bridge_snap_fall');
     feedbackMessage.value = 'Placeholder: A ponte cede! Você cai...';
-    actions.takeDamage(20);
+    gameState.takeDamage(20);
     if (gameState.player.health <= 0) {
-        alert("Game Over!");
-        router.push('/');
+      router.push('/game-over'); // Navigate to game over screen
     } else {
-        // Volta para seção anterior se sobreviver
-        moveToSection('Escadaria Oeste');
+      // Volta para seção anterior se sobreviver
+      moveToSection('Escadaria Oeste');
     }
   }
   showFeedback.value = true;
@@ -203,23 +201,21 @@ const tryOpenFinalDoor = () => {
   const hasAllKeys = gameState.player.keys?.ancestral && gameState.player.keys?.ice && gameState.player.keys?.fire;
 
   if (hasAllKeys) {
-     feedbackMessage.value = 'As três chaves ressoam com a porta. O selo mágico se dissipa! Você pode entrar.';
-     finalDoorOpened.value = true;
-     gameState.castleState.finalDoorOpened = true; // Salva estado
-     playAudio('sfx_magic_seal_break');
-     actions.completeLevel('castelo'); // Marcar nível como completo
-     // Navegar para a batalha final
-     router.push({ name: 'FinalBattle' });
+    feedbackMessage.value = 'As três chaves ressoam com a porta. O selo mágico se dissipa! Você pode entrar.';
+    finalDoorOpened.value = true;
+    gameState.castleState.finalDoorOpened = true; // Salva estado
+    playAudio('sfx_magic_seal_break');
+    gameState.completeLevel('castelo'); // Marcar nível como completo
+    // Navegar para a batalha final
+    router.push({ name: 'FinalBattle' });
   } else {
-     feedbackMessage.value = 'A porta permanece selada. Os entalhes parecem corresponder às chaves dos dragões... Você precisa encontrar todas as três.';
+    feedbackMessage.value = 'A porta permanece selada. Os entalhes parecem corresponder às chaves dos dragões... Você precisa encontrar todas as três.';
   }
-   showFeedback.value = true;
+  showFeedback.value = true;
 };
-
 </script>
 
 <style scoped>
-/* Estilos mantidos do anterior, verificar se precisam de ajustes */
 .castelo-view {
   width: 100vw;
   height: 100vh;

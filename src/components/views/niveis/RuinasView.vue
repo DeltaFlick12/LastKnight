@@ -183,10 +183,11 @@ import warriorImage from '@/assets/backviews/warrior.png';
 import warriorScaredImage from '@/assets/backviews/warrior-scared.png';
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { gameState, actions } from '@/stores/game.js';
+import { useGameState } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
 import { playAudio } from '@/utils/audioManager.js';
 
 const router = useRouter();
+const gameState = useGameState(); // Initialize the Pinia store
 
 // Cutscene State
 const showCutscene = ref(false);
@@ -390,7 +391,7 @@ const confrontBoss = () => {
 
 const collectKey = () => {
   if (bossDefeated.value && !gameState.player.keys.ancestral) {
-    actions.collectKey('ancestral');
+    gameState.collectKey('ancestral'); // Use gameState instead of actions
     playAudio('collect_key_ancient');
     feedbackMessage.value = 'Chave Ancestral obtida!';
     showFeedback.value = true;
@@ -429,7 +430,7 @@ const attackEnemy = async () => {
   await showAttackEffect(playerElement, enemyElement);
   playerCharacter.left = originalLeft;
   damagedEnemy.value = enemyIndex;
-  const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 5 - 2);
+  const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 5);
   enemy.currentHp = Math.max(0, enemy.currentHp - damageDealt);
   enemy.hpPercent = (enemy.currentHp / enemy.maxHp) * 100;
   showPopup(damageDealt, enemyElement, 'enemy-damage');
@@ -464,7 +465,7 @@ const usePotion = async () => {
   gameState.player.stamina = playerCharacter.currentStamina;
   addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
   const playerElement = document.querySelector('.player-character');
-  actions.removeItemFromInventory('potion', 1);
+  gameState.removeItemFromInventory('potion', 1); // Use gameState instead of actions
   gameState.player.potions -= 1;
   const healAmount = 30;
   playerCharacter.currentHp = Math.min(playerCharacter.maxHp, playerCharacter.currentHp + healAmount);
@@ -482,10 +483,10 @@ const usePotion = async () => {
 
 const handleVictory = () => {
   bossDefeated.value = true;
-  actions.completeLevel('ruinas_boss');
+  gameState.completeLevel('ruinas_boss'); // Use gameState instead of actions
   inBattle.value = false;
   gameState.player.gold += 100;
-  actions.addItemToInventory('dragon_scale', 1);
+  gameState.addItemToInventory('dragon_scale', 1); // Use gameState instead of actions
   addLogMessage(`<span style="color: #d0a070;">💰 +100 ouro!</span>`);
   addLogMessage(`<span style="color: #d0a070;">🎁 Escama de Dragão!</span>`);
   feedbackMessage.value = 'Dragão Ancestral derrotado!';
@@ -509,7 +510,7 @@ const goToNextArea = () => {
 
 // Lifecycle Hooks
 onMounted(() => {
-  actions.setCurrentArea('Ruínas Ancestrais');
+  gameState.setCurrentArea('Ruínas Ancestrais'); // Use gameState instead of actions
   if (!gameState.player.keys) {
     gameState.player.keys = reactive({ ancestral: false, ice: false, fire: false });
   }

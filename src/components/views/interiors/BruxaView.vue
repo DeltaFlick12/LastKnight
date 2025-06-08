@@ -73,238 +73,239 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { gameState, actions, ITEMS } from '@/stores/game.js' // Remove ITEM_ICONS from import
-import bgImage from '@/assets/interior/bruxa-bg.gif'
-import margaretParada from '/public/img/sprites/margaret/margaret-parada.png'
-import margaretFalando from '/public/img/sprites/margaret/margaret-falando.gif'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useGameState, ITEMS } from '@/stores/gamestate.js'; // Correct import
+import bgImage from '@/assets/interior/bruxa-bg.gif';
+import margaretParada from '/public/img/sprites/margaret/margaret-parada.png';
+import margaretFalando from '/public/img/sprites/margaret/margaret-falando.gif';
 
-const router = useRouter()
+const router = useRouter();
+const gameState = useGameState(); // Initialize the Pinia store
 
-const showDialog = ref(true)
-const dialogIndex = ref(0)
-const showHoverDialog = ref(false)
-const showShopDialog = ref(false)
-const showMessageDialog = ref(false)
-const showShop = ref(false)
-const displayedText = ref('')
-const typing = ref(false)
-const hoverItemDescriptionText = ref('')
-const message = ref('')
-let typingInterval = null
-let currentHoverItem = null
+const showDialog = ref(true);
+const dialogIndex = ref(0);
+const showHoverDialog = ref(false);
+const showShopDialog = ref(false);
+const showMessageDialog = ref(false);
+const showShop = ref(false);
+const displayedText = ref('');
+const typing = ref(false);
+const hoverItemDescriptionText = ref('');
+const message = ref('');
+let typingInterval = null;
+let currentHoverItem = null;
 
-const margaretImage = ref(margaretParada)
+const margaretImage = ref(margaretParada);
 
-const audioClick = new Audio('/sounds/ui/click.wav')
-const audioTyping = new Audio('/sounds/ui/typing.mp3')
-const audioBuy = new Audio('/sounds/ui/buy.wav')
-const audioError = new Audio('/sounds/ui/error.wav')
+const audioClick = new Audio('/sounds/ui/click.wav');
+const audioTyping = new Audio('/sounds/ui/typing.mp3');
+const audioBuy = new Audio('/sounds/ui/buy.wav');
+const audioError = new Audio('/sounds/ui/error.wav');
 
 const playSound = (audio) => {
-  if (!audio) return
-  audio.currentTime = 0
-  audio.play().catch(() => {})
-}
+  if (!audio) return;
+  audio.currentTime = 0;
+  audio.play().catch(() => {});
+};
 
-const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png') // Use ITEMS instead of ITEM_ICONS
-const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png') // Use ITEMS instead of ITEM_ICONS
+const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png');
+const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png');
 
 const firstVisitLines = [
   'Olá, jovem viajante! Sou Margaret, a bruxa de Albadia, guardiã dos segredos alquímicos.',
   'Minhas poções são forjadas com a essência da noite e sussurros de espíritos.',
   'Escolha com cuidado... o poder de uma poção pode salvar ou condenar.',
   'Vamos aos negócios, queridinho!'
-]
+];
 
 const repeatVisitLines = [
   'De volta à minha morada, hein? Espero que tenha vindo por mais do meu... toque mágico.'
-]
+];
 
-const shopDialogLines = ['Escolha uma poção para sua jornada, jovem!']
-const dialogLines = ref([])
+const shopDialogLines = ['Escolha uma poção para sua jornada, jovem!'];
+const dialogLines = ref([]);
 
 const allItems = computed(() =>
   Object.values(ITEMS)
     .filter(i => i.type === 'Consumível' || i.type === 'Consumível Especial')
     .map(i => ({
       ...i,
-      icon: ITEMS[i.id]?.icon || '/icons/default-item.png' // Use ITEMS instead of ITEM_ICONS
+      icon: ITEMS[i.id]?.icon || '/icons/default-item.png'
     }))
-)
+);
 
 const typeLine = (text) => {
   return new Promise((resolve) => {
-    if (typingInterval) clearInterval(typingInterval)
-    displayedText.value = ''
-    typing.value = true
-    margaretImage.value = margaretFalando
+    if (typingInterval) clearInterval(typingInterval);
+    displayedText.value = '';
+    typing.value = true;
+    margaretImage.value = margaretFalando;
 
-    const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value
-    let index = 0
+    const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value;
+    let index = 0;
 
     typingInterval = setInterval(() => {
       if (index < line.length) {
-        displayedText.value += line[index]
-        index++
-        if (index % 3 === 0) playSound(audioTyping)
+        displayedText.value += line[index];
+        index++;
+        if (index % 3 === 0) playSound(audioTyping);
       } else {
-        clearInterval(typingInterval)
-        typingInterval = null
-        typing.value = false
-        margaretImage.value = margaretParada
-        resolve()
+        clearInterval(typingInterval);
+        typingInterval = null;
+        typing.value = false;
+        margaretImage.value = margaretParada;
+        resolve();
       }
-    }, 40)
-  })
-}
+    }, 40);
+  });
+};
 
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const resetState = () => {
-  showDialog.value = true
-  dialogIndex.value = 0
-  showHoverDialog.value = false
-  showShopDialog.value = false
-  showMessageDialog.value = false
-  showShop.value = false
-  displayedText.value = ''
-  typing.value = false
-  hoverItemDescriptionText.value = ''
-  message.value = ''
+  showDialog.value = true;
+  dialogIndex.value = 0;
+  showHoverDialog.value = false;
+  showShopDialog.value = false;
+  showMessageDialog.value = false;
+  showShop.value = false;
+  displayedText.value = '';
+  typing.value = false;
+  hoverItemDescriptionText.value = '';
+  message.value = '';
   if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
+    clearInterval(typingInterval);
+    typingInterval = null;
   }
-  currentHoverItem = null
-}
+  currentHoverItem = null;
+};
 
 const nextDialog = async () => {
-  if (typing.value) return
-  playSound(audioClick)
+  if (typing.value) return;
+  playSound(audioClick);
   if (dialogIndex.value < dialogLines.value.length - 1) {
-    dialogIndex.value++
-    await typeLine(dialogLines.value[dialogIndex.value])
-    await delay(2000)
+    dialogIndex.value++;
+    await typeLine(dialogLines.value[dialogIndex.value]);
+    await delay(2000);
   } else {
-    showDialog.value = false
-    showShop.value = true
-    showShopDialog.value = true
-    await typeLine(shopDialogLines[0])
+    showDialog.value = false;
+    showShop.value = true;
+    showShopDialog.value = true;
+    await typeLine(shopDialogLines[0]);
   }
-}
+};
 
 const hideHoverDialog = () => {
-  showHoverDialog.value = false
-  currentHoverItem = null
+  showHoverDialog.value = false;
+  currentHoverItem = null;
   if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
-    typing.value = false
-    margaretImage.value = margaretParada
+    clearInterval(typingInterval);
+    typingInterval = null;
+    typing.value = false;
+    margaretImage.value = margaretParada;
   }
-}
+};
 
 const hideAllDialogs = () => {
-  showHoverDialog.value = false
-  showShopDialog.value = false
-  showMessageDialog.value = false
-  currentHoverItem = null
+  showHoverDialog.value = false;
+  showShopDialog.value = false;
+  showMessageDialog.value = false;
+  currentHoverItem = null;
   if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
-    typing.value = false
-    margaretImage.value = margaretParada
+    clearInterval(typingInterval);
+    typingInterval = null;
+    typing.value = false;
+    margaretImage.value = margaretParada;
   }
-}
+};
 
 const hoverItemDescription = async (item) => {
-  if (!showShop.value) return
-  if (currentHoverItem === (item.id || item.name)) return
+  if (!showShop.value) return;
+  if (currentHoverItem === (item.id || item.name)) return;
   try {
-    hideAllDialogs()
-    currentHoverItem = item.id || item.name
-    hoverItemDescriptionText.value = item.description
-    dialogLines.value = [item.description]
-    dialogIndex.value = 0
-    showHoverDialog.value = true
-    await typeLine(item.description)
+    hideAllDialogs();
+    currentHoverItem = item.id || item;
+    hoverItemDescriptionText.value = item.description;
+    dialogLines.value = [item.description];
+    dialogIndex.value = 0;
+    showHoverDialog.value = true;
+    await typeLine(item.description);
   } catch (error) {
-    console.error('Error in hoverItemDescription:', error)
+    console.error('Error in hoverItemDescription:', error);
   }
-}
+};
 
 const buyItem = async (item) => {
   try {
-    hideAllDialogs()
-    const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === (item.id || item.name))
+    hideAllDialogs();
+    const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === (item.id || item.name));
     if (existingItem) {
-      message.value = `Você já possui ${item.name}.`
-      playSound(audioError)
+      message.value = `Você já possui ${item.name}.`;
+      playSound(audioError);
     } else if (gameState.player.gold >= item.price) {
-      actions.removeGold(item.price)
-      actions.addItemToInventory(item.id || item.name, 1)
+      gameState.removeGold(item.price);
+      gameState.addItemToInventory(item.id || item.name, 1);
       if (item.id === 'potion_forbidden') {
-        if (actions.collectForbiddenPotion) {
-          actions.collectForbiddenPotion()
+        if (gameState.collectForbiddenPotion) {
+          gameState.collectForbiddenPotion();
         } else {
-          gameState.player.hasForbiddenPotion = true
+          gameState.player.hasForbiddenPotion = true;
         }
       }
-      message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`
-      playSound(audioBuy)
+      message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`;
+      playSound(audioBuy);
     } else {
-      message.value = 'Você não tem ouro suficiente.'
-      playSound(audioError)
+      message.value = 'Você não tem ouro suficiente.';
+      playSound(audioError);
     }
-    showMessageDialog.value = true
-    await typeLine(message.value)
-    await delay(2000)
-    hideAllDialogs()
-    message.value = ''
+    showMessageDialog.value = true;
+    await typeLine(message.value);
+    await delay(2000);
+    hideAllDialogs();
+    message.value = '';
     if (showShop.value) {
-      showShopDialog.value = true
-      await typeLine(shopDialogLines[0])
+      showShopDialog.value = true;
+      await typeLine(shopDialogLines[0]);
     }
   } catch (error) {
-    console.error('Error buying item:', error)
-    message.value = 'Erro ao comprar o item.'
-    playSound(audioError)
-    showMessageDialog.value = true
-    await typeLine(message.value)
-    await delay(2000)
-    hideAllDialogs()
+    console.error('Error buying item:', error);
+    message.value = 'Erro ao comprar o item.';
+    playSound(audioError);
+    showMessageDialog.value = true;
+    await typeLine(message.value);
+    await delay(2000);
+    hideAllDialogs();
   }
-}
+};
 
 onMounted(() => {
   try {
-    resetState()
-    const visited = localStorage.getItem('visitedWitchShop')
-    dialogLines.value = visited ? repeatVisitLines : firstVisitLines
-    localStorage.setItem('visitedWitchShop', 'true')
-    dialogIndex.value = 0
-    typeLine(dialogLines.value[dialogIndex.value])
+    resetState();
+    const visited = localStorage.getItem('visitedWitchShop');
+    dialogLines.value = visited ? repeatVisitLines : firstVisitLines;
+    localStorage.setItem('visitedWitchShop', 'true');
+    dialogIndex.value = 0;
+    typeLine(dialogLines.value[dialogIndex.value]);
   } catch (error) {
-    console.error('Error in onMounted:', error)
+    console.error('Error in onMounted:', error);
   }
-})
+});
 
 onUnmounted(() => {
   if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
+    clearInterval(typingInterval);
+    typingInterval = null;
   }
-})
+});
 
 watch(() => showShop, (newVal) => {
   if (newVal) {
-    hideAllDialogs()
-    showShopDialog.value = true
-    typeLine(shopDialogLines[0])
+    hideAllDialogs();
+    showShopDialog.value = true;
+    typeLine(shopDialogLines[0]);
   }
-})
+});
 </script>
 
 <style scoped>

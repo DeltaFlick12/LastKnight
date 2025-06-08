@@ -7,14 +7,16 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router'
+import { useRouter } from 'vue-router';
+import { useGameState } from '@/stores/gamestate.js'; // Correct import
 
-const router = useRouter()
+const router = useRouter();
+const gameState = useGameState(); // Initialize the Pinia store
 
 const restartGame = () => {
-  localStorage.clear()
-  router.push('/')
-}
+  gameState.resetGame(); // Use store action
+  router.push('/');
+};
 </script>
 
 <style scoped>
