@@ -59,10 +59,10 @@ const canvas = ref(null)
 let ctx
 const player = {
   x: 2050 ,
-  y: 1000 ,
-  size: 100,
+  y: 2000 ,
+  size: 300,
   speed: 6,
-  runSpeed: 12,
+  runSpeed: 9,
   direction: 'idle'
 }
 const keys = { w: false, a: false, s: false, d: false, shift: false }
@@ -74,21 +74,21 @@ const foreground = new Image()
 const playerSpriteSheet = new Image()
 
 // Controle de animação
-const frameWidth = 32
-const frameHeight = 32
+const frameWidth = 96
+const frameHeight = 96
 
 // Ajuste aqui conforme sua spritesheet
 const animations = {
-  idle: { row: 0, frames: [0] },
-  walk_down: { row: 0, frames: [1, 2] },
-  walk_up: { row: 1, frames: [0, 1] },
-  walk_left: { row: 1, frames: [2, 3] },
-  walk_right: { row: 2, frames: [0, 1] }
+  idle: { row: 3, frames: [7, 1, 2, 3, 4, 5] },
+  walk_down: { row: 6, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
+  walk_up: { row: 4, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
+  walk_left: { row: 20.1, frames: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0] },
+  walk_right: { row: 5, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }
 }
 
 let currentFrameIndex = 0
 let frameTimer = 0
-const frameInterval = 300 // ms entre frames
+const frameInterval = 70 // ms entre frames
 
 let allImagesLoaded = false
 let imagesLoadedCount = 0
@@ -109,10 +109,10 @@ function loadImage(img, src) {
 }
 
 const obstacles = [
-  { x: 780, y: 790, width: 580, height: 270, name: 'Ferreiro', route: '/interior/ferreiro' },
+  { x: 690, y: 790, width: 580, height: 270, name: 'Ferreiro', route: '/interior/ferreiro' },
   { x: 2845, y: 990, width: 510, height: 200, name: 'Loja de Poções', route: '/interior/bruxa' },
-  { x: 1780, y: 660, width: 660, height: 240, name: 'Igreja', route: '/interior/igreja' },
-  { x: 1800, y: 1400, width: 500, height: 220 },
+  { x: 1720, y: 660, width: 660, height: 240, name: 'Igreja', route: '/interior/igreja' },
+  { x: 1800, y: 1350, width: 500, height: 280 },
   { x: 700, y: 1900, width: 580, height: 270},
   { x: 2730, y: 1950, width: 690, height: 200},
   
@@ -223,7 +223,7 @@ function update(deltaSeconds) {
 
     // colisões simples
     for (const obs of obstacles) {
-      if (rectCircleColliding(newX, newY, player.size, player.size, obs.x, obs.y, obs.width, obs.height)) {
+      if (rectCircleColliding(newX, newY, player.size / 4, player.size / 4, obs.x, obs.y, obs.width, obs.height)) {
         newX = player.x
         newY = player.y
         break
@@ -250,10 +250,10 @@ function update(deltaSeconds) {
 
 function getPlayerNearbyStructure() {
   for (const obs of obstacles) {
-    const distX = Math.abs(player.x - (obs.x + obs.width / 2))
-    const distY = Math.abs(player.y - (obs.y + obs.height / 2))
+    const distX = Math.abs(player.x - (obs.x + obs.width / 4))
+    const distY = Math.abs(player.y - (obs.y + obs.height / 4))
 
-    if (distX < obs.width / 2 + player.size / 2 && distY < obs.height / 2 + player.size / 2) {
+    if (distX < obs.width / 4 + player.size / 4 && distY < obs.height / 4 + player.size / 2) {
       return obs
     }
   }
@@ -307,9 +307,9 @@ function draw() {
   const sx = frame * frameWidth
   const sy = anim.row * frameHeight
 
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.7)'
-  ctx.shadowBlur = 15
-  ctx.shadowOffsetX = 5
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
+  ctx.shadowBlur = 6
+  ctx.shadowOffsetX = 0
   ctx.shadowOffsetY = 10
 
   ctx.drawImage(
