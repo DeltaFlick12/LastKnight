@@ -58,9 +58,9 @@ const handleMapClick = () => {
 const canvas = ref(null)
 let ctx
 const player = {
-  x: 830 + 128 / 2,
-  y: 1600 + 128 / 2,
-  size: 128,
+  x: 2050 ,
+  y: 1000 ,
+  size: 100,
   speed: 6,
   runSpeed: 12,
   direction: 'idle'
@@ -109,16 +109,15 @@ function loadImage(img, src) {
 }
 
 const obstacles = [
-  // { x: 480, y: 380, width: 480, height: 180, name: 'Ferreiro', route: '/interior/ferreiro' },
-  // { x: 1310, y: 820, width: 350, height: 150, name: 'Loja de Poções', route: '/interior/bruxa' },
-  // { x: 2080, y: 590, width: 330, height: 140, name: 'Igreja', route: '/interior/igreja' },
-  // { x: 1165, y: 1300, width: 290, height: 20, name: 'Fonte' },
-  // { x: 1155, y: 1320, width: 315, height: 25 },
-  // { x: 1145, y: 1345, width: 335, height: 120 },
-  // { x: 1165, y: 1465, width: 290, height: 20 },
-  // { x: 400, y: 1545, width: 310, height: 20 },
-  // { x: 380, y: 1545, width: 20, height: 320 },
-  // { x: 400, y: 1810, width: 310, height: 55 },
+  { x: 780, y: 790, width: 580, height: 270, name: 'Ferreiro', route: '/interior/ferreiro' },
+  { x: 2845, y: 990, width: 510, height: 200, name: 'Loja de Poções', route: '/interior/bruxa' },
+  { x: 1780, y: 660, width: 660, height: 240, name: 'Igreja', route: '/interior/igreja' },
+  { x: 1800, y: 1400, width: 500, height: 220 },
+  { x: 700, y: 1900, width: 580, height: 270},
+  { x: 2730, y: 1950, width: 690, height: 200},
+  
+ 
+
 ]
 
 onMounted(() => {
@@ -288,7 +287,7 @@ function draw() {
 
   // === NOVO BLOCO: VISUALIZAÇÃO DOS OBSTÁCULOS ===
   ctx.save()
-  ctx.fillStyle = 'rgba(255, 0, 0, 0.3)' // vermelho semi-transparente
+  ctx.fillStyle = 'rgba(255, 0, 0, 0.0)' // vermelho semi-transparente
   for (const obs of obstacles) {
     ctx.fillRect(obs.x - cam.x, obs.y - cam.y, obs.width, obs.height)
   }
