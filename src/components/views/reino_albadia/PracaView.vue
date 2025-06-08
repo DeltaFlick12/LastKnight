@@ -21,8 +21,8 @@ const router = useRouter()
 const gameState = useGameState()
 
 const maxStamina = gameState.player.maxStamina
-const staminaRecoveryRate = 10 // por segundo
-const staminaConsumptionRate = 25 // por segundo
+const staminaRecoveryRate = 10
+const staminaConsumptionRate = 25
 
 const staminaRounded = computed(() => Math.floor(gameState.player.stamina))
 
@@ -54,13 +54,12 @@ const handleMapClick = () => {
   }
 }
 
-// Canvas + mapa
 const canvas = ref(null)
 let ctx
 const player = {
-  x: 2050 ,
-  y: 1000 ,
-  size: 100,
+  x: 2050,
+  y: 1000,
+  size: 220,
   speed: 6,
   runSpeed: 12,
   direction: 'idle'
@@ -70,29 +69,32 @@ const world = { width: 4096, height: 2732 }
 const background = new Image()
 const foreground = new Image()
 
-// Spritesheet do player
-const playerSpriteSheet = new Image()
+const spriteSheets = {
+  idle: new Image(),
+  walk_down: new Image(),
+  walk_up: new Image(),
+  walk_left: new Image(),
+  walk_right: new Image()
+}
 
-// Controle de animação
-const frameWidth = 32
-const frameHeight = 32
+const frameWidth = 64
+const frameHeight = 64
 
-// Ajuste aqui conforme sua spritesheet
 const animations = {
-  idle: { row: 0, frames: [0] },
-  walk_down: { row: 0, frames: [1, 2] },
-  walk_up: { row: 1, frames: [0, 1] },
-  walk_left: { row: 1, frames: [2, 3] },
-  walk_right: { row: 2, frames: [0, 1] }
+  idle: { frames: [0] },
+  walk_down: { frames: [0, 1] },
+  walk_up: { frames: [0, 1] },
+  walk_left: { frames: [0, 1] },
+  walk_right: { frames: [0, 1] }
 }
 
 let currentFrameIndex = 0
 let frameTimer = 0
-const frameInterval = 300 // ms entre frames
+const frameInterval = 300
 
 let allImagesLoaded = false
 let imagesLoadedCount = 0
-const totalImagesToLoad = 3 // background, foreground, spritesheet
+const totalImagesToLoad = 7
 
 function imageLoadedCallback() {
   imagesLoadedCount++
@@ -104,7 +106,7 @@ function imageLoadedCallback() {
 
 function loadImage(img, src) {
   img.onload = imageLoadedCallback
-  img.onerror = () => console.error('Erro ao carregar imagem: ${src}')
+  img.onerror = () => console.error(`Erro ao carregar imagem: ${src}`)
   img.src = src
 }
 
@@ -113,11 +115,9 @@ const obstacles = [
   { x: 2845, y: 990, width: 510, height: 200, name: 'Loja de Poções', route: '/interior/bruxa' },
   { x: 1780, y: 660, width: 660, height: 240, name: 'Igreja', route: '/interior/igreja' },
   { x: 1800, y: 1400, width: 500, height: 220 },
-  { x: 700, y: 1900, width: 580, height: 270},
-  { x: 2730, y: 1950, width: 690, height: 200},
-  
- 
-
+  { x: 1850, y: 1320, width: 400, height: 220 },
+  { x: 700, y: 1900, width: 580, height: 270 },
+  { x: 2730, y: 1950, width: 690, height: 200 },
 ]
 
 onMounted(() => {
@@ -131,7 +131,9 @@ onMounted(() => {
   loadImage(background, '/public/img/albadia/albadia-bg.png')
   loadImage(foreground, '/public/img/albadia/albadiaDetalhes.png')
 
-  loadImage(playerSpriteSheet, '/img/sprites/player/player_sprite.png')
+  for (const [key, img] of Object.entries(spriteSheets)) {
+    loadImage(img, `/img/sprites/player/${key}.png`)
+  }
 })
 
 onUnmounted(() => {
@@ -171,11 +173,10 @@ function gameLoop(timestamp) {
   }
 
   if (!lastUpdateTime) lastUpdateTime = timestamp
-
   const delta = timestamp - lastUpdateTime
 
-  if (delta >= 15) { // ~30 FPS
-    update(delta / 1000) // delta em segundos
+  if (delta >= 15) {
+    update(delta / 1000)
     lastUpdateTime = timestamp
   }
 
@@ -205,7 +206,6 @@ function update(deltaSeconds) {
 
     if (shift && gameState.player.stamina > 0) {
       speed = player.runSpeed
-
       gameState.player.stamina -= staminaConsumptionRate * deltaSeconds
       if (gameState.player.stamina < 0) gameState.player.stamina = 0
     } else {
@@ -221,7 +221,6 @@ function update(deltaSeconds) {
     let newX = player.x + dx * speed
     let newY = player.y + dy * speed
 
-    // colisões simples
     for (const obs of obstacles) {
       if (rectCircleColliding(newX, newY, player.size, player.size, obs.x, obs.y, obs.width, obs.height)) {
         newX = player.x
@@ -238,7 +237,6 @@ function update(deltaSeconds) {
     if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
   }
 
-  // detectar estruturas para "Pressione E"
   const nearbyStructure = getPlayerNearbyStructure()
   if (nearbyStructure && nearbyStructure.name) {
     showEnterPrompt.value = true
@@ -248,11 +246,30 @@ function update(deltaSeconds) {
   }
 }
 
+function updateAnimation(deltaSeconds) {
+  if (player.direction !== 'idle') {
+    frameTimer += deltaSeconds * 1000
+    if (frameTimer >= frameInterval) {
+      frameTimer = 0
+      const anim = animations[player.direction]
+      currentFrameIndex = (currentFrameIndex + 1) % anim.frames.length
+    }
+  } else {
+    currentFrameIndex = 0
+    frameTimer = 0
+  }
+}
+
+const originalUpdate = update
+update = (deltaSeconds) => {
+  originalUpdate(deltaSeconds)
+  updateAnimation(deltaSeconds)
+}
+
 function getPlayerNearbyStructure() {
   for (const obs of obstacles) {
     const distX = Math.abs(player.x - (obs.x + obs.width / 2))
     const distY = Math.abs(player.y - (obs.y + obs.height / 2))
-
     if (distX < obs.width / 2 + player.size / 2 && distY < obs.height / 2 + player.size / 2) {
       return obs
     }
@@ -261,7 +278,6 @@ function getPlayerNearbyStructure() {
 }
 
 function rectCircleColliding(cx, cy, cwidth, cheight, rx, ry, rw, rh) {
-  // aproximação AABB para colisão circular
   return !(
     cx + cwidth < rx ||
     cx > rx + rw ||
@@ -282,30 +298,20 @@ function draw() {
   cam.x = Math.max(0, Math.min(cam.x, world.width - canvas.value.width))
   cam.y = Math.max(0, Math.min(cam.y, world.height - canvas.value.height))
 
-  // Desenha o fundo
   ctx.drawImage(background, -cam.x, -cam.y, world.width, world.height)
 
-  // === NOVO BLOCO: VISUALIZAÇÃO DOS OBSTÁCULOS ===
   ctx.save()
-  ctx.fillStyle = 'rgba(255, 0, 0, 0.0)' // vermelho semi-transparente
+  ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'
   for (const obs of obstacles) {
     ctx.fillRect(obs.x - cam.x, obs.y - cam.y, obs.width, obs.height)
   }
   ctx.restore()
-  // ===============================================
 
-  // cálculo da animação
   const anim = animations[player.direction] || animations.idle
-
-  // Atualizar frame da animação (feito no update, mas aqui só garante caso idle)
-  if (player.direction === 'idle') {
-    currentFrameIndex = 0
-    frameTimer = 0
-  }
-
   const frame = anim.frames[currentFrameIndex]
+  const sheet = spriteSheets[player.direction] || spriteSheets.idle
   const sx = frame * frameWidth
-  const sy = anim.row * frameHeight
+  const sy = 0
 
   ctx.shadowColor = 'rgba(0, 0, 0, 0.7)'
   ctx.shadowBlur = 15
@@ -313,7 +319,7 @@ function draw() {
   ctx.shadowOffsetY = 10
 
   ctx.drawImage(
-    playerSpriteSheet,
+    sheet,
     sx, sy, frameWidth, frameHeight,
     player.x - cam.x - player.size / 2,
     player.y - cam.y - player.size / 2,
@@ -328,30 +334,6 @@ function draw() {
 
   ctx.drawImage(foreground, -cam.x, -cam.y, world.width, world.height)
 }
-
-// Atualiza frame da animação
-function updateAnimation(deltaSeconds) {
-  if (player.direction !== 'idle') {
-    frameTimer += deltaSeconds * 1000
-    if (frameTimer >= frameInterval) {
-      frameTimer = 0
-      currentFrameIndex++
-      const anim = animations[player.direction]
-      if (currentFrameIndex >= anim.frames.length) currentFrameIndex = 0
-    }
-  } else {
-    currentFrameIndex = 0
-    frameTimer = 0
-  }
-}
-
-// No update() chamar updateAnimation
-const originalUpdate = update
-update = (deltaSeconds) => {
-  originalUpdate(deltaSeconds)
-  updateAnimation(deltaSeconds)
-}
-
 </script>
 
 <style scoped>
