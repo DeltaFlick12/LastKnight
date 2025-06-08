@@ -30,7 +30,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import forestImage from '@/assets/backviews/floresta.jpg'
+import forestImage from '@/assets/backviews/FlorestaBG.png'
 
 const router = useRouter()
 
@@ -129,7 +129,10 @@ html, body {
   left: 0;
   width: 100%;
   height: 100vh;
-  object-fit: cover;
+  object-fit: contain; /* Preserva a imagem inteira sem cortes */
+  object-position: center 20%; /* Levanta a imagem focando acima do centro */
+  max-width: 100%; /* Limita a largura para proporções originais */
+  max-height: 100%; /* Limita a altura para proporções originais */
   z-index: -1;
   filter: brightness(0.8);
 }
