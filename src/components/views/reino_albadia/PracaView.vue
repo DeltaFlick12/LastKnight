@@ -1,4 +1,3 @@
-
 <template>
   <div class="game-view">
     <canvas ref="canvas" class="game-canvas"></canvas>
@@ -12,30 +11,73 @@
 </template>
 
 <script setup>
-import { useGameState } from '@/stores/gameState'
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import HUD from '@/components/HUD.vue'
 import { useRouter } from 'vue-router'
+import { useGameState } from '@/stores/gameState'
+import HUD from '@/components/HUD.vue'
 
 const router = useRouter()
 const gameState = useGameState()
 
 const maxStamina = gameState.player.maxStamina
-const staminaRecoveryRate = 10 // por segundo
-const staminaConsumptionRate = 25 // por segundo
-
+const staminaRecoveryRate = 10
+const staminaConsumptionRate = 25
 const staminaRounded = computed(() => Math.floor(gameState.player.stamina))
 
 const potions = ref(3)
 const currentArea = ref('Reino de Albadia')
 const showEnterPrompt = ref(false)
 const structureName = ref('')
-
 const bagOpen = ref(false)
 const toggleBag = () => (bagOpen.value = !bagOpen.value)
-
 const equippedWeapon = ref('Espada de Treinamento')
 const equipWeapon = (name) => (equippedWeapon.value = name)
+
+const obstacles = [
+  { x: 910, y: 790, width: 580, height: 270, name: 'Ferreiro', route: '/interior/ferreiro' },
+  { x: 2645, y: 990, width: 390, height: 250, name: 'Loja de Poções', route: '/interior/bruxa' },
+  { x: 1720, y: 660, width: 660, height: 240, name: 'Igreja', route: '/interior/igreja' },
+  { x: 1800, y: 1350, width: 500, height: 280 },
+  { x: 980, y: 1900, width: 495, height: 300 },
+  { x: 2550, y: 1950, width: 550, height: 250 }
+]
+
+const lightSources = [
+  { x: 2560, y: 1085, radius: 200, intensity: 0.2, color: 'rgba(0, 255, 0, 0.4)' },
+  { x: 3090, y: 1200, radius: 200, intensity: 0.1, color: 'rgba(0, 255, 0, 0.4)' },
+  { x: 1190, y: 990, radius: 700, intensity: 1.8, color: 'rgba(255, 100, 0, 0.6)' }, // Luz avermelhada
+  { x: 2433, y: 2000, radius: 850, intensity: 0, color: 'rgba(255, 255, 255, 0.3)' }   // Azul intensa
+]
+
+function drawLights(ctx, cam) {
+  // Escurece tudo
+  ctx.save()
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'
+  ctx.fillRect(0, 0, canvas.value.width, canvas.value.height)
+
+  // Mescla com luzes
+  for (const light of lightSources) {
+    const screenX = light.x - cam.x
+    const screenY = light.y - cam.y
+
+    const gradient = ctx.createRadialGradient(
+      screenX, screenY, 0,
+      screenX, screenY, light.radius
+    )
+    gradient.addColorStop(0, light.color)
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
+
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.arc(screenX, screenY, light.radius, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  ctx.restore()
+  ctx.globalCompositeOperation = 'source-over'
+}
+
 
 const usePotion = () => {
   if (potions.value > 0) {
@@ -44,22 +86,11 @@ const usePotion = () => {
   }
 }
 
-const handleMapClick = () => {
-  const tutorialDone = localStorage.getItem('tutorialCompleted')
-  if (!tutorialDone) {
-    localStorage.setItem('tutorialCompleted', 'true')
-    router.push('/tutorial')
-  } else {
-    router.push('/map')
-  }
-}
-
-// Canvas + mapa
 const canvas = ref(null)
 let ctx
 const player = {
-  x: 2050 ,
-  y: 2000 ,
+  x: 2050,
+  y: 2000,
   size: 300,
   speed: 6,
   runSpeed: 9,
@@ -67,32 +98,37 @@ const player = {
 }
 const keys = { w: false, a: false, s: false, d: false, shift: false }
 const world = { width: 4096, height: 2732 }
-const background = new Image()
-const foreground = new Image()
 
-// Spritesheet do player
+const backgrounds = [new Image(), new Image(), new Image(), new Image()]
+backgrounds[0].src = '/img/albadia/albadia-bg-manha.png'
+backgrounds[1].src = '/img/albadia/albadia-bg.png'
+backgrounds[2].src = '/img/albadia/albadia-bg-tarde.png'
+backgrounds[3].src = '/img/albadia/albadia-bg-noite.png'
+
+for (const bg of backgrounds) {
+  bg.onload = imageLoadedCallback
+  bg.onerror = () => console.error('Erro ao carregar uma imagem de background')
+}
+
+const foreground = new Image()
 const playerSpriteSheet = new Image()
 
-// Controle de animação
 const frameWidth = 96
 const frameHeight = 96
 
-// Ajuste aqui conforme sua spritesheet
 const animations = {
-  idle: { row: 3, frames: [7, 1, 2, 3, 4, 5] },
-  walk_down: { row: 6, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
-  walk_up: { row: 4, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
-  walk_left: { row: 20.1, frames: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0] },
-  walk_right: { row: 5, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] }
+  idle: { row: 3, frames: [7, 1, 2, 3, 4, 5], frameInterval: 150 },
+  walk_down: { row: 6, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 },
+  walk_up: { row: 4, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 },
+  walk_left: { row: 20.1, frames: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], frameInterval: 70 },
+  walk_right: { row: 5, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 }
 }
 
 let currentFrameIndex = 0
 let frameTimer = 0
-const frameInterval = 70 // ms entre frames
-
 let allImagesLoaded = false
 let imagesLoadedCount = 0
-const totalImagesToLoad = 3 // background, foreground, spritesheet
+const totalImagesToLoad = 6
 
 function imageLoadedCallback() {
   imagesLoadedCount++
@@ -104,21 +140,27 @@ function imageLoadedCallback() {
 
 function loadImage(img, src) {
   img.onload = imageLoadedCallback
-  img.onerror = () => console.error('Erro ao carregar imagem: ${src}')
+  img.onerror = () => console.error(`Erro ao carregar imagem: ${src}`)
   img.src = src
 }
 
-const obstacles = [
-  { x: 690, y: 790, width: 580, height: 270, name: 'Ferreiro', route: '/interior/ferreiro' },
-  { x: 2845, y: 990, width: 510, height: 200, name: 'Loja de Poções', route: '/interior/bruxa' },
-  { x: 1720, y: 660, width: 660, height: 240, name: 'Igreja', route: '/interior/igreja' },
-  { x: 1800, y: 1350, width: 500, height: 280 },
-  { x: 700, y: 1900, width: 580, height: 270},
-  { x: 2730, y: 1950, width: 690, height: 200},
-  
- 
+let backgroundIndex = parseInt(localStorage.getItem('albadia_last_bg') || '0')
+backgroundIndex = (backgroundIndex + 1) % backgrounds.length
+localStorage.setItem('albadia_last_bg', backgroundIndex.toString())
+let nextBackgroundIndex = (backgroundIndex + 1) % backgrounds.length
+let transitionAlpha = 0
+const transitionDuration = 1000
+let transitionStartTime = 0
 
-]
+function startBackgroundTransition() {
+  backgroundIndex = nextBackgroundIndex
+  nextBackgroundIndex = (backgroundIndex + 1) % backgrounds.length
+  transitionAlpha = 0
+  transitionStartTime = performance.now()
+  localStorage.setItem('albadia_last_bg', backgroundIndex.toString())
+}
+
+let lastBgSwitchTime = 0
 
 onMounted(() => {
   if (!canvas.value) return
@@ -128,10 +170,10 @@ onMounted(() => {
   document.addEventListener('keydown', onKeyDown)
   document.addEventListener('keyup', onKeyUp)
 
-  loadImage(background, '/public/img/albadia/albadia-bg.png')
-  loadImage(foreground, '/public/img/albadia/albadiaDetalhes.png')
-
+  loadImage(foreground, '/img/albadia/albadiaDetalhes.png')
   loadImage(playerSpriteSheet, '/img/sprites/player/player_sprite.png')
+
+  lastBgSwitchTime = performance.now()
 })
 
 onUnmounted(() => {
@@ -171,11 +213,10 @@ function gameLoop(timestamp) {
   }
 
   if (!lastUpdateTime) lastUpdateTime = timestamp
-
   const delta = timestamp - lastUpdateTime
 
-  if (delta >= 15) { // ~30 FPS
-    update(delta / 1000) // delta em segundos
+  if (delta >= 15) {
+    update(delta / 1000, timestamp)
     lastUpdateTime = timestamp
   }
 
@@ -183,11 +224,10 @@ function gameLoop(timestamp) {
   animationFrameId = requestAnimationFrame(gameLoop)
 }
 
-function update(deltaSeconds) {
+function update(deltaSeconds, timestamp) {
   const { w, a, s, d, shift } = keys
   let moved = false
-  let dx = 0
-  let dy = 0
+  let dx = 0, dy = 0
 
   if (w) { dy -= 1; moved = true }
   if (s) { dy += 1; moved = true }
@@ -200,18 +240,32 @@ function update(deltaSeconds) {
     dy *= invSqrt2
   }
 
-  if (moved) {
-    let speed = player.speed
+  const flickerSpeed = 5; // frequência da oscilação
+  const flickerAmount = 0.2; // variação máxima da intensidade e raio
 
-    if (shift && gameState.player.stamina > 0) {
-      speed = player.runSpeed
+const baseIntensity = 1.8;
+  const baseRadius = 500;
 
-      gameState.player.stamina -= staminaConsumptionRate * deltaSeconds
-      if (gameState.player.stamina < 0) gameState.player.stamina = 0
+    const flicker = Math.sin(timestamp / 1000 * flickerSpeed);
+      lightSources[2].intensity = baseIntensity + flicker * flickerAmount;
+  lightSources[2].radius = baseRadius + flicker * (flickerAmount * 200);
+    if (lightSources[2].intensity < 0) lightSources[2].intensity = 0;
+
+
+if (moved) {
+  let speed = player.speed
+
+  if (shift && gameState.player.stamina > 0) {
+    gameState.player.stamina -= staminaConsumptionRate * deltaSeconds
+    if (gameState.player.stamina <= 0) {
+      gameState.player.stamina = 0
     } else {
-      gameState.player.stamina += staminaRecoveryRate * deltaSeconds
-      if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
+      speed = player.runSpeed // Só aumenta a velocidade se ainda tem stamina após o gasto
     }
+  } else {
+    gameState.player.stamina += staminaRecoveryRate * deltaSeconds
+    if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
+  }
 
     if (dy < 0) player.direction = 'walk_up'
     else if (dy > 0) player.direction = 'walk_down'
@@ -221,7 +275,6 @@ function update(deltaSeconds) {
     let newX = player.x + dx * speed
     let newY = player.y + dy * speed
 
-    // colisões simples
     for (const obs of obstacles) {
       if (rectCircleColliding(newX, newY, player.size / 4, player.size / 4, obs.x, obs.y, obs.width, obs.height)) {
         newX = player.x
@@ -238,13 +291,20 @@ function update(deltaSeconds) {
     if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
   }
 
-  // detectar estruturas para "Pressione E"
   const nearbyStructure = getPlayerNearbyStructure()
-  if (nearbyStructure && nearbyStructure.name) {
-    showEnterPrompt.value = true
-    structureName.value = nearbyStructure.name
-  } else {
-    showEnterPrompt.value = false
+  showEnterPrompt.value = !!nearbyStructure?.name
+  structureName.value = nearbyStructure?.name || ''
+
+  updateAnimation(deltaSeconds)
+
+  if (timestamp - lastBgSwitchTime > 10000 && transitionAlpha === 0) {
+    startBackgroundTransition()
+    lastBgSwitchTime = timestamp
+  }
+
+  if (transitionAlpha < 1) {
+    const elapsed = timestamp - transitionStartTime
+    transitionAlpha = Math.min(elapsed / transitionDuration, 1)
   }
 }
 
@@ -252,7 +312,6 @@ function getPlayerNearbyStructure() {
   for (const obs of obstacles) {
     const distX = Math.abs(player.x - (obs.x + obs.width / 4))
     const distY = Math.abs(player.y - (obs.y + obs.height / 4))
-
     if (distX < obs.width / 4 + player.size / 4 && distY < obs.height / 4 + player.size / 2) {
       return obs
     }
@@ -261,7 +320,6 @@ function getPlayerNearbyStructure() {
 }
 
 function rectCircleColliding(cx, cy, cwidth, cheight, rx, ry, rw, rh) {
-  // aproximação AABB para colisão circular
   return !(
     cx + cwidth < rx ||
     cx > rx + rw ||
@@ -282,30 +340,40 @@ function draw() {
   cam.x = Math.max(0, Math.min(cam.x, world.width - canvas.value.width))
   cam.y = Math.max(0, Math.min(cam.y, world.height - canvas.value.height))
 
-  // Desenha o fundo
-  ctx.drawImage(background, -cam.x, -cam.y, world.width, world.height)
+  ctx.globalAlpha = 1 - transitionAlpha
+  ctx.drawImage(backgrounds[backgroundIndex], -cam.x, -cam.y, world.width, world.height)
 
-  // === NOVO BLOCO: VISUALIZAÇÃO DOS OBSTÁCULOS ===
+  if (transitionAlpha > 0) {
+    ctx.globalAlpha = transitionAlpha
+    ctx.drawImage(backgrounds[nextBackgroundIndex], -cam.x, -cam.y, world.width, world.height)
+  }
+
+  ctx.globalAlpha = 2
+
+  // ** AQUI: chama a função que desenha as luzes **
+  drawLights(ctx, cam)
+
   ctx.save()
-  ctx.fillStyle = 'rgba(255, 0, 0, 0.0)' // vermelho semi-transparente
+  ctx.fillStyle = 'rgba(255, 0, 0, 0)'
   for (const obs of obstacles) {
     ctx.fillRect(obs.x - cam.x, obs.y - cam.y, obs.width, obs.height)
   }
   ctx.restore()
-  // ===============================================
 
-  // cálculo da animação
   const anim = animations[player.direction] || animations.idle
-
-  // Atualizar frame da animação (feito no update, mas aqui só garante caso idle)
-  if (player.direction === 'idle') {
-    currentFrameIndex = 0
-    frameTimer = 0
-  }
-
   const frame = anim.frames[currentFrameIndex]
   const sx = frame * frameWidth
   const sy = anim.row * frameHeight
+
+  ctx.save()
+  // Filtro de brilho aplicado SOMENTE ao player:
+  switch (backgroundIndex) {
+    case 0: ctx.filter = 'brightness(1)'; break
+    case 1: ctx.filter = 'brightness(0.7)'; break
+    case 2: ctx.filter = 'brightness(0.4)'; break
+    case 3: ctx.filter = 'brightness(0.8)'; break
+    default: ctx.filter = 'none'
+  }
 
   ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
   ctx.shadowBlur = 6
@@ -321,66 +389,57 @@ function draw() {
     player.size
   )
 
-  ctx.shadowColor = 'transparent'
-  ctx.shadowBlur = 0
-  ctx.shadowOffsetX = 0
-  ctx.shadowOffsetY = 0
-
-  ctx.drawImage(foreground, -cam.x, -cam.y, world.width, world.height)
+  ctx.restore()
 }
 
-// Atualiza frame da animação
 function updateAnimation(deltaSeconds) {
-  if (player.direction !== 'idle') {
-    frameTimer += deltaSeconds * 1000
-    if (frameTimer >= frameInterval) {
-      frameTimer = 0
-      currentFrameIndex++
-      const anim = animations[player.direction]
-      if (currentFrameIndex >= anim.frames.length) currentFrameIndex = 0
-    }
-  } else {
-    currentFrameIndex = 0
+  const anim = animations[player.direction] || animations.idle
+  const interval = anim.frameInterval || 70
+  frameTimer += deltaSeconds * 1000
+  if (frameTimer > interval) {
     frameTimer = 0
+    currentFrameIndex++
+    if (currentFrameIndex >= anim.frames.length) currentFrameIndex = 0
   }
 }
-
-// No update() chamar updateAnimation
-const originalUpdate = update
-update = (deltaSeconds) => {
-  originalUpdate(deltaSeconds)
-  updateAnimation(deltaSeconds)
-}
-
 </script>
 
 <style scoped>
-.game-canvas {
+.game-view {
+  position: relative;
   width: 100vw;
   height: 100vh;
-  display: block;
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 1;
+  overflow: hidden;
 }
+
+.game-canvas {
+  display: block;
+  background: #000;
+  width: 100vw;
+  height: 100vh;
+}
+
 .enter-prompt {
-  position: fixed;
-  bottom: 150px;
+  position: absolute;
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: rgba(20, 20, 20, 0.8);
-  color: white;
-  padding: 10px 25px;
-  border-radius: 10px;
-  font-size: 20px;
-  font-weight: bold;
-  user-select: none;
-  z-index: 10;
-}
-.key {
-  background-color: #444;
-  padding: 2px 10px;
+  background: rgba(10, 10, 10, 0.7);
+  padding: 8px 14px;
   border-radius: 6px;
+  color: white;
+  font-weight: 600;
+  font-size: 18px;
+  user-select: none;
+  pointer-events: none;
+}
+
+.enter-prompt .key {
+  font-weight: 700;
+  font-size: 22px;
+  color: #aaffaa;
+  padding: 0 6px;
+  border: 2px solid #aaffaa;
+  border-radius: 4px;
 }
 </style>
