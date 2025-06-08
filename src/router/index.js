@@ -12,7 +12,6 @@ import EndingScene from '@/components/EndingScene.vue';
 import ClassSelect from '@/components/ClassSelect.vue';
 import CreditsScreen from '@/components/CreditsScreen.vue';
 import Credits from '@/components/Credits.vue';
-import Endless from '@/components/Endless.vue';
 import PracaView from '@/components/views/reino_albadia/PracaView.vue';
 import FlorestaView from '@/components/views/niveis/FlorestaView.vue';
 import FerreiroView from '@/components/views/interiors/FerreiroView.vue';
@@ -27,7 +26,6 @@ import CasteloView from '@/components/views/CasteloView.vue';
 const routes = [
   { path: '/', name: 'Menu', component: Menu },
   { path: '/options', name: 'Options', component: Options },
-  { path: '/endless', name: 'Endless', component: Endless },
   { path: '/gameover', name: 'Gameover', component: Gameover },
   { path: '/credits/:type?', name: 'Credits', component: Credits },
   { path: '/map', name: 'Map', component: Map },

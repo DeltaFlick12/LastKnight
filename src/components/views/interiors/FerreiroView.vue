@@ -67,17 +67,11 @@
         <p>{{ displayedText }}</p>
       </div>
     </transition>
-
-    <transition name="farewell-fade" @after-leave="onFarewellLeave">
-      <div v-if="showFarewell" class="dialog-box dialog-style centered-dialog farewell" key="farewell">
-        <p>{{ displayedText }}</p>
-      </div>
-    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { gameState, actions, ITEMS } from '@/stores/game.js'
 import bgImage from '@/assets/interior/ferreiro-bg.gif'
@@ -89,33 +83,32 @@ const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png
 
 const router = useRouter()
 
+// Audio setup for specified sounds
+const sounds = {
+  ambient: new Audio('/sounds/forge_ambient.mp3'), // Looping forge background sound
+  dialogClick: new Audio('/sounds/click.wav'), // Click for dialog progression
+  coinClank: new Audio('/sounds/coin_clank.mp3'), // Purchase confirmation sound
+  doorCreak: new Audio('/sounds/door_creak.mp3'), // Door open/close sound
+}
+
+// Configure audio properties
+sounds.ambient.loop = true
+sounds.ambient.volume = 0.3 // Lower volume for ambient
+sounds.dialogClick.volume = 0.5
+sounds.coinClank.volume = 0.5
+sounds.doorCreak.volume = 0.5
+
 const showDialog = ref(true)
 const dialogIndex = ref(0)
 const showHoverDialog = ref(false)
 const showShopDialog = ref(false)
 const showMessageDialog = ref(false)
 const hoverItemDescriptionText = ref('')
-const farewellMessage = ref('Volte sempre, guerreiro! Que suas batalhas sejam gloriosas!')
-const farewellDone = ref(false)
-
-const firstVisitLines = [
-  'Ah, um novo guerreiro! Eu sou Bjorn, o ferreiro mais rúbido do reino!',
-  'Minhas armas são forjadas com fogo de dragão e suor de titãs.',
-  'Escolha com sabedoria, jovem... uma boa arma faz toda a diferença.',
-  'Vamos aos negócios!'
-]
-
-const repeatVisitLines = [
-  'Bem vindo de volta à minha forja, guerreiro! Espero que esteja pronto para reforjar seu arsenal.',
-]
-
-const shopDialogLines = ['Escolha uma arma para sua jornada, guerreiro!']
 const dialogLines = ref([])
 const displayedText = ref('')
 const typing = ref(false)
 const showShop = ref(false)
 const message = ref('')
-const showFarewell = ref(false)
 let typingInterval = null
 let currentHoverItem = null
 
@@ -150,143 +143,151 @@ const weapons = [
 
 const typeLine = (text) => {
   return new Promise((resolve) => {
-    if (typingInterval) clearInterval(typingInterval);
-    displayedText.value = '';
-    typing.value = true;
-    bjornImage.value = bjornFalando;
+    if (typingInterval) clearInterval(typingInterval)
+    displayedText.value = ''
+    typing.value = true
+    bjornImage.value = bjornFalando
 
-    const line = text || dialogLines.value[dialogIndex.value] || farewellMessage.value || hoverItemDescriptionText.value || shopDialogLines[0] || message.value;
-    let index = 0;
+    const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value
+    let index = 0
 
     typingInterval = setInterval(() => {
       if (index < line.length) {
-        displayedText.value += line[index];
-        index++;
+        displayedText.value += line[index]
+        index++
       } else {
-        clearInterval(typingInterval);
-        typingInterval = null;
-        typing.value = false;
-        bjornImage.value = bjornParado;
-        resolve();
+        clearInterval(typingInterval)
+        typingInterval = null
+        typing.value = false
+        bjornImage.value = bjornParado
+        resolve()
       }
-    }, 40);
-  });
-};
+    }, 40)
+  })
+}
 
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 const nextDialog = async () => {
-  if (typing.value) return;
+  if (typing.value) return
+  sounds.dialogClick.play() // Play dialog click sound
   if (dialogIndex.value < dialogLines.value.length - 1) {
-    dialogIndex.value++;
-    await typeLine(dialogLines.value[dialogIndex.value]);
-    await delay(2000); // Tempo para leitura
+    dialogIndex.value++
+    await typeLine(dialogLines.value[dialogIndex.value])
+    await delay(2000) // Time for reading
   } else {
-    showDialog.value = false;
-    showShop.value = true;
-    showShopDialog.value = true;
-    await typeLine(shopDialogLines[0]);
+    showDialog.value = false
+    showShop.value = true
+    showShopDialog.value = true
+    await typeLine(shopDialogLines[0])
+    // Mark as visited after completing initial dialog
+    localStorage.setItem('visitedBlacksmith', 'true')
   }
-};
+}
 
 const hideHoverDialog = () => {
-  showHoverDialog.value = false;
-  currentHoverItem = null;
+  showHoverDialog.value = false
+  currentHoverItem = null
   if (typingInterval) {
-    clearInterval(typingInterval);
-    typingInterval = null;
-    typing.value = false;
-    bjornImage.value = bjornParado;
+    clearInterval(typingInterval)
+    typingInterval = null
+    typing.value = false
+    bjornImage.value = bjornParado
   }
-};
+}
 
 const hideAllDialogs = () => {
-  showHoverDialog.value = false;
-  showShopDialog.value = false;
-  showMessageDialog.value = false;
-  currentHoverItem = null;
+  showHoverDialog.value = false
+  showShopDialog.value = false
+  showMessageDialog.value = false
+  currentHoverItem = null
   if (typingInterval) {
-    clearInterval(typingInterval);
-    typingInterval = null;
-    typing.value = false;
-    bjornImage.value = bjornParado;
+    clearInterval(typingInterval)
+    typingInterval = null
+    typing.value = false
+    bjornImage.value = bjornParado
   }
-};
+}
 
 const hoverItemDescription = async (item) => {
-  if (!showShop.value) return;
-  if (currentHoverItem === item.itemId) return;
-  hideAllDialogs();
-  currentHoverItem = item.itemId;
-  hoverItemDescriptionText.value = item.description;
-  dialogLines.value = [item.description];
-  dialogIndex.value = 0;
-  showHoverDialog.value = true;
-  await typeLine(item.description);
-};
+  if (!showShop.value) return
+  if (currentHoverItem === item.itemId) return
+  hideAllDialogs()
+  currentHoverItem = item.itemId
+  hoverItemDescriptionText.value = item.description
+  dialogLines.value = [item.description]
+  dialogIndex.value = 0
+  showHoverDialog.value = true
+  await typeLine(item.description)
+}
 
 const buyWeapon = async (item) => {
-  hideAllDialogs();
-  const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === item.itemId);
+  hideAllDialogs()
+  const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === item.itemId)
   if (existingItem) {
-    message.value = `Você já possui ${item.name}.`;
+    message.value = `Você já possui ${item.name}.`
   } else if (gameState.player.gold >= item.price) {
-    gameState.player.gold -= item.price;
-    actions.addItemToInventory(item.itemId, 1);
-    message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`;
+    gameState.player.gold -= item.price
+    actions.addItemToInventory(item.itemId, 1)
+    message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`
+    sounds.coinClank.play() // Play coin clank sound
   } else {
-    message.value = 'Você não tem ouro suficiente.';
+    message.value = 'Você não tem ouro suficiente.'
   }
-  showMessageDialog.value = true;
-  await typeLine(message.value);
-  await delay(2000); // Tempo para leitura
-  hideAllDialogs();
-  message.value = '';
+  showMessageDialog.value = true
+  await typeLine(message.value)
+  await delay(2000) // Time for reading
+  hideAllDialogs()
+  message.value = ''
   if (showShop.value) {
-    showShopDialog.value = true;
-    await typeLine(shopDialogLines[0]);
+    showShopDialog.value = true
+    await typeLine(shopDialogLines[0])
   }
-};
+}
 
 const exitShop = async () => {
-  // Garante que outros diálogos estejam escondidos
-  hideAllDialogs();
-  showShop.value = false;
-
-  // Exibe o farewell
-  showFarewell.value = true;
-  farewellDone.value = false;
-
-  // Digita o texto do farewell
-  await typeLine(farewellMessage.value);
-
-  // Aguarda o tempo de leitura
-  await delay(3000);
-
-  // Inicia a transição de saída
-  showFarewell.value = false;
-};
-
-const onFarewellLeave = () => {
-  // Redireciona após a transição de saída
-  farewellDone.value = true;
-  router.push('/level/albadia');
-};
+  hideAllDialogs()
+  showShop.value = false
+  sounds.doorCreak.play() // Play door creak sound on exit
+  await delay(500) // Brief delay for sound and transition
+  router.push('/level/albadia') // Direct navigation
+}
 
 onMounted(() => {
-  const visited = localStorage.getItem('visitedBlacksmith');
-  dialogLines.value = visited ? repeatVisitLines : firstVisitLines;
-  dialogIndex.value = 0;
-  typeLine(dialogLines.value[dialogIndex.value]);
-});
+  sounds.doorCreak.play() // Play door creak sound on enter
+  const visited = localStorage.getItem('visitedBlacksmith') === 'true'
+  dialogLines.value = visited ? repeatVisitLines : firstVisitLines
+  dialogIndex.value = 0
+  typeLine(dialogLines.value[dialogIndex.value])
+  sounds.ambient.play() // Start ambient sound
+})
+
+onUnmounted(() => {
+  sounds.ambient.pause() // Stop ambient sound
+  sounds.ambient.currentTime = 0
+  if (typingInterval) clearInterval(typingInterval)
+})
 
 watch(() => showShop, (newVal) => {
   if (newVal) {
-    hideAllDialogs();
-    showShopDialog.value = true;
-    typeLine(shopDialogLines[0]);
+    hideAllDialogs()
+    showShopDialog.value = true
+    typeLine(shopDialogLines[0])
   }
-});
+})
+
+const firstVisitLines = [
+  'Ah, um novo guerreiro! Eu sou Bjorn, o ferreiro mais rúbido do reino!',
+  'Minhas armas são forjadas com fogo de dragão e suor de titãs.',
+  'Escolha com sabedoria, jovem... uma boa arma faz toda a diferença.',
+  'Vamos aos negócios!'
+]
+
+const repeatVisitLines = [
+  'Bem vindo de volta à minha forja, guerreiro! Espero que esteja pronto para reforjar seu arsenal.',
+]
+
+const shopDialogLines = ['Escolha uma arma para sua jornada, guerreiro!']
 </script>
 
 <style scoped>
@@ -664,22 +665,5 @@ watch(() => showShop, (newVal) => {
 .shop-fade-enter-from, .shop-fade-leave-to {
   opacity: 0;
   transform: translateX(50px);
-}
-
-.farewell-fade-enter-active, .farewell-fade-leave-active {
-  transition: opacity 1s ease, transform 1s ease;
-}
-
-.farewell-fade-enter-from, .farewell-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
-
-.farewell p {
-  text-align: center;
-  font-weight: bold;
-  font-size: 1.1em;
-  margin-bottom: 0;
-  text-shadow: 1px 1px 0 #000;
 }
 </style>

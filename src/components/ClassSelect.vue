@@ -3,12 +3,12 @@
     <div class="bg-texture"></div>
 
     <div class="content">
-      <h1 class="title">Escolha seu herói e comece a aventura!</h1>
+      <h1 class="title">{{ texts.classTitle }}</h1>
 
       <input
         v-model="playerName"
         type="text"
-        placeholder="Digite o nome do seu herói..."
+        :placeholder="texts.placeholder"
         class="name-input"
       />
 
@@ -18,35 +18,53 @@
           :disabled="!playerName.trim()"
           @click="confirmarClasse"
         >
-          Iniciar Jornada
+          {{ texts.start }}
         </button>
       </div>
     </div>
 
-    <footer class="footer">
-      Versão 0.1.0 | © 2025
-    </footer>
-
-    <audio ref="clickSound" src="publi/sounds/click.wav" preload="auto"></audio>
+    <audio ref="clickSound" src="/public/sounds/click.wav" preload="auto"></audio>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useGameState } from '@/stores/gameState';
+import { useLanguageStore } from '@/stores/language';
 
-const playerName = ref('')
-const clickSound = ref(null)
-const router = useRouter()
+const playerName = ref('');
+const clickSound = ref(null);
+const router = useRouter();
+const gameState = useGameState();
+const languageStore = useLanguageStore();
+const { texts } = languageStore;
+
+onMounted(() => {
+  try {
+    console.log('GameState actions:', gameState); // Debug: Log all actions
+    if (typeof gameState.initializePlayerName === 'function') {
+      gameState.initializePlayerName();
+      console.log('Player name initialized:', gameState.player.name);
+    } else {
+      console.error('initializePlayerName is not a function in gameState');
+    }
+    if (gameState.player.name) {
+      playerName.value = gameState.player.name;
+    }
+  } catch (error) {
+    console.error('Error in onMounted:', error);
+  }
+});
 
 function confirmarClasse() {
-  if (!playerName.value.trim()) return
-  if (clickSound.value) clickSound.value.play()
+  if (!playerName.value.trim()) return;
+  if (clickSound.value) clickSound.value.play();
 
-  const nome = playerName.value.trim()
-  localStorage.setItem('playerName', nome)
-  localStorage.setItem('playerClass', 'guerreiro')
-  router.push('/tutorial')
+  const nome = playerName.value.trim();
+  gameState.setPlayerName(nome);
+  gameState.setPlayerClass('guerreiro');
+  router.push('/tutorial');
 }
 </script>
 
@@ -99,6 +117,7 @@ function confirmarClasse() {
   margin-bottom: 35px;
   box-shadow: inset -3px -3px #e6b800, inset 3px 3px #fffbcc;
 }
+
 .start-btn {
   padding: 12px 50px;
   background: #e6b800;
@@ -119,14 +138,5 @@ function confirmarClasse() {
 .start-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.footer {
-  position: absolute;
-  bottom: 10px;
-  right: 20px;
-  font-size: 0.85rem;
-  color: #c9a93d;
-  opacity: 0.8;
 }
 </style>
