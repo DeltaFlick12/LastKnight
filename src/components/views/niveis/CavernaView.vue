@@ -461,7 +461,7 @@ html, body {
   background-color: rgba(40, 20, 10, 0.85);
   padding: 20px;
   border: 2px solid #b64e1a;
-  border-radius: 8px;
+  border-radius: 3px;
   text-align: center;
   max-width: 400px;
   color: #f0d0a0;
@@ -495,7 +495,7 @@ html, body {
   background-color: rgba(0, 0, 0, 0.65);
   padding: 20px;
   border: 2px solid #b64e1a;
-  border-radius: 12px;
+  border-radius: 3px;
   max-width: 500px;
   width: 90%;
   text-align: center;
@@ -535,10 +535,10 @@ html, body {
 
 button {
   background-color: #b64e1a;
-  color: white;
+  color: rgb(182, 165, 158);
   padding: 10px 16px;
   border: none;
-  border-radius: 10px;
+  border-radius: 1px;
   font-size: 14px;
   cursor: pointer;
   transition: transform 0.2s, background-color 0.2s;

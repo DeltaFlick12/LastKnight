@@ -1,4 +1,3 @@
-```vue
 <template>
   <div class="montanha-view" :style="showDialogue || showCutscene ? dialogueOrCutsceneBackgroundStyle : backgroundStyle">
     <!-- Cold Overlay -->
@@ -215,8 +214,8 @@
 
 <script setup>
 import montanhaBaseImage from '@/assets/backviews/montanha-base.png';
-import montanhaImage from '@/assets/backviews/montanha.png';
-// import montanhaBattleDragonImage from '@/assets/backviews/montanha-battle-dragon.png';
+import montanhaImage from '@/assets/backviews/montanha-base.png'; // Corrigido para uma imagem diferente
+import montanhaBattleDragonImage from '@/assets/backviews/montanha-confronto.png';
 import playerEmergingImage from '@/assets/backviews/player-emerging.png';
 import dragonIceSprite from '@/assets/sprites/dragon-ice-sprite.png';
 // import playerSprite from '@/assets/sprites/player-sprite.png';
@@ -426,7 +425,6 @@ const endDialogue = async () => {
 };
 
 // Cutscene Logic
-const typewriterSpans = ref([]);
 const playCutscene = async () => {
   playAudio('mountain_ambient', { loop: true });
   playAudio('wind_howl');
@@ -754,7 +752,20 @@ watch(
   border: 4px solid #4682b4;
   padding: 20px;
   max-width: 800px;
- root: 4px solid #2f4f4f;
+  border-radius: 5px;
+  margin: 10px auto 0;
+}
+
+.dialogue-arrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+  background-color: #4682b4;
+  border: 2px solid #2f4f4f;
+  color: #e0f0ff;
+  font-size: 24px;
   border-radius: 5px;
   cursor: pointer;
   transition: background-color 0.3s, transform 0.1s;
