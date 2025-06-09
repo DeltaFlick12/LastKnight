@@ -22,9 +22,9 @@ export const useGameState = defineStore('gameState', {
       classe: null,
       firstTimeChurch: true,
       keys: {
-        ancestral: false,
-        ice: false,
-        fire: false,
+        ancestral: true,
+        ice: true,
+        fire: true,
       },
     },
     boss: {

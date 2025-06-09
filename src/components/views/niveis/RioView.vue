@@ -9,13 +9,6 @@
     <!-- Névoa Densa -->
     <div class="fog-layer"></div>
 
-    <!-- Partículas Fantasmagóricas -->
-    <div class="particle" v-for="n in 12" :key="`particle-${n}`" :style="randomParticleStyle()"></div>
-
-    <!-- HUD -->
-    <Hud
-    />
-
     <!-- Caixa de diálogo (z-index garante que fique acima dos efeitos) -->
     <div class="dialog-box" v-if="showDialog">
       <p>{{ displayedText }}</p>
@@ -31,7 +24,6 @@
 import bgImage from '@/assets/backviews/rio-bg.gif'; // Mantém o GIF original
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import Hud from '@/components/Hud.vue';
 // Assume que gameState e actions estão em @/stores/game.js
 import { gameState, actions } from '@/stores/game.js'; 
 
@@ -136,14 +128,13 @@ function randomParticleStyle() {
 <style scoped>
 .background-container {
   position: relative;
+  isolation: isolate; /* Garante que os z-index sejam isolados dentro desse container */
   width: 100%;
   height: 100vh;
   background-size: cover;
   background-position: center;
   background-image: url('/assets/backviews/rio-bg.gif'); 
   overflow: hidden;
-  /* Filtro intensificado para clima sombrio */
-  filter: brightness(0.6) contrast(1.05) saturate(0.6) grayscale(0.1);
 }
 
 /* Overlay sombrio mais forte */
@@ -153,31 +144,9 @@ function randomParticleStyle() {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(5, 0, 10, 0.35); /* Mais escuro e roxo */
+  background-color: rgba(5, 0, 10, 0.35);
   pointer-events: none;
   z-index: 1;
-}
-
-/* Efeito de água escura e quase parada */
-.water-effect {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 40%; /* Ligeiramente mais alto */
-  background: linear-gradient(
-    180deg, /* Direção ajustada */
-    rgba(5, 8, 12, 0) 0%,
-    rgba(5, 8, 12, 0.5) 40%,
-    rgba(8, 10, 15, 0.8) 75%,
-    rgba(10, 12, 18, 0.95) 100% /* Cores bem escuras */
-  );
-  opacity: 0.9;
-  mix-blend-mode: multiply; /* Modo de mesclagem mais escuro */
-  pointer-events: none;
-  z-index: 4; 
-  /* Animação removida ou muito sutil para água parada */
-  /* animation: waterFlow 45s linear infinite alternate; */ 
 }
 
 /* Névoa mais densa */
@@ -191,49 +160,31 @@ function randomParticleStyle() {
   opacity: 0.92;
   pointer-events: none;
   z-index: 2;
-  animation: fogDrift 70s linear infinite alternate; /* Mais lenta */
 }
 
-@keyframes fogDrift {
-  from {
-    transform: translateX(-4%);
-  }
-  to {
-    transform: translateX(4%);
-  }
-}
-
-/* Partículas fantasmagóricas */
-.particle {
+/* Efeito de água escura e quase parada */
+.water-effect {
   position: absolute;
-  /* Idealmente, usar uma imagem de partícula mais adequada */
-  background-image: url('/assets/particles/particle.png'); 
-  background-size: contain;
-  background-repeat: no-repeat;
-  opacity: 0.15; /* Bem sutis */
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  background: linear-gradient(
+    180deg,
+    rgba(5, 8, 12, 0) 0%,
+    rgba(5, 8, 12, 0.5) 40%,
+    rgba(8, 10, 15, 0.8) 75%,
+    rgba(10, 12, 18, 0.95) 100%
+  );
+  opacity: 0.9;
+  mix-blend-mode: multiply;
+  pointer-events: none;
   z-index: 3;
-  animation: floatUp ease-in-out infinite; /* Movimento mais suave */
-  filter: grayscale(0.5) blur(1.5px); /* Cinza e desfocado */
 }
 
-@keyframes floatUp {
-  from {
-    transform: translateY(0px) scale(0.8) rotate(-5deg);
-    opacity: 0.15;
-  }
-  50% {
-      opacity: 0.05;
-      transform: translateY(-70px) scale(1) rotate(0deg);
-  }
-  to {
-    transform: translateY(-160px) scale(1.3) rotate(10deg);
-    opacity: 0;
-  }
-}
-
-/* Caixa de diálogo permanece clara */
+/* Caixa de diálogo */
 .dialog-box {
-  background-color: rgba(10, 5, 15, 0.9); 
+  background-color: rgba(0, 0, 0, 0.842); 
   padding: 25px;
   border: 2px solid #a07c4f; 
   border-radius: 8px;
@@ -243,9 +194,9 @@ function randomParticleStyle() {
   top: 60%; 
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 10; /* Garante que fique acima dos efeitos */
+  z-index: 10; /* Está acima de todos os layers */
   font-size: 24px; 
-  color: #e0d8c0; 
+  color: #ffffff; 
   box-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
   text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
 }
@@ -261,6 +212,7 @@ function randomParticleStyle() {
   border-radius: 6px;
   box-shadow: 0 0 6px rgba(0, 0, 0, 0.5) inset, 0 0 8px rgba(0, 0, 0, 0.5);
   cursor: pointer;
+  z-index: 10;
   transition: transform 0.2s, box-shadow 0.2s, background 0.3s;
 }
 
@@ -269,5 +221,6 @@ function randomParticleStyle() {
   background: linear-gradient(to bottom, #6b4a2f, #3b2418);
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.7) inset, 0 0 12px #b49f67;
   color: #f0e0b8;
+  z-index: 10;
 }
 </style>

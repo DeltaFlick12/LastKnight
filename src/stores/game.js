@@ -78,7 +78,7 @@ const initialState = {
     keys: {
       ancestral: false,
       ice: false,
-      fire: false
+      fire: false,
     },
     hasRiverBlessing: false,
     hasForbiddenPotion: false,
