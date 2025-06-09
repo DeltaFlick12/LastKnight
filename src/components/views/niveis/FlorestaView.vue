@@ -1,324 +1,289 @@
 <template>
-  <canvas ref="canvasRef"></canvas>
+  <div class="floresta-view" style="position: relative;">
+    <canvas ref="canvasRef"></canvas>
+
+    <!-- Caixa de diálogo ao entrar na floresta -->
+    <div v-if="showIntroDialog" class="intro-dialog">
+      <h2>Bem-vindo à Floresta Sombria</h2>
+      <p>Este lugar é cheio de perigos, fique atento!</p>
+      <button @click="closeIntroDialog">Continuar</button>
+    </div>
+
+    <!-- Caixa de diálogo contextual perto do inimigo -->
+    <div v-if="showForestDialog" class="forest-dialog">
+      <p>Você sente uma presença estranha entre as árvores...</p>
+      <p><strong>Inimigo à frente!</strong></p>
+      <button @click="enfrentarInimigo">Enfrentar o inimigo</button>
+    </div>
+
+    <!-- Caixa de diálogo de vitória -->
+    <div v-if="showVictoryDialog" class="victory-dialog">
+      <h2>Parabéns!</h2>
+      <p>Você derrotou os inimigos e terminou a floresta!</p>
+      <button @click="closeVictoryDialog">Fechar</button>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { onMounted, ref, onBeforeUnmount } from 'vue';
 
+const canvasRef = ref(null);
+const showIntroDialog = ref(true);
+const showForestDialog = ref(false);
+const showVictoryDialog = ref(false);
 
+const defeatedEnemiesCount = ref(0);
+const totalEnemiesToDefeat = 6;
 
-let inBattle = false;
-let battleState = null;
-let playerHP = 100;
-let enemyHP = 50;
-let battleMessage = '';
+const tileSize = 40;
+const SPRITE_SCALE = 2;
+let cameraX = 0;
 
-function startBattle() {
-  inBattle = true;
-  playerHP = 100;
-  enemyHP = 50;
-  battleMessage = 'Um inimigo apareceu!';
-  battleState = 'playerTurn';
+const player = {
+  x: 100,
+  y: 0,
+  width: 80,
+  height: 110,
+  dx: 0,
+  dy: 0,
+  speed: 5,
+  jumpStrength: 20,
+  gravity: 0.7,
+  maxGravity: 10,
+  friction: 0.8,
+  isOnGround: false,
+  frame: 0,
+  frameCount: 4,
+  frameTimer: 0,
+  frameInterval: 8
+};
+
+const keys = { left: false, right: false, up: false };
+
+const enemies = [];
+
+function generateEnemies(canvas, count = 10) {
+  enemies.length = 0;
+  for (let i = 0; i < count; i++) {
+    enemies.push({
+      x: 500 + i * 1500,
+      y: canvas.height - tileSize - 110 * SPRITE_SCALE,
+      width: 80,
+      height: 110,
+      dx: 0,
+      dy: 0,
+      isOnGround: true,
+      frame: 0,
+      frameCount: 4,
+      frameTimer: 0,
+      frameInterval: 10,
+      name: "Goblin",
+      life: 100,
+      maxLife: 100
+    });
+  }
 }
 
-function updateBattle() {
-  if (!inBattle) return;
+const backgroundImage = new Image();
+backgroundImage.src = '/img/Floresta/floresta-bg.png';
 
-  clear();
-  ctx.fillStyle = '#222';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = 'white';
-  ctx.font = '24px Arial';
-  ctx.fillText(battleMessage, 50, 50);
-  ctx.fillText(`Player HP: ${playerHP}`, 50, 100);
-  ctx.fillText(`Inimigo HP: ${enemyHP}`, 50, 140);
-
-  if (battleState === 'playerTurn') {
-    ctx.fillText('Pressione [Enter] para atacar', 50, 200);
-  }
-
-  if (playerHP <= 0) {
-    battleMessage = 'Você perdeu!';
-    battleState = 'gameOver';
-  } else if (enemyHP <= 0) {
-    battleMessage = 'Você venceu!';
-    battleState = 'win';
-  }
+function resizeCanvas(canvas) {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 }
 
-function handleBattleInput(e) {
-  if (!inBattle) return;
+function getTileAtWorld(x, y, canvas) {
+  const col = Math.floor(x / tileSize);
+  const floorY = canvas.height - tileSize;
+  if (y >= floorY) return col >= 0 ? 1 : 0;
+  return 0;
+}
 
-  if (e.key === 'Enter' && battleState === 'playerTurn') {
-    const dmg = Math.floor(Math.random() * 20 + 5);
-    enemyHP -= dmg;
-    battleMessage = `Você atacou e causou ${dmg} de dano!`;
-    battleState = 'enemyTurn';
+function closeIntroDialog() {
+  showIntroDialog.value = false;
+}
 
-    setTimeout(() => {
-      if (enemyHP > 0) {
-        const enemyDmg = Math.floor(Math.random() * 15 + 5);
-        playerHP -= enemyDmg;
-        battleMessage = `O inimigo atacou e causou ${enemyDmg} de dano!`;
-        battleState = 'playerTurn';
+function enfrentarInimigo() {
+  const playerBox = {
+    x: player.x + cameraX,
+    y: player.y,
+    width: player.width * SPRITE_SCALE,
+    height: player.height * SPRITE_SCALE
+  };
+
+  const enemyIndex = enemies.findIndex(enemy => {
+    const enemyBox = {
+      x: enemy.x,
+      y: enemy.y,
+      width: enemy.width * SPRITE_SCALE,
+      height: enemy.height * SPRITE_SCALE
+    };
+    return (
+      playerBox.x < enemyBox.x + enemyBox.width &&
+      playerBox.x + playerBox.width > enemyBox.x &&
+      playerBox.y < enemyBox.y + enemyBox.height &&
+      playerBox.y + playerBox.height > enemyBox.y
+    );
+  });
+
+  if (enemyIndex !== -1) {
+    const enemy = enemies[enemyIndex];
+    enemy.life -= 50; // dano simulado
+
+    if (enemy.life <= 0) {
+      enemies.splice(enemyIndex, 1);
+      defeatedEnemiesCount.value++;
+
+      if (defeatedEnemiesCount.value >= totalEnemiesToDefeat) {
+        showVictoryDialog.value = true;
       }
-    }, 1000);
-  }
-
-  if ((battleState === 'gameOver' || battleState === 'win') && e.key === 'Enter') {
-    inBattle = false;
-    player.x = 100;
-    player.y = 0;
-    player.dx = 0;
-    player.dy = 0;
-    cameraX = 0;
-  }
-}
-
-// Substitua checkPlayerEnemyCollision por:
-function checkPlayerEnemyCollision() {
-  for (const enemy of enemies) {
-    const enemyX = enemy.x - cameraX;
-    if (
-      player.x < enemyX + enemy.width * SPRITE_SCALE &&
-      player.x + player.width * SPRITE_SCALE > enemyX &&
-      player.y < enemy.y + enemy.height * SPRITE_SCALE &&
-      player.y + player.height * SPRITE_SCALE > enemy.y
-    ) {
-      startBattle();
-      break;
     }
   }
+
+  showForestDialog.value = false;
 }
 
-// Substitua gameLoop por:
-function gameLoop() {
-  if (inBattle) {
-    updateBattle();
-  } else {
-    clear();
-    if (backgroundImage.complete) drawBackground();
-    drawMap();
-    drawPlayer();
-    drawEnemies();
+function closeVictoryDialog() {
+  showVictoryDialog.value = false;
+}
 
-    updatePlayer();
-    updateEnemies();
-    checkPlayerEnemyCollision();
+function drawEnemies(ctx) {
+  enemies.forEach(enemy => {
+    const screenX = enemy.x - cameraX;
+
+    ctx.fillStyle = 'blue';
+    ctx.fillRect(
+      screenX, enemy.y,
+      enemy.width * SPRITE_SCALE,
+      enemy.height * SPRITE_SCALE
+    );
+
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+
+    ctx.fillText(enemy.name, screenX + (enemy.width * SPRITE_SCALE) / 2, enemy.y - 25);
+
+    const barWidth = enemy.width * SPRITE_SCALE;
+    const barHeight = 6;
+    const lifeRatio = enemy.life / enemy.maxLife;
+
+    ctx.fillStyle = 'red';
+    ctx.fillRect(screenX, enemy.y - 20, barWidth, barHeight);
+
+    ctx.fillStyle = 'limegreen';
+    ctx.fillRect(screenX, enemy.y - 20, barWidth * lifeRatio, barHeight);
+
+    ctx.strokeStyle = 'black';
+    ctx.strokeRect(screenX, enemy.y - 20, barWidth, barHeight);
+  });
+}
+
+function drawPlayer(ctx) {
+  ctx.fillStyle = 'red';
+  ctx.fillRect(
+    player.x, player.y,
+    player.width * SPRITE_SCALE,
+    player.height * SPRITE_SCALE
+  );
+}
+
+function updatePlayer(canvas) {
+  player.dy += player.gravity;
+  if (player.dy > player.maxGravity) player.dy = player.maxGravity;
+
+  if (keys.left) player.dx -= 1;
+  else if (keys.right) player.dx += 1;
+  else {
+    player.dx *= player.friction;
+    if (Math.abs(player.dx) < 0.1) player.dx = 0;
   }
-  requestAnimationFrame(gameLoop);
+
+  if (player.dx > player.speed) player.dx = player.speed;
+  if (player.dx < -player.speed) player.dx = -player.speed;
+
+  player.x += player.dx;
+
+  const halfScreen = canvas.width / 2;
+  if (player.x > halfScreen) {
+    cameraX += player.x - halfScreen;
+    player.x = halfScreen;
+  }
+
+  if (keys.up && player.isOnGround) {
+    player.dy = -player.jumpStrength;
+    player.isOnGround = false;
+  }
+
+  player.y += player.dy;
+
+  const bottom = player.y + player.height * SPRITE_SCALE;
+  const worldX = player.x + cameraX + (player.width * SPRITE_SCALE) / 2;
+  const tile = getTileAtWorld(worldX, bottom, canvas);
+  if (tile === 1 && player.dy >= 0) {
+    player.y = canvas.height - tileSize - player.height * SPRITE_SCALE;
+    player.dy = 0;
+    player.isOnGround = true;
+  } else {
+    player.isOnGround = false;
+  }
 }
 
-// Adicione:
-window.addEventListener('keydown', handleBattleInput);
+function checkProximity() {
+  if (showIntroDialog.value) {
+    showForestDialog.value = false;
+    return;
+  }
 
+  const playerBox = {
+    x: player.x + cameraX,
+    y: player.y,
+    width: player.width * SPRITE_SCALE,
+    height: player.height * SPRITE_SCALE
+  };
 
-const canvasRef = ref(null);
+  showForestDialog.value = enemies.some(enemy => {
+    const enemyBox = {
+      x: enemy.x,
+      y: enemy.y,
+      width: enemy.width * SPRITE_SCALE,
+      height: enemy.height * SPRITE_SCALE
+    };
+
+    return (
+      playerBox.x < enemyBox.x + enemyBox.width &&
+      playerBox.x + playerBox.width > enemyBox.x &&
+      playerBox.y < enemyBox.y + enemyBox.height &&
+      playerBox.y + playerBox.height > enemyBox.y
+    );
+  });
+}
 
 onMounted(() => {
   const canvas = canvasRef.value;
   const ctx = canvas.getContext('2d');
-  const tileSize = 40;
-  const SPRITE_SCALE = 2; // Aumenta o tamanho das sprites na tela
 
-  function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-  resizeCanvas();
-  window.addEventListener('resize', resizeCanvas);
-
-  const playerImage = new Image();
-  playerImage.src = '/img/sprites/player/walk_right-floresta.png'; // 4 frames
-  
-  const enemyImage = new Image();
-  enemyImage.src = '/img/sprites/player/walk_left.png-floresta'; // 4 frames
-
-  const player = {
-    x: 100,
-    y: -10,
-    width: 80,
-    height: 110,
-    dx: 0,
-    dy: 0,
-    speed: 5,
-    jumpStrength: 20,
-    gravity: 0.7,
-    maxGravity: 10,
-    friction: 0.8,
-    isOnGround: false,
-    frame: 0,
-    frameCount: 4,
-    frameTimer: 0,
-    frameInterval: 8
-  };
-
-  let cameraX = 0;
-  const keys = { left: false, right: false, up: false };
-
-  const enemies = [
-    // { x: 500, y: 0, width: 80, height: 220, dx: 3, leftLimit: 500, rightLimit: 900, dy: 0, isOnGround: false, frame: 0, frameCount: 4, frameTimer: 0, frameInterval: 10 },
-    // { x: 1300, y: 0, width: 80, height: 220, dx: 3, leftLimit: 1300, rightLimit: 1700, dy: 0, isOnGround: false, frame: 0, frameCount: 4, frameTimer: 0, frameInterval: 10 }
-  ];
-
-  const backgroundImage = new Image();
-  backgroundImage.src = '/img/Floresta/floresta-bg.png';
-
-  function getTileAtWorld(x, y) {
-    const col = Math.floor(x / tileSize);
-    const floorY = canvas.height - tileSize;
-    if (y >= floorY) return col >= 0 ? 1 : 0;
-    return 0;
-  }
-
-  function updateEnemies() {
-    enemies.forEach(enemy => {
-      enemy.dy += player.gravity;
-      if (enemy.dy > player.maxGravity) enemy.dy = player.maxGravity;
-
-      enemy.x += enemy.dx;
-
-      if (enemy.x < enemy.leftLimit || enemy.x + enemy.width > enemy.rightLimit) {
-        enemy.dx *= -1;
-      }
-
-      enemy.y += enemy.dy;
-
-      const bottom = enemy.y + enemy.height;
-      const floorY = canvas.height - tileSize;
-      if (bottom >= floorY) {
-        enemy.y = floorY - enemy.height;
-        enemy.dy = 0;
-        enemy.isOnGround = true;
-      } else {
-        enemy.isOnGround = false;
-      }
-
-      enemy.frameTimer++;
-      if (enemy.frameTimer >= enemy.frameInterval) {
-        enemy.frame = (enemy.frame + 1) % enemy.frameCount;
-        enemy.frameTimer = 0;
-      }
-    });
-  }
-
-  function drawEnemies() {
-    enemies.forEach(enemy => {
-      const screenX = enemy.x - cameraX;
-      ctx.drawImage(
-        enemyImage,
-        enemy.frame * enemy.width, 0, enemy.width, enemy.height,
-        screenX, enemy.y,
-        enemy.width * SPRITE_SCALE,
-        enemy.height * SPRITE_SCALE
-      );
-    });
-  }
-
-  function checkPlayerEnemyCollision() {
-    for (const enemy of enemies) {
-      const enemyX = enemy.x - cameraX;
-      if (
-        player.x < enemyX + enemy.width * SPRITE_SCALE &&
-        player.x + player.width * SPRITE_SCALE > enemyX &&
-        player.y < enemy.y + enemy.height * SPRITE_SCALE &&
-        player.y + player.height * SPRITE_SCALE > enemy.y
-      ) {
-        player.x = 100;
-        player.y = 0;
-        player.dx = 0;
-        player.dy = 0;
-        cameraX = 0;
-        break;
-      }
-    }
-  }
-
-  function updatePlayer() {
-    player.dy += player.gravity;
-    if (player.dy > player.maxGravity) player.dy = player.maxGravity;
-
-    if (keys.left) player.dx -= 1;
-    else if (keys.right) player.dx += 1;
-    else {
-      player.dx *= player.friction;
-      if (Math.abs(player.dx) < 0.1) player.dx = 0;
-    }
-
-    if (player.dx > player.speed) player.dx = player.speed;
-    if (player.dx < -player.speed) player.dx = -player.speed;
-
-    player.x += player.dx;
-
-    const halfScreen = canvas.width / 2;
-    if (player.x > halfScreen) {
-      cameraX += player.x - halfScreen;
-      player.x = halfScreen;
-    }
-
-    if (keys.up && player.isOnGround) {
-      player.dy = -player.jumpStrength;
-      player.isOnGround = false;
-    }
-
-    player.y += player.dy;
-
-    const bottom = player.y + player.height * SPRITE_SCALE;
-    const worldX = player.x + cameraX + (player.width * SPRITE_SCALE) / 2;
-    const tile = getTileAtWorld(worldX, bottom);
-    if (tile === 1 && player.dy >= 0) {
-      player.y = canvas.height - tileSize - player.height * SPRITE_SCALE;
-      player.dy = 0;
-      player.isOnGround = true;
-    } else {
-      player.isOnGround = false;
-    }
-
-    if (Math.abs(player.dx) > 0.5) {
-      player.frameTimer++;
-      if (player.frameTimer >= player.frameInterval) {
-        player.frame = (player.frame + 1) % player.frameCount;
-        player.frameTimer = 0;
-      }
-    } else {
-      player.frame = 0;
-    }
-  }
-
-  function drawPlayer() {
-    ctx.drawImage(
-      playerImage,
-      player.frame * player.width, 0, player.width, player.height,
-      player.x, player.y,
-      player.width * SPRITE_SCALE,
-      player.height * SPRITE_SCALE
-    );
-  }
+  resizeCanvas(canvas);
+  window.addEventListener('resize', () => resizeCanvas(canvas));
 
   function clear() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-  }
-
-  function gameLoop() {
-    clear();
-    if (backgroundImage.complete) drawBackground();
-    drawMap();
-    drawPlayer();
-    drawEnemies();
-
-    updatePlayer();
-    updateEnemies();
-    checkPlayerEnemyCollision();
-
-    requestAnimationFrame(gameLoop);
   }
 
   function drawBackground() {
     ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height + 70);
   }
 
-  function drawMap() {}
+  function loop() {
+    clear();
+    if (backgroundImage.complete) drawBackground();
+    updatePlayer(canvas);
+    drawPlayer(ctx);
+    drawEnemies(ctx);
+    checkProximity();
+    requestAnimationFrame(loop);
+  }
 
   function keyDown(e) {
     const key = e.key.toLowerCase();
@@ -339,22 +304,72 @@ onMounted(() => {
 
   backgroundImage.onload = () => {
     player.y = canvas.height - tileSize - player.height * SPRITE_SCALE;
-    gameLoop();
+    generateEnemies(canvas, totalEnemiesToDefeat);
+    loop();
   };
 
   onBeforeUnmount(() => {
-    window.removeEventListener('resize', resizeCanvas);
+    window.removeEventListener('resize', () => resizeCanvas(canvas));
     window.removeEventListener('keydown', keyDown);
     window.removeEventListener('keyup', keyUp);
   });
 });
 </script>
 
-<style>
+<style scoped>
 canvas {
   border: 2px solid #000;
   display: block;
   margin: 20px auto;
   background: transparent;
+}
+
+/* Caixa de diálogo ao entrar na floresta */
+.intro-dialog {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 50, 10, 0.9);
+  padding: 20px 30px;
+  border-radius: 15px;
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 0 15px #0a0;
+  z-index: 100;
+}
+
+.intro-dialog h2 {
+  margin-bottom: 10px;
+  font-size: 28px;
+}
+
+/* Caixa de diálogo contextual perto do inimigo */
+.forest-dialog {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 50, 0, 0.8);
+  padding: 16px 24px;
+  border-radius: 12px;
+  color: white;
+  box-shadow: 0 0 10px #000;
+  z-index: 100;
+}
+
+/* Caixa de diálogo de vitória */
+.victory-dialog {
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 100, 0, 0.9);
+  padding: 20px 30px;
+  border-radius: 15px;
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 0 20px #0f0;
+  z-index: 110;
 }
 </style>
