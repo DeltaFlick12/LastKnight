@@ -33,14 +33,14 @@
             <p v-if="gameState.player.inventory.length === 0">Sua mochila está vazia.</p>
             <ul v-else>
               <li v-for="invItem in gameState.player.inventory" :key="invItem.itemId">
-                <img :src="ITEMS[invItem.itemId].icon" alt="Item Icon" class="item-icon" />
-                {{ ITEMS[invItem.itemId].name }} - {{ ITEMS[invItem.itemId].description }}
+                <img :src="ITEMS[invItem.itemId]?.icon || '/icons/default-item.png'" alt="Item Icon" class="item-icon" />
+                {{ ITEMS[invItem.itemId]?.name || invItem.itemId }} - {{ ITEMS[invItem.itemId]?.description || 'Item desconhecido' }}
               </li>
             </ul>
           </div>
           <div class="shop-items-container">
             <div class="shop-item" v-for="item in weapons" :key="item.itemId" @mouseover="hoverItemDescription(item)" @mouseleave="hideHoverDialog">
-              <img :src="item.icon" :alt="item.name" class="weapon-icon" />
+              <img :src="item.icon || '/icons/default-item.png'" :alt="item.name" class="weapon-icon" />
               <div>
                 <strong>{{ item.name }}</strong>
                 <span>
@@ -71,226 +71,207 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { gameState, actions, ITEMS } from '@/stores/game.js'
-import bgImage from '@/assets/interior/ferreiro-bg.gif'
-import bjornParado from '/public/img/sprites/bjorn/bjorn.png'
-import bjornFalando from '/public/img/sprites/bjorn/bjorn-falando.gif'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { gameState, actions, ITEMS } from '@/stores/game.js';
+import bgImage from '@/assets/interior/ferreiro-bg.gif';
+import bjornParado from '/public/img/sprites/bjorn/bjorn.png';
+import bjornFalando from '/public/img/sprites/bjorn/bjorn-falando.gif';
 
-const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png')
-const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png')
+const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png');
+const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png');
 
-const router = useRouter()
+const router = useRouter();
 
-// Audio setup for specified sounds
+// Audio setup
 const sounds = {
-  ambient: new Audio('/sounds/forge_ambient.mp3'), // Looping forge background sound
-  dialogClick: new Audio('/sounds/click.wav'), // Click for dialog progression
-  coinClank: new Audio('/sounds/coin_clank.mp3'), // Purchase confirmation sound
-  doorCreak: new Audio('/sounds/door_creak.mp3'), // Door open/close sound
-}
+  ambient: new Audio('/sounds/forge_ambient.mp3'),
+  dialogClick: new Audio('/sounds/click.wav'),
+  coinClank: new Audio('/sounds/coin_clank.mp3'),
+  doorCreak: new Audio('/sounds/door_creak.mp3'),
+};
+sounds.ambient.loop = true;
+sounds.ambient.volume = 0.3;
+sounds.dialogClick.volume = 0.5;
+sounds.coinClank.volume = 0.5;
+sounds.doorCreak.volume = 0.5;
 
-// Configure audio properties
-sounds.ambient.loop = true
-sounds.ambient.volume = 0.3 // Lower volume for ambient
-sounds.dialogClick.volume = 0.5
-sounds.coinClank.volume = 0.5
-sounds.doorCreak.volume = 0.5
+const showDialog = ref(true);
+const dialogIndex = ref(0);
+const showHoverDialog = ref(false);
+const showShopDialog = ref(false);
+const showMessageDialog = ref(false);
+const hoverItemDescriptionText = ref('');
+const dialogLines = ref([]);
+const displayedText = ref('');
+const typing = ref(false);
+const showShop = ref(false);
+const message = ref('');
+let typingInterval = null;
+let currentHoverItem = null;
 
-const showDialog = ref(true)
-const dialogIndex = ref(0)
-const showHoverDialog = ref(false)
-const showShopDialog = ref(false)
-const showMessageDialog = ref(false)
-const hoverItemDescriptionText = ref('')
-const dialogLines = ref([])
-const displayedText = ref('')
-const typing = ref(false)
-const showShop = ref(false)
-const message = ref('')
-let typingInterval = null
-let currentHoverItem = null
+const bjornImage = ref(bjornParado);
 
-const bjornImage = ref(bjornParado)
-
-const weapons = [
-  {
-    itemId: 'sword_iron',
-    name: ITEMS.sword_iron.name,
-    price: ITEMS.sword_iron.price,
-    description: ITEMS.sword_iron.description,
-    stats: ITEMS.sword_iron.stats,
-    icon: ITEMS.sword_iron.icon || '/img/weapons/sword_iron.png',
-  },
-  {
-    itemId: 'axe_iron',
-    name: ITEMS.axe_iron.name,
-    price: 120,
-    description: ITEMS.axe_iron.description,
-    stats: ITEMS.axe_iron.stats,
-    icon: ITEMS.axe_iron.icon || '/img/weapons/axe_iron.png',
-  },
-  {
-    itemId: 'sword_mythril',
-    name: 'Lança Rúnica',
-    price: 200,
-    description: 'Aumenta o dano em +20. Forjada com magia anã.',
-    stats: { attack: 20 },
-    icon: ITEMS.sword_mythril?.icon || '/img/weapons/sword_mythril.png',
-  }
-]
+const weapons = computed(() =>
+  Object.values(ITEMS)
+    .filter(item => item.type === 'Arma' && item.price !== undefined)
+    .map(item => ({ ...item, itemId: item.id }))
+);
 
 const typeLine = (text) => {
   return new Promise((resolve) => {
-    if (typingInterval) clearInterval(typingInterval)
-    displayedText.value = ''
-    typing.value = true
-    bjornImage.value = bjornFalando
+    if (typingInterval) clearInterval(typingInterval);
+    displayedText.value = '';
+    typing.value = true;
+    bjornImage.value = bjornFalando;
 
-    const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value
-    let index = 0
+    const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value;
+    let index = 0;
 
     typingInterval = setInterval(() => {
       if (index < line.length) {
-        displayedText.value += line[index]
-        index++
+        displayedText.value += line[index];
+        index++;
       } else {
-        clearInterval(typingInterval)
-        typingInterval = null
-        typing.value = false
-        bjornImage.value = bjornParado
-        resolve()
+        clearInterval(typingInterval);
+        typingInterval = null;
+        typing.value = false;
+        bjornImage.value = bjornParado;
+        resolve();
       }
-    }, 40)
-  })
-}
+    }, 40);
+  });
+};
 
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const nextDialog = async () => {
-  if (typing.value) return
-  sounds.dialogClick.play() // Play dialog click sound
+  if (typing.value) return;
+  sounds.dialogClick.play();
   if (dialogIndex.value < dialogLines.value.length - 1) {
-    dialogIndex.value++
-    await typeLine(dialogLines.value[dialogIndex.value])
-    await delay(2000) // Time for reading
+    dialogIndex.value++;
+    await typeLine(dialogLines.value[dialogIndex.value]);
+    await delay(2000);
   } else {
-    showDialog.value = false
-    showShop.value = true
-    showShopDialog.value = true
-    await typeLine(shopDialogLines[0])
-    // Mark as visited after completing initial dialog
-    localStorage.setItem('visitedBlacksmith', 'true')
+    showDialog.value = false;
+    showShop.value = true;
+    showShopDialog.value = true;
+    await typeLine(shopDialogLines[0]);
+    localStorage.setItem('visitedBlacksmith', 'true');
   }
-}
+};
 
 const hideHoverDialog = () => {
-  showHoverDialog.value = false
-  currentHoverItem = null
+  showHoverDialog.value = false;
+  currentHoverItem = null;
   if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
-    typing.value = false
-    bjornImage.value = bjornParado
+    clearInterval(typingInterval);
+    typingInterval = null;
+    typing.value = false;
+    bjornImage.value = bjornParado;
   }
-}
+};
 
 const hideAllDialogs = () => {
-  showHoverDialog.value = false
-  showShopDialog.value = false
-  showMessageDialog.value = false
-  currentHoverItem = null
+  showHoverDialog.value = false;
+  showShopDialog.value = false;
+  showMessageDialog.value = false;
+  currentHoverItem = null;
   if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
-    typing.value = false
-    bjornImage.value = bjornParado
+    clearInterval(typingInterval);
+    typingInterval = null;
+    typing.value = false;
+    bjornImage.value = bjornParado;
   }
-}
+};
 
 const hoverItemDescription = async (item) => {
-  if (!showShop.value) return
-  if (currentHoverItem === item.itemId) return
-  hideAllDialogs()
-  currentHoverItem = item.itemId
-  hoverItemDescriptionText.value = item.description
-  dialogLines.value = [item.description]
-  dialogIndex.value = 0
-  showHoverDialog.value = true
-  await typeLine(item.description)
-}
+  if (!showShop.value) return;
+  if (currentHoverItem === item.itemId) return;
+  hideAllDialogs();
+  currentHoverItem = item.itemId;
+  hoverItemDescriptionText.value = item.description;
+  dialogLines.value = [item.description];
+  dialogIndex.value = 0;
+  showHoverDialog.value = true;
+  await typeLine(item.description);
+};
 
 const buyWeapon = async (item) => {
-  hideAllDialogs()
-  const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === item.itemId)
+  hideAllDialogs();
+  const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === item.itemId);
   if (existingItem) {
-    message.value = `Você já possui ${item.name}.`
+    message.value = `Você já possui ${item.name}.`;
   } else if (gameState.player.gold >= item.price) {
-    gameState.player.gold -= item.price
-    actions.addItemToInventory(item.itemId, 1)
-    message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`
-    sounds.coinClank.play() // Play coin clank sound
+    gameState.player.gold -= item.price;
+    actions.addItemToInventory(item.itemId, 1);
+    message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`;
+    sounds.coinClank.play();
   } else {
-    message.value = 'Você não tem ouro suficiente.'
+    message.value = 'Você não tem ouro suficiente.';
   }
-  showMessageDialog.value = true
-  await typeLine(message.value)
-  await delay(2000) // Time for reading
-  hideAllDialogs()
-  message.value = ''
+  showMessageDialog.value = true;
+  await typeLine(message.value);
+  await delay(2000);
+  hideAllDialogs();
+  message.value = '';
   if (showShop.value) {
-    showShopDialog.value = true
-    await typeLine(shopDialogLines[0])
+    showShopDialog.value = true;
+    await typeLine(shopDialogLines[0]);
   }
-}
+};
 
 const exitShop = async () => {
-  hideAllDialogs()
-  showShop.value = false
-  sounds.doorCreak.play() // Play door creak sound on exit
-  await delay(500) // Brief delay for sound and transition
-  router.push('/level/albadia') // Direct navigation
-}
+  hideAllDialogs();
+  showShop.value = false;
+  sounds.doorCreak.play();
+  await delay(500);
+  router.push('/level/albadia');
+};
 
 onMounted(() => {
-  sounds.doorCreak.play() // Play door creak sound on enter
-  const visited = localStorage.getItem('visitedBlacksmith') === 'true'
-  dialogLines.value = visited ? repeatVisitLines : firstVisitLines
-  dialogIndex.value = 0
-  typeLine(dialogLines.value[dialogIndex.value])
-  sounds.ambient.play() // Start ambient sound
-})
+  sounds.doorCreak.play();
+  const visited = localStorage.getItem('visitedBlacksmith') === 'true';
+  dialogLines.value = visited ? repeatVisitLines : firstVisitLines;
+  dialogIndex.value = 0;
+  typeLine(dialogLines.value[dialogIndex.value]);
+  sounds.ambient.play();
+  console.log('ITEMS:', ITEMS);
+  console.log('Weapons:', weapons.value);
+  console.log('Inventário:', gameState.player.inventory);
+  actions.addItemToInventory('axe_iron', 1); // Adiciona item para teste
+});
 
 onUnmounted(() => {
-  sounds.ambient.pause() // Stop ambient sound
-  sounds.ambient.currentTime = 0
-  if (typingInterval) clearInterval(typingInterval)
-})
+  sounds.ambient.pause();
+  sounds.ambient.currentTime = 0;
+  if (typingInterval) clearInterval(typingInterval);
+});
 
 watch(() => showShop, (newVal) => {
   if (newVal) {
-    hideAllDialogs()
-    showShopDialog.value = true
-    typeLine(shopDialogLines[0])
+    hideAllDialogs();
+    showShopDialog.value = true;
+    typeLine(shopDialogLines[0]);
   }
-})
+});
 
 const firstVisitLines = [
   'Ah, um novo guerreiro! Eu sou Bjorn, o ferreiro mais rúbido do reino!',
   'Minhas armas são forjadas com fogo de dragão e suor de titãs.',
   'Escolha com sabedoria, jovem... uma boa arma faz toda a diferença.',
   'Vamos aos negócios!'
-]
+];
 
 const repeatVisitLines = [
   'Bem vindo de volta à minha forja, guerreiro! Espero que esteja pronto para reforjar seu arsenal.',
-]
+];
 
-const shopDialogLines = ['Escolha uma arma para sua jornada, guerreiro!']
+const shopDialogLines = ['Escolha uma arma para sua jornada, guerreiro!'];
 </script>
 
 <style scoped>
+/* Mantém os estilos existentes sem alterações */
 .fade-in {
   animation: fadeIn 1.5s ease-in;
 }
@@ -553,8 +534,8 @@ const shopDialogLines = ['Escolha uma arma para sua jornada, guerreiro!']
 }
 
 .item-icon {
-  width: 20px;
-  height: 20px;
+  width: 40px;
+  height: 40px;
   margin-right: 8px;
   image-rendering: pixelated;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));

@@ -6,14 +6,14 @@
       isClosing ? 'fade-out-scale' : 'fade-in-scale'
     ]"
   >
-<div ref="header" class="modal-header">
-  <div class="gold">
-    <img src="/icons/gold-icon.png" alt="Gold Coin" class="gold-icon" />
-    <span>{{ gameState.player.gold }}</span>
-  </div>
-  <h2>INVENTÁRIO</h2>
-  <button class="close-btn" @click="handleClose">✖</button>
-</div>
+    <div ref="header" class="modal-header">
+      <div class="gold">
+        <img src="/icons/gold-icon.png" alt="Gold Coin" class="gold-icon" />
+        <span>{{ gameState.player.gold }}</span>
+      </div>
+      <h2>INVENTÁRIO</h2>
+      <button class="close-btn" @click="handleClose">✖</button>
+    </div>
 
     <div class="filter-bar">
       <button
@@ -42,7 +42,7 @@
             @mouseenter="hoverItem = item"
             @mouseleave="hoverItem = null"
           >
-            <img :src="item.icon" class="item-icon" :alt="item.name" />
+            <img :src="item.icon" :style="{ width: '64px', height: '64px' }" :alt="item.name" />
             <div class="item-info">
               <span class="item-name">{{ item.name }}</span>
               <span v-if="item.quantity > 1" class="item-quantity">×{{ item.quantity }}</span>
@@ -54,7 +54,7 @@
 
       <div class="details-panel" v-if="hoverItem">
         <div class="details-header">
-          <img :src="hoverItem.icon" class="item-icon large" :alt="hoverItem.name" />
+          <img :src="hoverItem.icon" :style="{ width: '56px', height: '56px', imageRendering: 'pixelated' }" :alt="hoverItem.name" />
           <h3>{{ hoverItem.name }}</h3>
         </div>
         <p class="description">{{ hoverItem.description }}</p>
@@ -71,7 +71,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { gameState, actions, ITEMS, ITEM_ICONS } from '@/stores/game.js';
+import { gameState, actions, ITEMS } from '@/stores/game.js'; // Remove ITEM_ICONS from import
 
 const emits = defineEmits(['update:show']);
 
@@ -85,7 +85,7 @@ const categories = ['Todos', 'Consumíveis', 'Armas', 'Armadura', 'Chave'];
 const inventoryModal = ref(null);
 const header = ref(null);
 
-const getItemIcon = (itemId) => ITEM_ICONS[itemId] || '/assets/icons/unknown-item.png';
+const getItemIcon = (itemId) => ITEMS[itemId]?.icon || '/assets/icons/unknown-item.png'; // Use ITEMS directly
 
 const allItems = computed(() => {
   return gameState.player.inventory.map((invItem) => {
@@ -97,7 +97,7 @@ const allItems = computed(() => {
     return {
       itemId: invItem.itemId,
       name: itemData.name,
-      icon: getItemIcon(invItem.itemId),
+      icon: getItemIcon(invItem.itemId), // Use the updated getItemIcon
       quantity: invItem.quantity,
       description: itemData.description,
       type: itemData.type === 'Armadura' ? 'Armadura' : itemData.type,
@@ -271,7 +271,6 @@ onBeforeUnmount(() => {
   transform: translate(-50%, -50%);
 }
 
-
 /* Costura estilo pontos */
 .inventory-modal::before {
   content: '';
@@ -417,11 +416,6 @@ onBeforeUnmount(() => {
   border-color: gold;
 }
 
-.item-icon {
-  width: 64px;
-  height: 64px;
-}
-
 .item-info {
   text-align: center;
   font-size: 10px;
@@ -465,12 +459,6 @@ onBeforeUnmount(() => {
   font-weight: 700;
   margin: 0;
   text-shadow: 1px 1px 2px #2f1e0d;
-}
-
-.item-icon.large {
-  width: 56px;
-  height: 56px;
-  image-rendering: pixelated;
 }
 
 .description {

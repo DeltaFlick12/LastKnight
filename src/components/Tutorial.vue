@@ -109,7 +109,6 @@
           class="action-btn potion-btn"
           @click="usePotion"
           :disabled="!canUsePotion"
-          v-tooltip="'Cura 30 de Vida'"
         >
           Usar Poção ({{ potionCount }})
         </button>

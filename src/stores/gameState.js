@@ -16,7 +16,6 @@ export const useGameState = defineStore('gameState', {
       inventory: [],
       equipment: {
         weapon: null,
-        armor: null,
       },
       hasForbiddenPotion: false,
       relicsCollected: 0,
