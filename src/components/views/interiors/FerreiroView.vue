@@ -33,14 +33,14 @@
             <p v-if="gameState.player.inventory.length === 0">Sua mochila está vazia.</p>
             <ul v-else>
               <li v-for="invItem in gameState.player.inventory" :key="invItem.itemId">
-                <img :src="ITEMS[invItem.itemId].icon" alt="Item Icon" class="item-icon" />
-                {{ ITEMS[invItem.itemId].name }} - {{ ITEMS[invItem.itemId].description }}
+                <img :src="ITEMS[invItem.itemId]?.icon || '/icons/default-item.png'" alt="Item Icon" class="item-icon" />
+                {{ ITEMS[invItem.itemId]?.name || invItem.itemId }} - {{ ITEMS[invItem.itemId]?.description || 'Item desconhecido' }}
               </li>
             </ul>
           </div>
           <div class="shop-items-container">
             <div class="shop-item" v-for="item in weapons" :key="item.itemId" @mouseover="hoverItemDescription(item)" @mouseleave="hideHoverDialog">
-              <img :src="item.icon" :alt="item.name" class="weapon-icon" />
+              <img :src="item.icon || '/icons/default-item.png'" :alt="item.name" class="weapon-icon" />
               <div>
                 <strong>{{ item.name }}</strong>
                 <span>
@@ -67,86 +67,56 @@
         <p>{{ displayedText }}</p>
       </div>
     </transition>
-
-    <transition name="farewell-fade" @after-leave="onFarewellLeave">
-      <div v-if="showFarewell" class="dialog-box dialog-style centered-dialog farewell" key="farewell">
-        <p>{{ displayedText }}</p>
-      </div>
-    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { gameState, actions, ITEMS } from '@/stores/game.js'
-import bgImage from '@/assets/interior/ferreiro-bg.gif'
-import bjornParado from '/public/img/sprites/bjorn/bjorn.png'
-import bjornFalando from '/public/img/sprites/bjorn/bjorn-falando.gif'
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { gameState, actions, ITEMS } from '@/stores/game.js';
+import bgImage from '@/assets/interior/ferreiro-bg.gif';
+import bjornParado from '/public/img/sprites/bjorn/bjorn.png';
+import bjornFalando from '/public/img/sprites/bjorn/bjorn-falando.gif';
 
-const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png')
-const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png')
+const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png');
+const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png');
 
-const router = useRouter()
+const router = useRouter();
 
-const showDialog = ref(true)
-const dialogIndex = ref(0)
-const showHoverDialog = ref(false)
-const showShopDialog = ref(false)
-const showMessageDialog = ref(false)
-const hoverItemDescriptionText = ref('')
-const farewellMessage = ref('Volte sempre, guerreiro! Que suas batalhas sejam gloriosas!')
-const farewellDone = ref(false)
+// Audio setup
+const sounds = {
+  ambient: new Audio('/sounds/forge_ambient.mp3'),
+  dialogClick: new Audio('/sounds/click.wav'),
+  coinClank: new Audio('/sounds/coin_clank.mp3'),
+  doorCreak: new Audio('/sounds/door_creak.mp3'),
+};
+sounds.ambient.loop = true;
+sounds.ambient.volume = 0.3;
+sounds.dialogClick.volume = 0.5;
+sounds.coinClank.volume = 0.5;
+sounds.doorCreak.volume = 0.5;
 
-const firstVisitLines = [
-  'Ah, um novo guerreiro! Eu sou Bjorn, o ferreiro mais rúbido do reino!',
-  'Minhas armas são forjadas com fogo de dragão e suor de titãs.',
-  'Escolha com sabedoria, jovem... uma boa arma faz toda a diferença.',
-  'Vamos aos negócios!'
-]
+const showDialog = ref(true);
+const dialogIndex = ref(0);
+const showHoverDialog = ref(false);
+const showShopDialog = ref(false);
+const showMessageDialog = ref(false);
+const hoverItemDescriptionText = ref('');
+const dialogLines = ref([]);
+const displayedText = ref('');
+const typing = ref(false);
+const showShop = ref(false);
+const message = ref('');
+let typingInterval = null;
+let currentHoverItem = null;
 
-const repeatVisitLines = [
-  'Bem vindo de volta à minha forja, guerreiro! Espero que esteja pronto para reforjar seu arsenal.',
-]
+const bjornImage = ref(bjornParado);
 
-const shopDialogLines = ['Escolha uma arma para sua jornada, guerreiro!']
-const dialogLines = ref([])
-const displayedText = ref('')
-const typing = ref(false)
-const showShop = ref(false)
-const message = ref('')
-const showFarewell = ref(false)
-let typingInterval = null
-let currentHoverItem = null
-
-const bjornImage = ref(bjornParado)
-
-const weapons = [
-  {
-    itemId: 'sword_iron',
-    name: ITEMS.sword_iron.name,
-    price: ITEMS.sword_iron.price,
-    description: ITEMS.sword_iron.description,
-    stats: ITEMS.sword_iron.stats,
-    icon: ITEMS.sword_iron.icon || '/img/weapons/sword_iron.png',
-  },
-  {
-    itemId: 'axe_iron',
-    name: ITEMS.axe_iron.name,
-    price: 120,
-    description: ITEMS.axe_iron.description,
-    stats: ITEMS.axe_iron.stats,
-    icon: ITEMS.axe_iron.icon || '/img/weapons/axe_iron.png',
-  },
-  {
-    itemId: 'sword_mythril',
-    name: 'Lança Rúnica',
-    price: 200,
-    description: 'Aumenta o dano em +20. Forjada com magia anã.',
-    stats: { attack: 20 },
-    icon: ITEMS.sword_mythril?.icon || '/img/weapons/sword_mythril.png',
-  }
-]
+const weapons = computed(() =>
+  Object.values(ITEMS)
+    .filter(item => item.type === 'Arma' && item.price !== undefined)
+    .map(item => ({ ...item, itemId: item.id }))
+);
 
 const typeLine = (text) => {
   return new Promise((resolve) => {
@@ -155,7 +125,7 @@ const typeLine = (text) => {
     typing.value = true;
     bjornImage.value = bjornFalando;
 
-    const line = text || dialogLines.value[dialogIndex.value] || farewellMessage.value || hoverItemDescriptionText.value || shopDialogLines[0] || message.value;
+    const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value;
     let index = 0;
 
     typingInterval = setInterval(() => {
@@ -177,15 +147,17 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const nextDialog = async () => {
   if (typing.value) return;
+  sounds.dialogClick.play();
   if (dialogIndex.value < dialogLines.value.length - 1) {
     dialogIndex.value++;
     await typeLine(dialogLines.value[dialogIndex.value]);
-    await delay(2000); // Tempo para leitura
+    await delay(2000);
   } else {
     showDialog.value = false;
     showShop.value = true;
     showShopDialog.value = true;
     await typeLine(shopDialogLines[0]);
+    localStorage.setItem('visitedBlacksmith', 'true');
   }
 };
 
@@ -234,12 +206,13 @@ const buyWeapon = async (item) => {
     gameState.player.gold -= item.price;
     actions.addItemToInventory(item.itemId, 1);
     message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`;
+    sounds.coinClank.play();
   } else {
     message.value = 'Você não tem ouro suficiente.';
   }
   showMessageDialog.value = true;
   await typeLine(message.value);
-  await delay(2000); // Tempo para leitura
+  await delay(2000);
   hideAllDialogs();
   message.value = '';
   if (showShop.value) {
@@ -249,35 +222,30 @@ const buyWeapon = async (item) => {
 };
 
 const exitShop = async () => {
-  // Garante que outros diálogos estejam escondidos
   hideAllDialogs();
   showShop.value = false;
-
-  // Exibe o farewell
-  showFarewell.value = true;
-  farewellDone.value = false;
-
-  // Digita o texto do farewell
-  await typeLine(farewellMessage.value);
-
-  // Aguarda o tempo de leitura
-  await delay(3000);
-
-  // Inicia a transição de saída
-  showFarewell.value = false;
-};
-
-const onFarewellLeave = () => {
-  // Redireciona após a transição de saída
-  farewellDone.value = true;
+  sounds.doorCreak.play();
+  await delay(500);
   router.push('/level/albadia');
 };
 
 onMounted(() => {
-  const visited = localStorage.getItem('visitedBlacksmith');
+  sounds.doorCreak.play();
+  const visited = localStorage.getItem('visitedBlacksmith') === 'true';
   dialogLines.value = visited ? repeatVisitLines : firstVisitLines;
   dialogIndex.value = 0;
   typeLine(dialogLines.value[dialogIndex.value]);
+  sounds.ambient.play();
+  console.log('ITEMS:', ITEMS);
+  console.log('Weapons:', weapons.value);
+  console.log('Inventário:', gameState.player.inventory);
+  actions.addItemToInventory('axe_iron', 1); // Adiciona item para teste
+});
+
+onUnmounted(() => {
+  sounds.ambient.pause();
+  sounds.ambient.currentTime = 0;
+  if (typingInterval) clearInterval(typingInterval);
 });
 
 watch(() => showShop, (newVal) => {
@@ -287,9 +255,23 @@ watch(() => showShop, (newVal) => {
     typeLine(shopDialogLines[0]);
   }
 });
+
+const firstVisitLines = [
+  'Ah, um novo guerreiro! Eu sou Bjorn, o ferreiro mais rúbido do reino!',
+  'Minhas armas são forjadas com fogo de dragão e suor de titãs.',
+  'Escolha com sabedoria, jovem... uma boa arma faz toda a diferença.',
+  'Vamos aos negócios!'
+];
+
+const repeatVisitLines = [
+  'Bem vindo de volta à minha forja, guerreiro! Espero que esteja pronto para reforjar seu arsenal.',
+];
+
+const shopDialogLines = ['Escolha uma arma para sua jornada, guerreiro!'];
 </script>
 
 <style scoped>
+/* Mantém os estilos existentes sem alterações */
 .fade-in {
   animation: fadeIn 1.5s ease-in;
 }
@@ -552,8 +534,8 @@ watch(() => showShop, (newVal) => {
 }
 
 .item-icon {
-  width: 20px;
-  height: 20px;
+  width: 40px;
+  height: 40px;
   margin-right: 8px;
   image-rendering: pixelated;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
@@ -664,22 +646,5 @@ watch(() => showShop, (newVal) => {
 .shop-fade-enter-from, .shop-fade-leave-to {
   opacity: 0;
   transform: translateX(50px);
-}
-
-.farewell-fade-enter-active, .farewell-fade-leave-active {
-  transition: opacity 1s ease, transform 1s ease;
-}
-
-.farewell-fade-enter-from, .farewell-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
-
-.farewell p {
-  text-align: center;
-  font-weight: bold;
-  font-size: 1.1em;
-  margin-bottom: 0;
-  text-shadow: 1px 1px 0 #000;
 }
 </style>

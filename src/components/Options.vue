@@ -28,10 +28,9 @@
         <div class="buttons">
           <div class="menu-button" @click="saveSettings">{{ texts[language].save }}</div>
           <div class="menu-button" @click="goBack">{{ texts[language].back }}</div>
-          <div class="buttons">
-          <div class="menu-button danger-button" @click="resetProgress">RESETAR PROGRESSO</div>
-        </div>
-
+          <div class="menu-button danger-button" @click="resetProgress">
+            {{ texts[language].reset }}
+          </div>
         </div>
       </div>
 
@@ -47,18 +46,6 @@ import { useRouter } from "vue-router";
 
 const router = useRouter();
 
-
-const resetProgress = () => {
-  playClick();
-  if (confirm(language.value === "pt"
-    ? "Tem certeza que deseja apagar todo o progresso? Isso não pode ser desfeito!"
-    : "Are you sure you want to reset all progress? This cannot be undone!")) {
-    localStorage.clear();
-    location.reload();
-  }
-};
-
-
 const texts = {
   pt: {
     title: "OPÇÕES",
@@ -66,6 +53,7 @@ const texts = {
     language: "Idioma",
     save: "SALVAR",
     back: "VOLTAR",
+    reset: "RESETAR PROGRESSO",
     savedMsg: "Configurações salvas!"
   },
   en: {
@@ -74,7 +62,16 @@ const texts = {
     language: "Language",
     save: "SAVE",
     back: "BACK",
+    reset: "RESET PROGRESS",
     savedMsg: "Settings saved!"
+  }
+};
+
+const resetProgress = () => {
+  playClick();
+  if (confirm(texts[language.value].confirmReset)) {
+    localStorage.clear();
+    location.reload();
   }
 };
 
@@ -176,7 +173,7 @@ function playClick() {
   border: 6px solid #5c2c1d;
   border-radius: 10px;
   padding: 20px;
-  padding-bottom: 60px; /* 👈 adicione isso ou aumente o valor */
+  padding-bottom: 60px;
   width: 80%;
   max-width: 600px;
   max-height: 80vh;
@@ -279,7 +276,8 @@ select:focus {
   display: flex;
   gap: 20px;
   justify-content: center;
-  margin-top: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
 }
 
 .menu-button {
@@ -288,8 +286,9 @@ select:focus {
   border: 4px solid #5c2c1d;
   padding: 10px 40px;
   width: 200px;
-  height: 30px;
-  font-size: 30px;
+  height: 50px;
+  line-height: 30px;
+  font-size: 24px;
   text-align: center;
   cursor: pointer;
   box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
@@ -308,7 +307,40 @@ select:focus {
   box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8e;
 }
 
-/* Mensagem de salvamento */
+.danger-button {
+  background-color: #b22222;
+  color: #fff2cc;
+  border-color: #7e1a1a;
+  box-shadow: inset -6px -6px #8b0000, inset 6px 6px #ff4040;
+  position: relative;
+  overflow: hidden;
+}
+
+.danger-button:hover {
+  background-color: #9b1d1d;
+  box-shadow: inset -6px -6px #6b1515, inset 6px 6px #ff6666;
+  color: #ffffff;
+}
+
+.danger-button:active {
+  transform: translateY(2px);
+  box-shadow: inset -3px -3px #8b0000, inset 3px 3px #ff4040;
+}
+
+.danger-button::before {
+  content: "⚠";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 20px;
+  opacity: 0.7;
+}
+
+.danger-button:hover::before {
+  opacity: 1;
+}
+
 .saved-msg {
   position: absolute;
   bottom: 11px;
@@ -325,6 +357,7 @@ select:focus {
   transition: opacity 0.3s ease-in-out;
   pointer-events: none;
 }
+
 .saved-msg.show {
   opacity: 1;
 }
@@ -332,9 +365,11 @@ select:focus {
 .options-content::-webkit-scrollbar {
   width: 10px;
 }
+
 .options-content::-webkit-scrollbar-track {
   background: #d17844;
 }
+
 .options-content::-webkit-scrollbar-thumb {
   background: #5c2c1d;
   border-radius: 5px;
@@ -346,14 +381,4 @@ select:focus {
   overflow: hidden;
   height: 100vh;
 }
-
-.danger-button {
-  background-color: #b22222;
-  color: #fff2cc;
-}
-.danger-button:hover {
-  background-color: #8b0000;
-  color: #ffe9b3;
-}
-
 </style>

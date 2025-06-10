@@ -1,28 +1,26 @@
-```vue
 <template>
   <div class="bruxa-screen">
     <img :src="bgImage" alt="Background" class="background-image" />
     <img :src="margaretImage" alt="Margaret, a Bruxa" class="margaret-image" :class="{ breathing: !typing }" />
 
-    <!-- Névoa de fundo para tema místico -->
     <div class="fog-layer"></div>
 
     <transition name="fade">
-      <div v-if="showDialog" class="dialog-box dialog-style centered-dialog" key="dialog">
+      <div v-if="showDialog" class="dialog-box dialog-style centered-dialog">
         <p>{{ displayedText }}</p>
         <button @click="nextDialog" :disabled="typing" class="dialog-button">Continuar</button>
       </div>
     </transition>
 
     <transition name="fade">
-      <div v-if="showHoverDialog" class="dialog-box dialog-style hover-dialog" key="hoverDialog">
+      <div v-if="showHoverDialog" class="dialog-box dialog-style hover-dialog">
         <p>{{ displayedText }}</p>
       </div>
     </transition>
 
     <transition name="shop-fade">
-      <div v-if="showShop" class="shop-box dialog-style" key="shop">
-        <button class="dialog-button exit-button" @click="exitShop">Sair</button>
+      <div v-if="showShop" class="shop-box dialog-style">
+        <button class="dialog-button exit-button" @click="router.push('/level/albadia')">Sair</button>
         <h3 class="shop-name">CASA DAS POÇÕES DE MARGARET</h3>
         <h4 class="shop-title">Escolha sua poção:</h4>
         <div class="gold-display">
@@ -37,28 +35,14 @@
             <p v-if="gameState.player.inventory.length === 0">Sua mochila está vazia.</p>
             <ul v-else>
               <li v-for="invItem in gameState.player.inventory" :key="invItem.itemId">
-                <img
-                  :src="ITEMS[invItem.itemId]?.icon || '/icons/default-item.png'"
-                  alt="Item Icon"
-                  class="item-icon"
-                />
+                <img :src="ITEMS[invItem.itemId]?.icon || '/icons/default-item.png'" alt="Item Icon" class="item-icon" />
                 {{ ITEMS[invItem.itemId]?.name || invItem.itemId }} - {{ ITEMS[invItem.itemId]?.description || 'Item desconhecido' }}
               </li>
             </ul>
           </div>
           <div class="shop-items-container">
-            <div
-              class="shop-item"
-              v-for="item in allItems"
-              :key="item.id || item.name"
-              @mouseover="hoverItemDescription(item)"
-              @mouseleave="hideHoverDialog"
-            >
-              <img
-                :src="item.icon || '/icons/default-item.png'"
-                :alt="item.name"
-                class="potion-icon"
-              />
+            <div class="shop-item" v-for="item in allItems" :key="item.id" @mouseover="hoverItemDescription(item)" @mouseleave="hideHoverDialog">
+              <img :src="item.icon || '/icons/default-item.png'" :alt="item.name" class="potion-icon" />
               <div>
                 <strong>{{ item.name }}</strong>
                 <span>
@@ -75,19 +59,13 @@
     </transition>
 
     <transition name="fade">
-      <div v-if="showShopDialog" class="dialog-box dialog-style shop-dialog" key="shopDialog">
+      <div v-if="showShopDialog" class="dialog-box dialog-style shop-dialog">
         <p>{{ displayedText }}</p>
       </div>
     </transition>
 
     <transition name="fade">
-      <div v-if="showMessageDialog" class="dialog-box dialog-style message-dialog" key="messageDialog">
-        <p>{{ displayedText }}</p>
-      </div>
-    </transition>
-
-    <transition name="farewell-fade" @after-leave="onFarewellLeave">
-      <div v-if="showFarewell" class="dialog-box dialog-style centered-dialog farewell" key="farewell">
+      <div v-if="showMessageDialog" class="dialog-box dialog-style message-dialog">
         <p>{{ displayedText }}</p>
       </div>
     </transition>
@@ -97,13 +75,10 @@
 <script setup>
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { gameState, actions, ITEMS, ITEM_ICONS } from '@/stores/game.js'
+import { gameState, actions, ITEMS } from '@/stores/game.js' // Remove ITEM_ICONS from import
 import bgImage from '@/assets/interior/bruxa-bg.gif'
 import margaretParada from '/public/img/sprites/margaret/margaret-parada.png'
 import margaretFalando from '/public/img/sprites/margaret/margaret-falando.gif'
-
-const goldIcon = computed(() => ITEM_ICONS.gold || '/icons/gold-icon.png')
-const backpackIcon = computed(() => ITEM_ICONS.backpack || '/icons/bag-icon.png')
 
 const router = useRouter()
 
@@ -113,17 +88,28 @@ const showHoverDialog = ref(false)
 const showShopDialog = ref(false)
 const showMessageDialog = ref(false)
 const showShop = ref(false)
-const showFarewell = ref(false)
-const farewellDone = ref(false)
 const displayedText = ref('')
 const typing = ref(false)
 const hoverItemDescriptionText = ref('')
-const farewellMessage = ref('Volte quando precisar de mais magia, jovem! Que as sombras te protejam!')
 const message = ref('')
 let typingInterval = null
 let currentHoverItem = null
 
 const margaretImage = ref(margaretParada)
+
+const audioClick = new Audio('/sounds/ui/click.wav')
+const audioTyping = new Audio('/sounds/ui/typing.mp3')
+const audioBuy = new Audio('/sounds/ui/buy.wav')
+const audioError = new Audio('/sounds/ui/error.wav')
+
+const playSound = (audio) => {
+  if (!audio) return
+  audio.currentTime = 0
+  audio.play().catch(() => {})
+}
+
+const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png') // Use ITEMS instead of ITEM_ICONS
+const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png') // Use ITEMS instead of ITEM_ICONS
 
 const firstVisitLines = [
   'Olá, jovem viajante! Sou Margaret, a bruxa de Albadia, guardiã dos segredos alquímicos.',
@@ -133,60 +119,20 @@ const firstVisitLines = [
 ]
 
 const repeatVisitLines = [
-  'De volta à minha morada, hein? Espero que tenha vindo por mais do meu... toque mágico.',
+  'De volta à minha morada, hein? Espero que tenha vindo por mais do meu... toque mágico.'
 ]
 
 const shopDialogLines = ['Escolha uma poção para sua jornada, jovem!']
-
 const dialogLines = ref([])
 
-const localItems = [
-  {
-    id: 'potion_health',
-    name: 'Poção de Cura',
-    price: 80,
-    description: 'Restaura 50 de vida.',
-    effect: { heal: 50 },
-    icon: '/icons/potion-health.png',
-  },
-  {
-    id: 'potion_mystery',
-    name: 'Poção Azul Misteriosa',
-    price: 120,
-    description: 'Um líquido enigmático que pode revelar segredos... ou não.',
-    effect: { mystery: true },
-    icon: '/icons/potion-mystery.png',
-  },
-  {
-    id: 'potion_death',
-    name: 'Poção da Morte',
-    price: 999,
-    description: 'Uma poção letal. Use por sua conta e risco.',
-    effect: { heal: -999 },
-    icon: '/icons/potion-death.png',
-  },
-]
-
-const globalItems = [
-  {
-    id: 'potion_stamina_small',
-    name: 'Poção de Vigor Pequena',
-    price: 20,
-    description: 'Restaura uma pequena quantidade de stamina.',
-    effect: { stamina: 50 },
-    icon: '/icons/potion-stamina-small.png',
-  },
-  {
-    id: 'potion_forbidden',
-    name: 'Poção Proibida',
-    price: 500,
-    description: 'Um líquido instável que pulsa com poder... Dizem que pode trocar vida por vida.',
-    effect: { forbidden: true },
-    icon: '/icons/potion-forbidden.png',
-  },
-]
-
-const allItems = computed(() => [...localItems, ...globalItems])
+const allItems = computed(() =>
+  Object.values(ITEMS)
+    .filter(i => i.type === 'Consumível' || i.type === 'Consumível Especial')
+    .map(i => ({
+      ...i,
+      icon: ITEMS[i.id]?.icon || '/icons/default-item.png' // Use ITEMS instead of ITEM_ICONS
+    }))
+)
 
 const typeLine = (text) => {
   return new Promise((resolve) => {
@@ -195,13 +141,14 @@ const typeLine = (text) => {
     typing.value = true
     margaretImage.value = margaretFalando
 
-    const line = text || dialogLines.value[dialogIndex.value] || farewellMessage.value || hoverItemDescriptionText.value || shopDialogLines[0] || message.value
+    const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value
     let index = 0
 
     typingInterval = setInterval(() => {
       if (index < line.length) {
         displayedText.value += line[index]
         index++
+        if (index % 3 === 0) playSound(audioTyping)
       } else {
         clearInterval(typingInterval)
         typingInterval = null
@@ -222,8 +169,6 @@ const resetState = () => {
   showShopDialog.value = false
   showMessageDialog.value = false
   showShop.value = false
-  showFarewell.value = false
-  farewellDone.value = false
   displayedText.value = ''
   typing.value = false
   hoverItemDescriptionText.value = ''
@@ -237,19 +182,16 @@ const resetState = () => {
 
 const nextDialog = async () => {
   if (typing.value) return
-  try {
-    if (dialogIndex.value < dialogLines.value.length - 1) {
-      dialogIndex.value++
-      await typeLine(dialogLines.value[dialogIndex.value])
-      await delay(2000)
-    } else {
-      showDialog.value = false
-      showShop.value = true
-      showShopDialog.value = true
-      await typeLine(shopDialogLines[0])
-    }
-  } catch (error) {
-    console.error('Error in nextDialog:', error)
+  playSound(audioClick)
+  if (dialogIndex.value < dialogLines.value.length - 1) {
+    dialogIndex.value++
+    await typeLine(dialogLines.value[dialogIndex.value])
+    await delay(2000)
+  } else {
+    showDialog.value = false
+    showShop.value = true
+    showShopDialog.value = true
+    await typeLine(shopDialogLines[0])
   }
 }
 
@@ -299,6 +241,7 @@ const buyItem = async (item) => {
     const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === (item.id || item.name))
     if (existingItem) {
       message.value = `Você já possui ${item.name}.`
+      playSound(audioError)
     } else if (gameState.player.gold >= item.price) {
       actions.removeGold(item.price)
       actions.addItemToInventory(item.id || item.name, 1)
@@ -310,8 +253,10 @@ const buyItem = async (item) => {
         }
       }
       message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`
+      playSound(audioBuy)
     } else {
       message.value = 'Você não tem ouro suficiente.'
+      playSound(audioError)
     }
     showMessageDialog.value = true
     await typeLine(message.value)
@@ -325,6 +270,7 @@ const buyItem = async (item) => {
   } catch (error) {
     console.error('Error buying item:', error)
     message.value = 'Erro ao comprar o item.'
+    playSound(audioError)
     showMessageDialog.value = true
     await typeLine(message.value)
     await delay(2000)
@@ -332,37 +278,8 @@ const buyItem = async (item) => {
   }
 }
 
-const exitShop = async () => {
-  try {
-    console.log('Starting exitShop')
-    hideAllDialogs()
-    showShop.value = false
-    showFarewell.value = true
-    farewellDone.value = false
-    console.log('Showing farewell dialog')
-    await typeLine(farewellMessage.value)
-    console.log('Farewell message typed')
-    await delay(3000) // Time to read
-    console.log('Hiding farewell dialog')
-    showFarewell.value = false
-    await delay(1000) // Wait for 1s transition
-    console.log('Farewell transition should be complete')
-  } catch (error) {
-    console.error('Error in exitShop:', error)
-    showFarewell.value = false
-    router.push('/level/albadia') // Fallback
-  }
-}
-
-const onFarewellLeave = () => {
-  console.log('Farewell transition complete, redirecting to /level/albadia')
-  farewellDone.value = true
-  router.push('/level/albadia')
-}
-
 onMounted(() => {
   try {
-    console.log('BruxaView mounted')
     resetState()
     const visited = localStorage.getItem('visitedWitchShop')
     dialogLines.value = visited ? repeatVisitLines : firstVisitLines
@@ -375,7 +292,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  console.log('BruxaView unmounted')
   if (typingInterval) {
     clearInterval(typingInterval)
     typingInterval = null

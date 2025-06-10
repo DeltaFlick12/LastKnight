@@ -47,7 +47,7 @@ const areas = ref([
   {
     name: 'Reino Albadia',
     top: '65%',
-    left: '14%',
+    left: '17%',
     width: '25%',
     height: '30%',
     route: '/level/albadia',
@@ -59,8 +59,8 @@ const areas = ref([
   {
     name: 'Floresta',
     top: '15%',
-    left: '10%',
-    width: '35%',
+    left: '15%',
+    width: '30%',
     height: '30%',
     route: '/level/floresta',
     unlocked: true,
@@ -71,7 +71,7 @@ const areas = ref([
   {
     name: 'Rio',
     top: '60%',
-    left: '39%',
+    left: '40%',
     width: '15%',
     height: '15%',
     route: '/level/rio',
