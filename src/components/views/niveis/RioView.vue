@@ -26,9 +26,11 @@
 import bgImage from '@/assets/backviews/rio-bg.gif';
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import { gameState, actions } from '@/stores/game.js';
+import { useGameState } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
 
 const router = useRouter();
+const gameState = useGameState(); // Initialize the Pinia store
+
 const showDialog = ref(true);
 const displayedText = ref('');
 const typing = ref(false);
@@ -79,7 +81,7 @@ function atravessar() {
   showDialog.value = false; // Remove o painel de diálogo
   if (!hasBlessing.value) {
     const damage = 35;
-    actions.takeDamage(damage);
+    gameState.takeDamage(damage); // Use gameState instead of actions
     showDamageScreen.value = true; // Mostra a tela de dano
     if (gameState.player.health > 0) {
       notificationMessage.value = `As águas negras gelam seus ossos! Você sente sua vitalidade diminuir... Saúde atual: ${playerHealth.value}. Vidas restantes: ${playerLives.value}`;
@@ -97,15 +99,15 @@ function atravessar() {
     } else {
       playLoseLifeSound(); // Toca apenas o som de morte
       notificationMessage.value = "Sua alma foi reivindicada pelo rio... Todas as vidas foram perdidas.";
-      actions.gameOver();
+      gameState.gameOver(); // Use gameState instead of actions
       setTimeout(() => router.push('/gameover'), 2000);
     }
     return;
   } else {
     showSuccessScreen.value = true;
     successMessage.value = 'A bênção protege você das profundezas sombrias. Você atravessou o rio!';
-    actions.completeLevel('rio');
-    actions.setCurrentArea('ruinas');
+    gameState.completeLevel('rio'); // Use gameState instead of actions
+    gameState.setCurrentArea('ruinas'); // Use gameState instead of actions
     setTimeout(() => {
       showSuccessScreen.value = false;
       router.push('/level/ruinas');
@@ -114,7 +116,7 @@ function atravessar() {
 }
 
 function voltar() {
-  actions.setCurrentArea('albadia');
+  gameState.setCurrentArea('albadia'); // Use gameState instead of actions
   router.push('/level/albadia');
 }
 
@@ -146,7 +148,7 @@ function closeNotification() {
 }
 
 onMounted(() => {
-  actions.setCurrentArea('Rio das Almas Perdidas');
+  gameState.setCurrentArea('Rio das Almas Perdidas'); // Use gameState instead of actions
   typeText();
   nextTick(() => {
     isMounted.value = true;
@@ -167,7 +169,7 @@ onUnmounted(() => {
 
 watch(isFirstVisit, (newValue) => {
   if (!newValue && !gameState.levelsCompleted.includes('rio')) {
-    actions.completeLevel('rio');
+    gameState.completeLevel('rio'); // Use gameState instead of actions
   }
 });
 

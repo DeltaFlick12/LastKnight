@@ -73,10 +73,13 @@
 <script setup>
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { gameState, actions, ITEMS } from '@/stores/game.js';
+import { useGameState, ITEMS } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
 import bgImage from '@/assets/interior/ferreiro-bg.gif';
 import bjornParado from '/public/img/sprites/bjorn/bjorn.png';
 import bjornFalando from '/public/img/sprites/bjorn/bjorn-falando.gif';
+
+// Initialize the Pinia store
+const gameState = useGameState(); // Call useGameState to get the store instance
 
 const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png');
 const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png');
@@ -204,7 +207,7 @@ const buyWeapon = async (item) => {
     message.value = `Você já possui ${item.name}.`;
   } else if (gameState.player.gold >= item.price) {
     gameState.player.gold -= item.price;
-    actions.addItemToInventory(item.itemId, 1);
+    gameState.addItemToInventory(item.itemId, 1); // Use gameState to call the action
     message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`;
     sounds.coinClank.play();
   } else {
@@ -239,7 +242,7 @@ onMounted(() => {
   console.log('ITEMS:', ITEMS);
   console.log('Weapons:', weapons.value);
   console.log('Inventário:', gameState.player.inventory);
-  actions.addItemToInventory('axe_iron', 1); // Adiciona item para teste
+  gameState.addItemToInventory('axe_iron', 1); // Use gameState to call the action
 });
 
 onUnmounted(() => {
