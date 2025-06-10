@@ -45,39 +45,29 @@ const obstacles = [
 const lightSources = [
   { x: 2560, y: 1085, radius: 200, intensity: 0.2, color: 'rgba(0, 255, 0, 0.4)' },
   { x: 3090, y: 1200, radius: 200, intensity: 0.1, color: 'rgba(0, 255, 0, 0.4)' },
-  { x: 1190, y: 990, radius: 700, intensity: 1.8, color: 'rgba(255, 100, 0, 0.6)' }, // Luz avermelhada
-  { x: 2433, y: 2000, radius: 850, intensity: 0, color: 'rgba(255, 255, 255, 0.3)' }   // Azul intensa
+  { x: 1190, y: 990, radius: 700, intensity: 1.8, color: 'rgba(255, 100, 0, 0.6)' },
+  { x: 2433, y: 2000, radius: 850, intensity: 0, color: 'rgba(255, 255, 255, 0.3)' }
 ]
 
 function drawLights(ctx, cam) {
-  // Escurece tudo
   ctx.save()
   ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'
   ctx.fillRect(0, 0, canvas.value.width, canvas.value.height)
-
-  // Mescla com luzes
   for (const light of lightSources) {
     const screenX = light.x - cam.x
     const screenY = light.y - cam.y
-
-    const gradient = ctx.createRadialGradient(
-      screenX, screenY, 0,
-      screenX, screenY, light.radius
-    )
+    const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, light.radius)
     gradient.addColorStop(0, light.color)
     gradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
-
     ctx.globalCompositeOperation = 'lighter'
     ctx.fillStyle = gradient
     ctx.beginPath()
     ctx.arc(screenX, screenY, light.radius, 0, Math.PI * 2)
     ctx.fill()
   }
-
   ctx.restore()
   ctx.globalCompositeOperation = 'source-over'
 }
-
 
 const usePotion = () => {
   if (potions.value > 0) {
@@ -104,7 +94,6 @@ backgrounds[0].src = '/img/albadia/albadia-bg-manha.png'
 backgrounds[1].src = '/img/albadia/albadia-bg.png'
 backgrounds[2].src = '/img/albadia/albadia-bg-tarde.png'
 backgrounds[3].src = '/img/albadia/albadia-bg-noite.png'
-
 for (const bg of backgrounds) {
   bg.onload = imageLoadedCallback
   bg.onerror = () => console.error('Erro ao carregar uma imagem de background')
@@ -112,7 +101,6 @@ for (const bg of backgrounds) {
 
 const foreground = new Image()
 const playerSpriteSheet = new Image()
-
 const frameWidth = 96
 const frameHeight = 96
 
@@ -161,7 +149,6 @@ function startBackgroundTransition() {
 }
 
 let lastBgSwitchTime = 0
-
 onMounted(() => {
   if (!canvas.value) return
   ctx = canvas.value.getContext('2d')
@@ -169,10 +156,8 @@ onMounted(() => {
   window.addEventListener('resize', resizeCanvas)
   document.addEventListener('keydown', onKeyDown)
   document.addEventListener('keyup', onKeyUp)
-
   loadImage(foreground, '/img/albadia/albadiaDetalhes.png')
   loadImage(playerSpriteSheet, '/img/sprites/player/player_sprite.png')
-
   lastBgSwitchTime = performance.now()
 })
 
@@ -211,15 +196,12 @@ function gameLoop(timestamp) {
     animationFrameId = requestAnimationFrame(gameLoop)
     return
   }
-
   if (!lastUpdateTime) lastUpdateTime = timestamp
   const delta = timestamp - lastUpdateTime
-
   if (delta >= 15) {
     update(delta / 1000, timestamp)
     lastUpdateTime = timestamp
   }
-
   draw()
   animationFrameId = requestAnimationFrame(gameLoop)
 }
@@ -228,53 +210,43 @@ function update(deltaSeconds, timestamp) {
   const { w, a, s, d, shift } = keys
   let moved = false
   let dx = 0, dy = 0
-
   if (w) { dy -= 1; moved = true }
   if (s) { dy += 1; moved = true }
   if (a) { dx -= 1; moved = true }
   if (d) { dx += 1; moved = true }
-
   if (dx !== 0 && dy !== 0) {
     const invSqrt2 = 1 / Math.sqrt(2)
     dx *= invSqrt2
     dy *= invSqrt2
   }
+  const flickerSpeed = 5
+  const flickerAmount = 0.2
+  const baseIntensity = 1.8
+  const baseRadius = 500
+  const flicker = Math.sin(timestamp / 1000 * flickerSpeed)
+  lightSources[2].intensity = baseIntensity + flicker * flickerAmount
+  lightSources[2].radius = baseRadius + flicker * (flickerAmount * 200)
+  if (lightSources[2].intensity < 0) lightSources[2].intensity = 0
 
-  const flickerSpeed = 5; // frequência da oscilação
-  const flickerAmount = 0.2; // variação máxima da intensidade e raio
-
-const baseIntensity = 1.8;
-  const baseRadius = 500;
-
-    const flicker = Math.sin(timestamp / 1000 * flickerSpeed);
-      lightSources[2].intensity = baseIntensity + flicker * flickerAmount;
-  lightSources[2].radius = baseRadius + flicker * (flickerAmount * 200);
-    if (lightSources[2].intensity < 0) lightSources[2].intensity = 0;
-
-
-if (moved) {
-  let speed = player.speed
-
-  if (shift && gameState.player.stamina > 0) {
-    gameState.player.stamina -= staminaConsumptionRate * deltaSeconds
-    if (gameState.player.stamina <= 0) {
-      gameState.player.stamina = 0
+  if (moved) {
+    let speed = player.speed
+    if (shift && gameState.player.stamina > 0) {
+      gameState.player.stamina -= staminaConsumptionRate * deltaSeconds
+      if (gameState.player.stamina <= 0) {
+        gameState.player.stamina = 0
+      } else {
+        speed = player.runSpeed
+      }
     } else {
-      speed = player.runSpeed // Só aumenta a velocidade se ainda tem stamina após o gasto
+      gameState.player.stamina += staminaRecoveryRate * deltaSeconds
+      if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
     }
-  } else {
-    gameState.player.stamina += staminaRecoveryRate * deltaSeconds
-    if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
-  }
-
     if (dy < 0) player.direction = 'walk_up'
     else if (dy > 0) player.direction = 'walk_down'
     else if (dx < 0) player.direction = 'walk_left'
     else if (dx > 0) player.direction = 'walk_right'
-
     let newX = player.x + dx * speed
     let newY = player.y + dy * speed
-
     for (const obs of obstacles) {
       if (rectCircleColliding(newX, newY, player.size / 4, player.size / 4, obs.x, obs.y, obs.width, obs.height)) {
         newX = player.x
@@ -282,7 +254,6 @@ if (moved) {
         break
       }
     }
-
     player.x = Math.min(Math.max(newX, 0), world.width)
     player.y = Math.min(Math.max(newY, 0), world.height)
   } else {
@@ -290,18 +261,14 @@ if (moved) {
     gameState.player.stamina += staminaRecoveryRate * deltaSeconds
     if (gameState.player.stamina > maxStamina) gameState.player.stamina = maxStamina
   }
-
   const nearbyStructure = getPlayerNearbyStructure()
   showEnterPrompt.value = !!nearbyStructure?.name
   structureName.value = nearbyStructure?.name || ''
-
   updateAnimation(deltaSeconds)
-
   if (timestamp - lastBgSwitchTime > 10000 && transitionAlpha === 0) {
     startBackgroundTransition()
     lastBgSwitchTime = timestamp
   }
-
   if (transitionAlpha < 1) {
     const elapsed = timestamp - transitionStartTime
     transitionAlpha = Math.min(elapsed / transitionDuration, 1)
@@ -328,6 +295,7 @@ function rectCircleColliding(cx, cy, cwidth, cheight, rx, ry, rw, rh) {
   )
 }
 
+
 function draw() {
   if (!ctx || !allImagesLoaded) return
 
@@ -348,25 +316,16 @@ function draw() {
     ctx.drawImage(backgrounds[nextBackgroundIndex], -cam.x, -cam.y, world.width, world.height)
   }
 
-  ctx.globalAlpha = 2
-
-  // ** AQUI: chama a função que desenha as luzes **
+  ctx.globalAlpha = 1
   drawLights(ctx, cam)
-
-  ctx.save()
-  ctx.fillStyle = 'rgba(255, 0, 0, 0)'
-  for (const obs of obstacles) {
-    ctx.fillRect(obs.x - cam.x, obs.y - cam.y, obs.width, obs.height)
-  }
-  ctx.restore()
 
   const anim = animations[player.direction] || animations.idle
   const frame = anim.frames[currentFrameIndex]
   const sx = frame * frameWidth
   const sy = anim.row * frameHeight
+  
 
   ctx.save()
-  // Filtro de brilho aplicado SOMENTE ao player:
   switch (backgroundIndex) {
     case 0: ctx.filter = 'brightness(1)'; break
     case 1: ctx.filter = 'brightness(0.7)'; break
@@ -374,7 +333,6 @@ function draw() {
     case 3: ctx.filter = 'brightness(0.8)'; break
     default: ctx.filter = 'none'
   }
-
   ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
   ctx.shadowBlur = 6
   ctx.shadowOffsetX = 0
@@ -388,8 +346,9 @@ function draw() {
     player.size,
     player.size
   )
-
   ctx.restore()
+
+  ctx.globalAlpha = 1
 }
 
 function updateAnimation(deltaSeconds) {
