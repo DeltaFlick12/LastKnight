@@ -27,12 +27,13 @@ export const ITEMS = {
 const initialState = {
   player: {
     classe: 'Guerreiro',
+    name: 'Joao',
     health: 100,
     maxHealth: 100,
     stamina: 100,
     maxStamina: 100,
     gold: 100,
-    lives: 3, // Added lives property
+    lives: 3,
     inventory: [{ itemId: 'sword_wood', quantity: 1 }, { itemId: 'potion_health', quantity: 1 }],
     equipment: {
       weapon: 'sword_wood',
@@ -47,7 +48,7 @@ const initialState = {
       ice: false,
       fire: false
     },
-    hasRiverBlessing: true,
+    hasRiverBlessing: false,
     hasForbiddenPotion: false,
   },
   boss: {

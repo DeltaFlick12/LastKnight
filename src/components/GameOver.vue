@@ -8,11 +8,12 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
+import { gameState, actions } from '@/stores/game.js';
 
 const router = useRouter()
 
 const restartGame = () => {
-  localStorage.clear()
+  actions.resetGame()
   router.push('/')
 }
 </script>

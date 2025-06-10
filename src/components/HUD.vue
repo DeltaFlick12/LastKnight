@@ -2,42 +2,42 @@
   <div class="main-hud">
     <!-- Painel com vida e energia -->
     <div class="panel-frame">
-<!-- Vida -->
-<div class="stat vida">
-  <div class="icon-container">
-    <img src="/icons/life-icon.png" alt="Vida" class="icon" />
-  </div>
-  <div class="bar-container segmented">
-    <div
-      v-for="i in maxBarSegments"
-      :key="'vida-' + i"
-      class="segment"
-      :class="{ filled: i <= filledHealthSegments }"
-    ></div>
-    <span class="bar-label">
-      {{ Math.floor(gameState.player.health) }}/{{ Math.floor(gameState.player.maxHealth) }}
-    </span>
-  </div>
-</div>
+      <!-- Vida -->
+      <div class="stat vida">
+        <div class="icon-container">
+          <img src="/icons/life-icon.png" alt="Vida" class="icon" />
+          <span class="lives-count">{{ gameState.player.lives }}</span>
+        </div>
+        <div class="bar-container segmented">
+          <div
+            v-for="i in maxBarSegments"
+            :key="'vida-' + i"
+            class="segment"
+            :class="{ filled: i <= filledHealthSegments }"
+          ></div>
+          <span class="bar-label">
+            {{ Math.floor(gameState.player.health) }}/{{ Math.floor(gameState.player.maxHealth) }}
+          </span>
+        </div>
+      </div>
 
-<!-- Energia -->
-<div class="stat energia">
-  <div class="icon-container">
-    <img src="/icons/stam-icon.png" alt="Energia" class="icon" />
-  </div>
-  <div class="bar-container segmented">
-    <div
-      v-for="i in maxBarSegments"
-      :key="'energia-' + i"
-      class="segment"
-      :class="{ filled: i <= filledStaminaSegments }"
-    ></div>
-    <span class="bar-label">
-      {{ Math.floor(gameState.player.stamina) }}/{{ Math.floor(gameState.player.maxStamina) }}
-    </span>
-  </div>
-</div>
-
+      <!-- Energia -->
+      <div class="stat energia">
+        <div class="icon-container">
+          <img src="/icons/stam-icon.png" alt="Energia" class="icon" />
+        </div>
+        <div class="bar-container segmented">
+          <div
+            v-for="i in maxBarSegments"
+            :key="'energia-' + i"
+            class="segment"
+            :class="{ filled: i <= filledStaminaSegments }"
+          ></div>
+          <span class="bar-label">
+            {{ Math.floor(gameState.player.stamina) }}/{{ Math.floor(gameState.player.maxStamina) }}
+          </span>
+        </div>
+      </div>
     </div>
 
     <!-- Botões no lado direito central -->
@@ -62,9 +62,9 @@
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import Inventory from "@/components/Inventory.vue";
-import { useGameState } from "@/stores/gameState"; // <--- Importa o gameState da Pinia
+import { useGameState } from "@/stores/gameState";
 
-const gameState = useGameState(); // <--- Usa o gameState da store
+const gameState = useGameState();
 
 const router = useRouter();
 const inventoryOpen = ref(false);
@@ -112,7 +112,7 @@ const filledStaminaSegments = computed(() => {
 .panel-frame {
   display: flex;
   flex-direction: column;
-  gap: 18px; /* mais espaço vertical entre vida e energia */
+  gap: 18px;
 }
 
 .stat {
@@ -122,6 +122,7 @@ const filledStaminaSegments = computed(() => {
 }
 
 .icon-container {
+  position: relative;
   width: 32px;
   height: 32px;
   display: flex;
@@ -135,6 +136,18 @@ const filledStaminaSegments = computed(() => {
   image-rendering: pixelated;
   margin-left: 20px;
   z-index: 100;
+}
+
+.lives-count {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 16px;
+  color: #fff;
+  text-shadow: 1px 1px 2px #000;
+  font-weight: bold;
+  z-index: 101;
 }
 
 .bar-container {
@@ -168,8 +181,8 @@ const filledStaminaSegments = computed(() => {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 0.5px; /* Menor espaço entre barrinhas */
-  padding: 1px; /* Margem interna menor */
+  gap: 0.5px;
+  padding: 1px;
 }
 
 .segment {
@@ -182,12 +195,13 @@ const filledStaminaSegments = computed(() => {
 }
 
 .vida .segment.filled {
-  background: linear-gradient(to bottom, #ff3333,rgb(106, 15, 15));
+  background: linear-gradient(to bottom, #ff3333, rgb(106, 15, 15));
 }
 
 .energia .segment.filled {
-  background: linear-gradient(to bottom, #33cc33,rgb(11, 112, 11));
+  background: linear-gradient(to bottom, #33cc33, rgb(11, 112, 11));
 }
+
 /* Botões no lado direito */
 .hud-buttons {
   position: fixed;
@@ -213,7 +227,6 @@ const filledStaminaSegments = computed(() => {
 .bag-button:hover img {
   transform: scale(1.1);
   transition: transform 0.2s;
-
 }
 
 .map-button:active img,
@@ -236,5 +249,4 @@ const filledStaminaSegments = computed(() => {
 .energia .bar {
   background: linear-gradient(to bottom, #33cc33, #009900);
 }
-
 </style>
