@@ -290,6 +290,10 @@ onMounted(() => {
     if (key === 'a') keys.left = true;
     else if (key === 'd') keys.right = true;
     else if (key === 'w') keys.up = true;
+    else if (e.code === 'Space') {
+      e.preventDefault(); // previne scroll da página
+      enfrentarInimigo();
+    }
   }
 
   function keyUp(e) {

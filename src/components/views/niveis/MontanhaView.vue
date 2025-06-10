@@ -1,4 +1,3 @@
-```vue
 <template>
   <div class="montanha-view" :style="showDialogue || showCutscene ? dialogueOrCutsceneBackgroundStyle : backgroundStyle">
     <!-- Cold Overlay -->
@@ -754,7 +753,6 @@ watch(
   border: 4px solid #4682b4;
   padding: 20px;
   max-width: 800px;
- root: 4px solid #2f4f4f;
   border-radius: 5px;
   cursor: pointer;
   transition: background-color 0.3s, transform 0.1s;
@@ -985,7 +983,7 @@ watch(
 
 .navigation-bar {
   position: fixed;
-  bottom: 10px;
+  bottom: 0px;
   left: 0;
   width: 100%;
   background-color: rgba(40, 60, 80, 0.95);
