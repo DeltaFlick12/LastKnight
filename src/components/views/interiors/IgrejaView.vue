@@ -447,9 +447,9 @@ onMounted(() => {
 
 .blessing-menu {
   position: fixed;
-  top: 15vh;
-  left: 1%;
-  transform: translateX(0);
+  top: 420px; /* Mover um pouco mais para baixo */
+  left: 50%;
+  transform: translateX(-50%);
   width: 90vw;
   max-width: 700px;
   max-height: 420px;
@@ -468,6 +468,7 @@ onMounted(() => {
   transition: box-shadow 0.3s ease;
   z-index: 20;
 }
+
 
 .blessing-menu:hover {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.8);
