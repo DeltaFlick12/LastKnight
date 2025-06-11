@@ -22,6 +22,13 @@
       <p>Você derrotou os inimigos e terminou a floresta!</p>
       <button @click="closeVictoryDialog">Fechar</button>
     </div>
+
+    <!-- Caixa de diálogo de Game Over -->
+    <div v-if="showGameOverDialog" class="game-over-dialog">
+      <h2>Game Over</h2>
+      <p>Suas vidas acabaram!</p>
+      <button @click="restartGame">Reiniciar</button>
+    </div>
   </div>
 </template>
 
@@ -32,9 +39,13 @@ const canvasRef = ref(null);
 const showIntroDialog = ref(true);
 const showForestDialog = ref(false);
 const showVictoryDialog = ref(false);
+const showGameOverDialog = ref(false);
 
 const defeatedEnemiesCount = ref(0);
 const totalEnemiesToDefeat = 6;
+
+const playerLives = ref(3);
+let gameOver = false;
 
 const tileSize = 40;
 const SPRITE_SCALE = 2;
@@ -42,9 +53,9 @@ let cameraX = 0;
 
 const player = {
   x: 100,
-  y: 0,
-  width: 80,
-  height: 110,
+  y: 100,
+  width: 40,
+  height: 50,
   dx: 0,
   dy: 0,
   speed: 5,
@@ -68,9 +79,9 @@ function generateEnemies(canvas, count = 10) {
   for (let i = 0; i < count; i++) {
     enemies.push({
       x: 500 + i * 1500,
-      y: canvas.height - tileSize - 110 * SPRITE_SCALE,
-      width: 80,
-      height: 110,
+      y: canvas.height - tileSize - 40 * SPRITE_SCALE,
+      width: 60,
+      height: 40,
       dx: 0,
       dy: 0,
       isOnGround: true,
@@ -78,7 +89,7 @@ function generateEnemies(canvas, count = 10) {
       frameCount: 4,
       frameTimer: 0,
       frameInterval: 10,
-      name: "Goblin",
+      name: "LOBO",
       life: 100,
       maxLife: 100
     });
@@ -129,7 +140,7 @@ function enfrentarInimigo() {
 
   if (enemyIndex !== -1) {
     const enemy = enemies[enemyIndex];
-    enemy.life -= 50; // dano simulado
+    enemy.life -= 25; // dano simulado
 
     if (enemy.life <= 0) {
       enemies.splice(enemyIndex, 1);
@@ -146,6 +157,23 @@ function enfrentarInimigo() {
 
 function closeVictoryDialog() {
   showVictoryDialog.value = false;
+}
+
+function damagePlayer(amount) {
+  if (gameOver) return;
+
+  playerLives.value -= amount;
+  if (playerLives.value <= 0) {
+    playerLives.value = 0;
+    gameOver = true;
+    showGameOverDialog.value = true;
+  }
+}
+
+function drawLives(ctx) {
+  ctx.fillStyle = 'white';
+  ctx.font = '20px Arial';
+  ctx.fillText(`Vidas: ${playerLives.value}`, 20, 30);
 }
 
 function drawEnemies(ctx) {
@@ -260,6 +288,53 @@ function checkProximity() {
   });
 }
 
+const lastAttackTimes = new Map();
+
+function enemyAttackLogic() {
+  if (gameOver) return;
+
+  const now = Date.now();
+
+  enemies.forEach(enemy => {
+    const enemyCenterX = enemy.x + (enemy.width * SPRITE_SCALE) / 2;
+    const playerCenterX = player.x + cameraX + (player.width * SPRITE_SCALE) / 2;
+    const distX = enemyCenterX - playerCenterX;
+    const distY = enemy.y - player.y;
+    const distance = Math.sqrt(distX * distX + distY * distY);
+
+    // Atacar se perto (<70px)
+    if (distance < 70) {
+      const lastAttack = lastAttackTimes.get(enemy) || 0;
+      if (now - lastAttack > 10000) {
+        damagePlayer(5);
+        lastAttackTimes.set(enemy, now);
+      }
+    }
+    // Seguir o player se estiver a até 300 px, mas não atacar
+    else if (distance < 600) {
+      if (distX > 5) enemy.x -= 1.5; // inimigo anda para esquerda
+      else if (distX < -5) enemy.x += 1.5; // inimigo anda para direita
+    }
+  });
+}
+
+function restartGame() {
+  playerLives.value = 3;
+  gameOver = false;
+  showGameOverDialog.value = false;
+
+  player.x = 100;
+  player.y = canvasRef.value.height - tileSize - player.height * SPRITE_SCALE;
+  player.dx = 0;
+  player.dy = 0;
+
+  generateEnemies(canvasRef.value, totalEnemiesToDefeat);
+
+  defeatedEnemiesCount.value = 0;
+
+  loop();
+}
+
 onMounted(() => {
   const canvas = canvasRef.value;
   const ctx = canvas.getContext('2d');
@@ -272,26 +347,39 @@ onMounted(() => {
   }
 
   function drawBackground() {
-    ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height + 70);
+    const zoomFactor = 1.19;
+    const w = canvas.width * zoomFactor;
+    const h = (canvas.height + 70) * zoomFactor;
+    const offsetX = (canvas.width - w) / 2;
+    const offsetY = (canvas.height - h) / 2;
+    ctx.drawImage(backgroundImage, offsetX, offsetY, w, h);
   }
 
   function loop() {
+    if (gameOver) {
+      return; // trava o jogo
+    }
     clear();
     if (backgroundImage.complete) drawBackground();
     updatePlayer(canvas);
     drawPlayer(ctx);
     drawEnemies(ctx);
     checkProximity();
+    drawLives(ctx);
+    enemyAttackLogic();
+
     requestAnimationFrame(loop);
   }
 
   function keyDown(e) {
+    if (gameOver) return;
+
     const key = e.key.toLowerCase();
     if (key === 'a') keys.left = true;
     else if (key === 'd') keys.right = true;
     else if (key === 'w') keys.up = true;
     else if (e.code === 'Space') {
-      e.preventDefault(); // previne scroll da página
+      e.preventDefault();
       enfrentarInimigo();
     }
   }
@@ -306,74 +394,61 @@ onMounted(() => {
   window.addEventListener('keydown', keyDown);
   window.addEventListener('keyup', keyUp);
 
-  backgroundImage.onload = () => {
-    player.y = canvas.height - tileSize - player.height * SPRITE_SCALE;
-    generateEnemies(canvas, totalEnemiesToDefeat);
-    loop();
-  };
+  player.y = canvas.height - tileSize - player.height * SPRITE_SCALE;
+  generateEnemies(canvas, totalEnemiesToDefeat);
+
+  loop();
 
   onBeforeUnmount(() => {
-    window.removeEventListener('resize', () => resizeCanvas(canvas));
     window.removeEventListener('keydown', keyDown);
     window.removeEventListener('keyup', keyUp);
+    window.removeEventListener('resize', () => resizeCanvas(canvas));
   });
 });
 </script>
 
 <style scoped>
-canvas {
-  border: 2px solid #000;
+.floresta-view canvas {
   display: block;
-  margin: 20px auto;
-  background: transparent;
-}
-
-/* Caixa de diálogo ao entrar na floresta */
-.intro-dialog {
+  background-color: #000;
   position: absolute;
-  top: 15%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(10, 50, 10, 0.9);
-  padding: 20px 30px;
-  border-radius: 15px;
-  color: #fff;
-  text-align: center;
-  box-shadow: 0 0 15px #0a0;
-  z-index: 100;
+  top: 0;
+  left: 0;
+  z-index: 10;
 }
 
-.intro-dialog h2 {
-  margin-bottom: 10px;
-  font-size: 28px;
-}
-
-/* Caixa de diálogo contextual perto do inimigo */
-.forest-dialog {
+.intro-dialog,
+.forest-dialog,
+.victory-dialog,
+.game-over-dialog {
   position: absolute;
   top: 20%;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 50, 0, 0.8);
-  padding: 16px 24px;
-  border-radius: 12px;
-  color: white;
-  box-shadow: 0 0 10px #000;
-  z-index: 100;
-}
-
-/* Caixa de diálogo de vitória */
-.victory-dialog {
-  position: absolute;
-  top: 25%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 100, 0, 0.9);
+  background: rgba(30, 30, 30, 0.9);
   padding: 20px 30px;
   border-radius: 15px;
   color: #fff;
   text-align: center;
-  box-shadow: 0 0 20px #0f0;
-  z-index: 110;
+  z-index: 100;
+  box-shadow: 0 0 15px #222;
+}
+
+.game-over-dialog {
+  background: rgba(100, 0, 0, 0.95);
+  box-shadow: 0 0 20px #f00;
+}
+button {
+  cursor: pointer;
+  margin-top: 15px;
+  background-color: #2f86ff;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: bold;
+  padding: 10px 20px;
+}
+button:hover {
+  background-color: #4da1ff;
 }
 </style>
