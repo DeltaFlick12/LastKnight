@@ -1,406 +1,530 @@
 <template>
-  <div class="bag-container slide-down">
-    <div class="bag-box">
-      <h2 class="bag-title">MOCHILA</h2>
-      <div class="filters">
-        <div
-          v-for="cat in categories"
-          :key="cat"
-          class="filter-button"
-          :class="{ active: activeCategory === cat }"
-          @click="setCategory(cat)"
-        >
-          {{ cat }}
-        </div>
+  <div
+    ref="inventoryModal"
+    :class="[
+      'inventory-modal scroll-unroll',
+      isClosing ? 'fade-out-scale' : 'fade-in-scale'
+    ]"
+  >
+    <div ref="header" class="modal-header">
+      <div class="gold">
+        <img src="/icons/gold-icon.png" alt="Gold Coin" class="gold-icon" />
+        <span>{{ gameState.player.gold }}</span>
       </div>
+      <h2>INVENTÁRIO</h2>
+      <button class="close-btn" @click="handleClose">✖</button>
+    </div>
 
-      <div class="bag-body">
-        <div class="item-list">
-          <transition-group name="fade" tag="div">
-            <div
-              v-for="item in filteredItems"
-              :key="item.name"
-              class="item"
-              :class="{
-                clickable: item.usable || item.equipable,
-                equipped: item.equipped,
-                flash: item.flash
-              }"
-              @click="handleClick(item)"
-              @mouseenter="hoverItem = item"
-              @mouseleave="hoverItem = null"
-            >
-              <span class="icon">{{ item.icon }}</span>
-              <div class="info">
-                <strong>{{ item.name }} <span v-if="item.amount > 1">×{{ item.amount }}</span></strong>
-                <p v-if="item.equipped" class="equipped-label">(Equipado)</p>
-              </div>
+    <div class="filter-bar">
+      <button
+        v-for="cat in categories"
+        :key="cat"
+        :class="{ 'filter-btn': true, active: activeCategory === cat }"
+        @click="activeCategory = cat"
+      >
+        {{ cat }}
+      </button>
+    </div>
+
+    <div class="inventory-content">
+      <div class="item-grid">
+        <transition-group name="item-fade" tag="div" class="grid-container">
+          <div
+            v-for="item in filteredItems"
+            :key="item.itemId"
+            class="item-card"
+            :class="{
+              clickable: item.usable || item.equipable,
+              equipped: item.equipped,
+              'low-quantity': item.quantity === 1 && item.usable,
+            }"
+            @click="handleClick(item)"
+            @mouseenter="hoverItem = item"
+            @mouseleave="hoverItem = null"
+          >
+            <img :src="item.icon" :style="{ width: '64px', height: '64px' }" :alt="item.name" />
+            <div class="item-info">
+              <span class="item-name">{{ item.name }}</span>
+              <span v-if="item.quantity > 1" class="item-quantity">×{{ item.quantity }}</span>
+              <span v-if="item.equipped" class="equipped-tag"></span>
             </div>
-          </transition-group>
-        </div>
-
-        <div class="item-details" v-if="hoverItem">
-          <div class="details-header">
-            <span class="icon-large">{{ hoverItem.icon }}</span>
-            <h4>{{ hoverItem.name }}</h4>
           </div>
-          <p>{{ hoverItem.description }}</p>
-          <p v-if="hoverItem.equipped" class="equipped-label">Arma equipada!</p>
-          <p v-if="hoverItem.type" class="type-label">Tipo: {{ hoverItem.type }}</p>
-          <div v-if="hoverItem.usable && hoverItem.amount > 0" class="action-button" @click="handleClick(hoverItem)">Usar</div>
-          <div v-if="hoverItem.equipable && !hoverItem.equipped" class="action-button" @click="handleClick(hoverItem)">Equipar</div>
-        </div>
+        </transition-group>
       </div>
 
-      <p v-if="feedbackMessage" class="feedback">{{ feedbackMessage }}</p>
-      <div class="menu-button close-button" @click="closeBag">FECHAR</div>
+      <div class="details-panel" v-if="hoverItem">
+        <div class="details-header">
+          <img :src="hoverItem.icon" :style="{ width: '56px', height: '56px', imageRendering: 'pixelated' }" :alt="hoverItem.name" />
+          <h3>{{ hoverItem.name }}</h3>
+        </div>
+        <p class="description">{{ hoverItem.description }}</p>
+        <p v-if="hoverItem.type" class="detail">Tipo: {{ hoverItem.type }}</p>
+        <p v-if="hoverItem.stats?.attack" class="detail">Dano: +{{ hoverItem.stats.attack }}</p>
+        <p v-if="hoverItem.stats?.defense" class="detail">Defesa: +{{ hoverItem.stats.defense }}</p>
+        <p v-if="hoverItem.equipped" class="equipped-notice">Item atualmente equipado</p>
+      </div>
+
+      <p v-if="feedbackMessage" class="feedback-message">{{ feedbackMessage }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { useGameState, ITEMS } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
 
-const props = defineProps({
-  potions: Number,
-  equippedWeapon: String,
-})
-const emits = defineEmits(['use-potion', 'equip-weapon', 'close'])
+const emits = defineEmits(['update:show']);
 
-const hoverItem = ref(null)
-const feedbackMessage = ref('')
-const activeCategory = ref('Todos')
-const categories = ['Todos', 'Consumíveis', 'Armas', 'Chave']
+// Initialize the Pinia store
+const gameState = useGameState(); // Call useGameState to get the store instance
 
-let clickSound
-onMounted(() => {
-  clickSound = new Audio('/audio/click.ogg')
-  clickSound.volume = 0.4
-})
+const hoverItem = ref(null);
+const feedbackMessage = ref('');
+const activeCategory = ref('Todos');
+const isClosing = ref(false);
 
-const allItems = computed(() => [
-  {
-    name: 'Poção de Vida',
-    icon: '🧪',
-    amount: props.potions,
-    description: 'Restaura 30 de vida ao ser usada. Forjada por alquimistas do reino.',
-    type: 'Consumíveis',
-    usable: true,
-    action: () => {
-      emits('use-potion')
-      feedbackMessage.value = 'Você usou Poção de Vida!'
-    },
-  },
-  {
-    name: 'Espada de Treinamento',
-    icon: '⚔️',
-    amount: 1,
-    description: 'Uma lâmina simples, mas confiável. Aumenta o dano em +5.',
-    type: 'Armas',
-    equipable: true,
-    equipped: props.equippedWeapon === 'Espada de Treinamento',
-    action: () => {
-      emits('equip-weapon', 'Espada de Treinamento')
-      feedbackMessage.value = 'Espada de Treinamento equipada!'
-    },
-  },
-  {
-    name: 'Chave da Floresta',
-    icon: '🔑',
-    amount: 1,
-    description: 'Uma chave mística que abre o caminho para a Floresta Amaldiçoada.',
-    type: 'Chave',
-    usable: false,
-  },
-])
+const categories = ['Todos', 'Consumíveis', 'Armas', 'Armadura', 'Chave'];
+
+const inventoryModal = ref(null);
+const header = ref(null);
+
+const getItemIcon = (itemId) => ITEMS[itemId]?.icon || '/assets/icons/unknown-item.png'; // Use ITEMS directly
+
+const allItems = computed(() => {
+  return gameState.player.inventory.map((invItem) => {
+    const itemData = ITEMS[invItem.itemId];
+    if (!itemData) return null;
+
+    const slot = itemData.slot;
+
+    return {
+      itemId: invItem.itemId,
+      name: itemData.name,
+      icon: getItemIcon(invItem.itemId), // Use the updated getItemIcon
+      quantity: invItem.quantity,
+      description: itemData.description,
+      type: itemData.type === 'Armadura' ? 'Armadura' : itemData.type,
+      usable: ['Consumível', 'Consumível Especial'].includes(itemData.type),
+      equipable: slot === 'weapon' || slot === 'armor',
+      equipped: gameState.player.equipment[slot] === invItem.itemId,
+      stats: itemData.stats,
+      action: slot
+        ? () => {
+            if (gameState.player.equipment[slot] === invItem.itemId) {
+              gameState.unequipItem(slot); // Use gameState to call the action
+            } else {
+              gameState.equipItem(invItem.itemId); // Use gameState to call the action
+            }
+          }
+        : itemData.type.startsWith('Consumível')
+        ? () => gameState.useItem(invItem.itemId) // Use gameState to call the action
+        : null,
+    };
+  }).filter(Boolean);
+});
 
 const filteredItems = computed(() => {
-  if (activeCategory.value === 'Todos') return allItems.value
-  return allItems.value.filter(item => item.type === activeCategory.value)
-})
-
-const setCategory = (cat) => {
-  playClick()
-  activeCategory.value = cat
-}
+  if (activeCategory.value === 'Todos') return allItems.value;
+  return allItems.value.filter(
+    (item) => item.type.toLowerCase() === activeCategory.value.toLowerCase()
+  );
+});
 
 const handleClick = (item) => {
-  playClick()
-  if (item.usable && item.amount > 0) {
-    item.action?.()
+  feedbackMessage.value = '';
+  if (item.usable && item.quantity > 0) {
+    item.action?.();
+    feedbackMessage.value = `Você usou ${item.name}!`;
   } else if (item.equipable) {
-    item.action?.()
-  } else if (item.usable) {
-    feedbackMessage.value = `Você não tem ${item.name}!`
+    const wasEquipped = item.equipped;
+    item.action?.();
+    feedbackMessage.value = wasEquipped ? `${item.name} desequipado!` : `${item.name} equipado!`;
+  } else {
+    feedbackMessage.value = `${item.name} não pode ser usado ou equipado.`;
   }
-  setTimeout(() => (feedbackMessage.value = ''), 2000)
-}
 
-const closeBag = () => {
-  playClick()
-  emits('close')
-}
+  setTimeout(() => (feedbackMessage.value = ''), 3000);
+};
 
-const playClick = () => {
-  if (clickSound) clickSound.play()
-}
+let isDragging = false;
+let offsetX = 0;
+let offsetY = 0;
+
+const handleMouseDown = (e) => {
+  isDragging = true;
+  const modal = inventoryModal.value;
+  const rect = modal.getBoundingClientRect();
+  offsetX = e.clientX - rect.left;
+  offsetY = e.clientY - rect.top;
+  modal.style.position = 'fixed';
+  modal.style.left = `${rect.left}px`;
+  modal.style.top = `${rect.top}px`;
+  modal.style.transform = 'none';
+  modal.style.margin = '0';
+  modal.classList.add('dragging');
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+  e.preventDefault();
+};
+
+const handleMouseMove = (e) => {
+  if (!isDragging) return;
+  const modal = inventoryModal.value;
+  modal.style.left = `${e.clientX - offsetX}px`;
+  modal.style.top = `${e.clientY - offsetY}px`;
+};
+
+const handleMouseUp = () => {
+  if (!isDragging) return;
+  isDragging = false;
+  const modal = inventoryModal.value;
+  modal.classList.remove('dragging');
+  localStorage.setItem('inventoryModalPos', JSON.stringify({
+    left: modal.style.left,
+    top: modal.style.top,
+  }));
+  document.removeEventListener('mousemove', handleMouseMove);
+  document.removeEventListener('mouseup', handleMouseUp);
+};
+
+const handleClose = () => {
+  if (isClosing.value) return;
+  isClosing.value = true;
+  setTimeout(() => emits('update:show', false), 300);
+};
+
+onMounted(() => {
+  if (header.value) {
+    header.value.addEventListener('mousedown', handleMouseDown);
+  }
+  const savedPos = localStorage.getItem('inventoryModalPos');
+  const modal = inventoryModal.value;
+  if (savedPos && modal) {
+    const pos = JSON.parse(savedPos);
+    modal.style.position = 'fixed';
+    modal.style.left = pos.left;
+    modal.style.top = pos.top;
+    modal.style.transform = 'none';
+    modal.style.margin = '0';
+  }
+});
+
+onBeforeUnmount(() => {
+  if (header.value) {
+    header.value.removeEventListener('mousedown', handleMouseDown);
+  }
+});
 </script>
 
 <style scoped>
-/* Animação de descida */
-.slide-down {
-  animation: slideDown 1s ease-out;
-}
-@keyframes slideDown {
-  0% {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-/* Container principal */
-.bag-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.7);
-  z-index: 1000;
-}
-
-/* Caixa da mochila */
-.bag-box {
-  background: #e0a867;
-  border: 6px solid #5c2c1d;
-  border-radius: 10px;
-  padding: 20px;
-  width: 80%;
-  max-width: 800px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
-  image-rendering: pixelated;
-}
-
-/* Título */
-.bag-title {
-  font-size: 40px;
-  color: #5c2c1d;
-  text-align: center;
-  margin-bottom: 20px;
-  text-shadow: 2px 2px #d17844;
-}
-
-/* Filtros */
-.filters {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-
-.filter-button {
-  background-color: #e0a867;
-  color: #5c2c1d;
-  border: 4px solid #5c2c1d;
-  padding: 8px 20px;
-  font-size: 18px;
-  text-align: center;
-  cursor: pointer;
-  box-shadow: inset -4px -4px #d17844, inset 4px 4px #ffcb8e;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
-}
-
-.filter-button:hover {
-  background-color: #f4b76a;
-  color: #3e1e14;
-  box-shadow: inset -4px -4px #c96a32, inset 4px 4px #ffd9a1;
-}
-
-.filter-button.active {
-  background-color: #ffcb8e;
-  box-shadow: inset -4px -4px #c96a32, inset 4px 4px #ffffff;
-}
-
-.filter-button:active {
-  transform: translateY(2px);
-  box-shadow: inset -2px -2px #d17844, inset 2px 2px #ffcb8e;
-}
-
-/* Corpo da mochila */
-.bag-body {
-  display: flex;
-  gap: 20px;
-  flex: 1;
-  overflow: hidden;
-  padding: 10px;
-  height: 100%;
-  position: relative;
-}
-
-/* Lista de itens */
-.item-list {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  width: 50%;
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: 10px;
-}
-
-.item {
-  display: flex;
-  gap: 12px;
-  background: #d17844;
-  border: 3px solid #5c2c1d;
-  border-radius: 8px;
-  padding: 10px;
-  transition: all 0.2s ease;
-}
-
-.item.clickable:hover {
-  background: #f4b76a;
-  cursor: pointer;
-  transform: scale(1.02);
-}
-
-.item.equipped {
-  border-color: #ffcb8e;
-  background: #c96a32;
-}
-
-.icon {
-  font-size: 28px;
-}
-
-.info {
-  flex: 1;
-}
-
-.info strong {
-  font-size: 16px;
-  color: #5c2c1d;
-}
-
-.equipped-label {
-  font-size: 14px;
-  color: #ffcb8e;
-}
-
-/* Detalhes do item - agora fixos e bonitos */
-.item-details {
-  position: sticky;
-  top: 10px;
-  align-self: flex-start;
-  width: 50%;
-  background: linear-gradient(135deg, #d17844, #e0a867);
-  border: 3px solid #5c2c1d;
-  border-radius: 12px;
-  padding: 18px;
-  font-size: 14px;
-  color: #5c2c1d;
-  height: fit-content;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-  transition: all 0.3s ease;
-  animation: floatUp 0.3s ease;
-}
-
-@keyframes floatUp {
-  0% { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-/* Botões de ação */
-.action-button {
-  background-color: #e0a867;
-  color: #5c2c1d;
-  border: 4px solid #5c2c1d;
-  padding: 8px 20px;
-  font-size: 16px;
-  text-align: center;
-  cursor: pointer;
-  margin-top: 10px;
-  box-shadow: inset -4px -4px #d17844, inset 4px 4px #ffcb8e;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
-}
-
-.action-button:hover {
-  background-color: #f4b76a;
-  color: #3e1e14;
-  box-shadow: inset -4px -4px #c96a32, inset 4px 4px #ffd9a1;
-}
-
-.action-button:active {
-  transform: translateY(2px);
-  box-shadow: inset -2px -2px #d17844, inset 2px 2px #ffcb8e;
-}
-
-/* Feedback */
-.feedback {
-  margin-top: 15px;
-  color: #ffcb8e;
-  font-size: 16px;
-  text-align: center;
-}
-
-/* Botão de fechar */
-.close-button {
-  background-color: #e0a867;
-  color: #5c2c1d;
-  border: 4px solid #5c2c1d;
-  padding: 10px 40px;
-  width: 200px;
-  height: 30px;
-  font-size: 30px;
-  text-align: center;
-  cursor: pointer;
-  margin: 20px auto 0;
-  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
-  font-weight: bold;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
-}
-
-.close-button:hover {
-  background-color: #f4b76a;
-  color: #3e1e14;
-  box-shadow: inset -6px -6px #c96a32, inset 6px 6px #ffd9a1;
-}
-
-.close-button:active {
-  transform: translateY(2px);
-  box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8e;
-}
-
-/* Barra de rolagem */
-.bag-body::-webkit-scrollbar {
-  width: 10px;
-}
-.bag-body::-webkit-scrollbar-track {
-  background: #d17844;
-}
-.bag-body::-webkit-scrollbar-thumb {
-  background: #5c2c1d;
-  border-radius: 5px;
-}
-
-/* Transições */
-.fade-enter-active,
-.fade-leave-active {
-  transition: all 0.3s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
+.fade-in-scale {
+  animation: fadeInScale 0.3s ease forwards;
   opacity: 0;
-  transform: translateY(10px);
+  transform: scale(0.9);
+}
+
+.fade-out-scale {
+  animation: fadeOutScale 0.3s ease forwards;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fadeOutScale {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+/* Animação de abertura (scroll unroll) */
+/* Modal principal - couro envelhecido com costura */
+.inventory-modal {
+  position: fixed;
+  z-index: 10000;
+  left: 50%; /* Corrigido de 30% para 50% */
+  top: 50%;  /* Centralização vertical */
+  transform: translate(-50%, -50%);
+  width: 800px;
+  height: 500px;
+  background: #533200;
+  border: 2px solid #00000044;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: white;
+}
+
+/* Removido: estilo condicional que sobrescrevia a centralização */
+.inventory-modal:not([style*="left"]) {
+  transform: translate(-50%, -50%);
+}
+
+/* Costura estilo pontos */
+.inventory-modal::before {
+  content: '';
+  position: absolute;
+  top: 12px; bottom: 12px; left: 12px; right: 12px;
+  border: 2px dashed #a6793b;
+  border-radius: 14px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+  border-bottom: 3px solid #a6793b;
+  z-index: 2;
+  cursor: grab;
+}
+
+.modal-header h2 {
+  font-size: 28px;
+  color: #f1d7b1;
+  margin: 0;
+  text-shadow:
+    1px 1px 0 #4a3118,
+    2px 2px 3px #3c2611;
+  flex-grow: 1;
+  text-align: center;
+}
+
+.gold {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  color: #f3d88c;
+  font-weight: 700;
+  text-shadow: 1px 1px 0 #593e16;
+}
+
+.gold-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.close-btn {
+  background: #7f5b24;
+  border: 2px solid #593e16;
+  border-radius: 12px;
+  width: 34px;
+  height: 34px;
+  color: #f1d7b1;
+  font-weight: bold;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: 1px 1px 2px #3c2611 inset;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.close-btn:hover {
+  background: #a6793b;
+  color: #fff3c4;
+  border-color: #7f5b24;
+}
+
+/* Barra de filtros */
+.filter-bar {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 10px 28px;
+  background: #5d3a1a;
+  color: #f1d7b1;
+  border: 2px solid #7f5b24;
+  font-weight: 600;
+  margin-left: 3%;
+  cursor: pointer;
+  box-shadow: 1px 1px 2px #3c2611 inset;
+  user-select: none;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+.filter-btn:hover,
+.filter-btn.active {
+  background: #f3d88c;
+  color: #4a3118;
+  border-color: #a6793b;
+  font-weight: bold;
+  box-shadow: 0 0 6px #f3d88c;
+}
+
+/* Conteúdo principal do inventário */
+.inventory-content {
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+/* Grid de itens */
+.item-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: none; /* Remova qualquer fundo ou borda geral */
+  border: none;     /* Remova borda geral */
+}
+
+.item-card {
+  width: 100px;
+  height: 100px;
+  border: 2px solid #a6793b; /* cor mais visível e temática */
+  border-radius: 8px;
+  background-color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: default;
+  transition: transform 0.15s ease, border-color 0.2s;
+  box-shadow: inset 0 0 4px #3c2611; /* opcional: reforça a moldura */
+} 
+
+.item-card:hover {
+  border-color: #aaa;
+  transform: scale(1.05);
+}
+
+.item-card.clickable {
+  cursor: pointer;
+  border-color: #777;
+}
+
+.item-card.equipped {
+  border-color: gold;
+}
+
+.item-info {
+  text-align: center;
+  font-size: 10px;
+  color: #eee;
+}
+
+.item-quantity {
+  font-size: 13px;
+  color: #ffda8e;
+  font-weight: 700;
+}
+
+.equipped-tag {
+  font-size: 12px;
+  color: #f3d88c;
+  font-weight: 700;
+  text-shadow: 1px 1px 0 #593e16;
+}
+
+/* Painel de detalhes do item */
+.details-panel {
+  flex: 1 1 35%;
+  border: 3px solid #7f5b24;
+  border-radius: 14px;
+  padding: 18px 24px;
+  background: linear-gradient(145deg, #593e16, #4a3118);
+  box-shadow: inset 0 0 10px 3px #7f5b24;
+  color: #f1d7b1;
+  user-select: none;
+}
+
+.details-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.details-header h3 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  text-shadow: 1px 1px 2px #2f1e0d;
+}
+
+.description {
+  margin-bottom: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #e5c98a;
+}
+
+.detail {
+  font-size: 14px;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #f3d88c;
+  text-shadow: 1px 1px 0 #593e16;
+}
+
+.equipped-notice {
+  margin-top: 12px;
+  font-weight: 700;
+  color: #f3d88c;
+  text-shadow: 0 0 5px #ffdb66;
+}
+
+/* Mensagem de feedback */
+.feedback-message {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #a6793b;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-weight: 700;
+  color: #fff3c4;
+  text-shadow: 1px 1px 1px #593e16;
+  box-shadow: 0 0 10px 2px #7f5b24;
+  user-select: none;
+  animation: fadeinout 3s ease forwards;
+  pointer-events: none;
+  font-family: 'Cinzel', serif;
+}
+
+@keyframes fadeinout {
+  0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+}
+
+/* Transitions do grupo de itens */
+.item-fade-enter-active,
+.item-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.item-fade-enter-from,
+.item-fade-leave-to {
+  opacity: 0;
+  transform: translateY(12px);
+}
+.inventory-modal.dragging {
+  cursor: grabbing !important;
+  user-select: none;
 }
 </style>

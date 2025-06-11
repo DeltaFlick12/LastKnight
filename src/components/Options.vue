@@ -17,20 +17,6 @@
           <span>{{ musicVolume }}%</span>
         </div>
 
-        <!-- Quebrado -->
-        <!-- <div class="option-group">
-          <label for="sfxVolume">🔊 Volume dos Efeitos</label>
-          <input
-            type="range"
-            id="sfxVolume"
-            v-model.number="sfxVolume"
-            min="0"
-            max="100"
-            @input="updateVolume('sfx')"
-          />
-          <span>{{ sfxVolume }}%</span>
-        </div> -->
-
         <div class="option-group">
           <label for="language">🌐 {{ texts[language].language }}</label>
           <select id="language" v-model="language">
@@ -42,10 +28,14 @@
         <div class="buttons">
           <div class="menu-button" @click="saveSettings">{{ texts[language].save }}</div>
           <div class="menu-button" @click="goBack">{{ texts[language].back }}</div>
+          <div class="menu-button danger-button" @click="resetProgress">
+            {{ texts[language].reset }}
+          </div>
         </div>
-
-        <p v-if="saved" class="saved-msg">✔️ {{ texts[language].savedMsg }}</p>
       </div>
+
+      <!-- Mensagem de salvamento -->
+      <p :class="['saved-msg', { show: saved }]">✔️ {{ texts[language].savedMsg }}</p>
     </div>
   </div>
 </template>
@@ -63,6 +53,7 @@ const texts = {
     language: "Idioma",
     save: "SALVAR",
     back: "VOLTAR",
+    reset: "RESETAR PROGRESSO",
     savedMsg: "Configurações salvas!"
   },
   en: {
@@ -71,13 +62,22 @@ const texts = {
     language: "Language",
     save: "SAVE",
     back: "BACK",
+    reset: "RESET PROGRESS",
     savedMsg: "Settings saved!"
+  }
+};
+
+const resetProgress = () => {
+  playClick();
+  if (confirm(texts[language.value].confirmReset)) {
+    localStorage.clear();
+    location.reload();
   }
 };
 
 const musicVolume = ref(50);
 const language = ref("pt");
-const saved = ref(true);
+const saved = ref(false);
 
 let clickSound;
 
@@ -131,7 +131,6 @@ function playClick() {
 </script>
 
 <style scoped>
-/* Seu CSS permanece igual */
 .background-image {
   position: fixed;
   width: 100%;
@@ -141,7 +140,6 @@ function playClick() {
   filter: blur(1px);
 }
 
-/* Animação de descida */
 .slide-down {
   animation: slideDown 1s ease-out;
 }
@@ -156,7 +154,6 @@ function playClick() {
   }
 }
 
-/* Container */
 .options-container {
   position: fixed;
   top: 0;
@@ -170,12 +167,13 @@ function playClick() {
   z-index: 100;
 }
 
-/* Caixa de opções */
 .options-box {
+  position: relative;
   background: #e0a867;
   border: 6px solid #5c2c1d;
   border-radius: 10px;
   padding: 20px;
+  padding-bottom: 60px;
   width: 80%;
   max-width: 600px;
   max-height: 80vh;
@@ -185,7 +183,6 @@ function playClick() {
   image-rendering: pixelated;
 }
 
-/* Título */
 .options-title {
   font-size: 40px;
   color: #5c2c1d;
@@ -194,7 +191,6 @@ function playClick() {
   text-shadow: 2px 2px #d17844;
 }
 
-/* Conteúdo */
 .options-content {
   flex: 1;
   overflow-y: auto;
@@ -205,7 +201,6 @@ function playClick() {
   margin-bottom: 20px;
 }
 
-/* Grupo de opções */
 .option-group {
   display: flex;
   flex-direction: column;
@@ -277,12 +272,12 @@ select:focus {
   background-color: #ffcb8e;
 }
 
-/* Botões */
 .buttons {
   display: flex;
   gap: 20px;
   justify-content: center;
-  margin-top: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
 }
 
 .menu-button {
@@ -291,8 +286,9 @@ select:focus {
   border: 4px solid #5c2c1d;
   padding: 10px 40px;
   width: 200px;
-  height: 30px;
-  font-size: 30px;
+  height: 50px;
+  line-height: 30px;
+  font-size: 24px;
   text-align: center;
   cursor: pointer;
   box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
@@ -311,30 +307,74 @@ select:focus {
   box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8e;
 }
 
-/* Mensagem de salvamento */
-.saved-msg {
-  color: black;
-  font-size: 16px;
-  text-align: center;
-  position: absolute;
-  bottom: 60px;
-  left: 50%;
-  transform: translateX(-50%);
+.danger-button {
+  background-color: #b22222;
+  color: #fff2cc;
+  border-color: #7e1a1a;
+  box-shadow: inset -6px -6px #8b0000, inset 6px 6px #ff4040;
+  position: relative;
+  overflow: hidden;
 }
 
-/* Barra de rolagem */
+.danger-button:hover {
+  background-color: #9b1d1d;
+  box-shadow: inset -6px -6px #6b1515, inset 6px 6px #ff6666;
+  color: #ffffff;
+}
+
+.danger-button:active {
+  transform: translateY(2px);
+  box-shadow: inset -3px -3px #8b0000, inset 3px 3px #ff4040;
+}
+
+.danger-button::before {
+  content: "⚠";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 20px;
+  opacity: 0.7;
+}
+
+.danger-button:hover::before {
+  opacity: 1;
+}
+
+.saved-msg {
+  position: absolute;
+  bottom: 11px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #fff2cc;
+  padding: 8px 16px;
+  border-radius: 8px;
+  color: #5c2c1d;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+  pointer-events: none;
+}
+
+.saved-msg.show {
+  opacity: 1;
+}
+
 .options-content::-webkit-scrollbar {
   width: 10px;
 }
+
 .options-content::-webkit-scrollbar-track {
   background: #d17844;
 }
+
 .options-content::-webkit-scrollbar-thumb {
   background: #5c2c1d;
   border-radius: 5px;
 }
 
-/* Garante que o scroll lateral não apareça */
 :global(html, body) {
   margin: 0;
   padding: 0;

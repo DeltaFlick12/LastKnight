@@ -70,14 +70,11 @@
       <p>{{ exitDialogText }}</p>
     </div>
 
-<<<<<<< Updated upstream
-=======
     <!-- NEW: Caixa de diálogo para a mensagem de bênção -->
     <div v-if="showBlessingPrompt && !showDialog && !showBlessingMenu" class="dialog-box">
       <p>Para receber a bênção do padre aperte "E"</p>
     </div>
 
->>>>>>> Stashed changes
     <!-- Menu de bênçãos aparece quando perto do padre -->
     <div v-if="showBlessingMenu" class="blessing-menu dialog-box">
       <h3>Bênçãos Disponíveis</h3>
@@ -133,14 +130,9 @@ const blessingsAvailable = [
   { name: 'Bênção da Velocidade', cost: 40 }
 ]
 
-<<<<<<< Updated upstream
-// Controla a exibição do menu de bênçãos
-const showBlessingMenu = ref(false)
-=======
 // Controla a exibição do menu de bênçãos e da mensagem
 const showBlessingMenu = ref(false)
 const showBlessingPrompt = ref(false) // NEW: Estado para a mensagem de bênção
->>>>>>> Stashed changes
 
 // Diálogo inicial
 const showDialog = ref(true)
@@ -180,21 +172,9 @@ const interactionAreas = [
 
 // Verificação de colisão
 const isColliding = (nextX, nextY) => {
-<<<<<<< Updated upstream
-  const charBox = {
-    x: nextX,
-    y: nextY,
-    width: 80,
-    height: 80
-  }
-
-  return collisionAreas.some(
-    (area) =>
-=======
   const charBox = { x: nextX, y: nextY, width: 80, height: 80 }
   return collisionAreas.some(
     area =>
->>>>>>> Stashed changes
       charBox.x < area.x + area.width &&
       charBox.x + charBox.width > area.x &&
       charBox.y < area.y + area.height &&
@@ -214,37 +194,10 @@ const isInInteractionArea = () => {
   )
 }
 
-<<<<<<< Updated upstream
-  return interactionAreas.find(
-    (area) =>
-      charBox.x < area.x + area.width &&
-      charBox.x + charBox.width > area.x &&
-      charBox.y < area.y + area.height &&
-      charBox.y + charBox.height > area.y
-  )
-}
-
-// Verifica se personagem está perto do padre (para abrir o menu)
-const isNearPadre = () => {
-  const charBox = {
-    x: characterPosition.value.x,
-    y: characterPosition.value.y,
-    width: 80,
-    height: 80
-  }
-  const padreBox = {
-    x: padrePosition.value.x,
-    y: padrePosition.value.y,
-    width: 120,
-    height: 120
-  }
-
-=======
 // Verifica se personagem está perto do padre
 const isNearPadre = () => {
   const charBox = { x: characterPosition.value.x, y: characterPosition.value.y, width: 80, height: 80 }
   const padreBox = { x: padrePosition.value.x, y: padrePosition.value.y, width: 120, height: 120 }
->>>>>>> Stashed changes
   return (
     charBox.x < padreBox.x + padreBox.width + 30 &&
     charBox.x + charBox.width > padreBox.x - 30 &&
@@ -344,36 +297,18 @@ const updateMovement = () => {
   const insideArea = isInInteractionArea()
   showExitDialog.value = !!insideArea
 
-<<<<<<< Updated upstream
-  // Verifica se personagem está perto do padre (exibe menu)
-  showBlessingMenu.value = isNearPadre()
-  canMove.value = !showDialog.value && !showBlessingMenu.value
-=======
   // NEW: Atualiza a visibilidade da mensagem de bênção
   showBlessingPrompt.value = isNearPadre() && !showBlessingMenu.value
->>>>>>> Stashed changes
 
   animationFrameId = requestAnimationFrame(updateMovement)
 }
 
-<<<<<<< Updated upstream
-// Controles do teclado (inclui tecla 'e' para ação na área interativa e 'escape' para fechar menu)
-const startMoving = (event) => {
-  const key = event.key.toLowerCase()
-
-  // Se menu aberto, só deixa fechar com ESC
-  if (showBlessingMenu.value) {
-    if (key === 'escape') {
-      closeBlessingMenu()
-    }
-=======
 // Controles do teclado
 const startMoving = (event) => {
   const key = event.key.toLowerCase()
 
   if (showBlessingMenu.value) {
     if (key === 'escape') closeBlessingMenu()
->>>>>>> Stashed changes
     return
   }
 
@@ -391,44 +326,24 @@ const startMoving = (event) => {
   }
 
   switch (key) {
-    case 'w':
-      moving.value.up = true
-      break
-    case 's':
-      moving.value.down = true
-      break
-    case 'a':
-      moving.value.left = true
-      break
-    case 'd':
-      moving.value.right = true
-      break
+    case 'w': moving.value.up = true; break
+    case 's': moving.value.down = true; break
+    case 'a': moving.value.left = true; break
+    case 'd': moving.value.right = true; break
   }
 }
 
 const stopMoving = (event) => {
   if (!canMove.value) return
   switch (event.key.toLowerCase()) {
-    case 'w':
-      moving.value.up = false
-      break
-    case 's':
-      moving.value.down = false
-      break
-    case 'a':
-      moving.value.left = false
-      break
-    case 'd':
-      moving.value.right = false
-      break
+    case 'w': moving.value.up = false; break
+    case 's': moving.value.down = false; break
+    case 'a': moving.value.left = false; break
+    case 'd': moving.value.right = false; break
   }
 }
 
-<<<<<<< Updated upstream
-// Função para comprar bênçãos
-=======
 // Comprar bênçãos
->>>>>>> Stashed changes
 const buyBlessing = (blessing) => {
   if (gold.value >= blessing.cost && !blessings.value.includes(blessing.name)) {
     gold.value -= blessing.cost
@@ -437,11 +352,7 @@ const buyBlessing = (blessing) => {
   }
 }
 
-<<<<<<< Updated upstream
-// Fechar o menu de bênçãos
-=======
 // Fechar menu e liberar movimento
->>>>>>> Stashed changes
 const closeBlessingMenu = () => {
   showBlessingMenu.value = false
   canMove.value = !showDialog.value
@@ -509,23 +420,6 @@ onMounted(() => {
 
 .dialog-box {
   position: fixed;
-<<<<<<< Updated upstream
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: rgba(40, 25, 15, 0.9);
-  padding: 25px 35px;
-  border: 4px solid;
-  border-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAkAAAAJCAYAAADgkQYQAAAALElEQVQoU2NkIAIwEqGGAa5IU1OTEZkPM+jfv3+MyHxkNlZFMINwKcJpEgDlTRcFFzrw5QAAAABJRU5ErkJggg==') 3 repeat;
-  border-radius: 8px;
-  text-align: center;
-  width: 90vw;
-  max-width: 750px;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-  color: #f0e0c0;
-  font-size: 15px;
-  line-height: 1.7;
-=======
   background-color: rgba(40, 25, 15, 0.9);
   padding: 25px 35px;
   border: 4px solid;
@@ -545,7 +439,6 @@ onMounted(() => {
   font-family: 'Press Start 2P', cursive;
   transition: background-color 0.2s ease;
   user-select: none;
->>>>>>> Stashed changes
 }
 
 .dialog-box:hover {
@@ -671,85 +564,4 @@ onMounted(() => {
   background-color: rgba(0, 255, 0, 0);
   z-index: 1;
 }
-<<<<<<< Updated upstream
-
-.blessing-menu {
-  position: fixed;
-  bottom: 120px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90vw;
-  max-width: 750px;
-  max-height: 420px;
-  overflow-y: auto;
-  background-color: rgba(40, 25, 15, 0.9);
-  padding: 25px 35px;
-  border: 4px solid;
-  border-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAkAAAAJCAYAAADgkQYQAAAALElEQVQoU2NkIAIwEqGGAa5IU1OTEZkPM+jfv3+MyHxkNlZFMINwKcJpEgDlTRcFFzrw5QAAAABJRU5ErkJggg==') 3 repeat;
-  border-radius: 8px;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-  color: #f0e0c0;
-  font-size: 15px;
-  line-height: 1.7;
-  font-family: 'Uncial Antiqua', 'Cinzel', serif;
-  text-shadow: 1px 1px 2px #000;
-  z-index: 20;
-  text-align: center;
-  user-select: none;
-}
-
-.blessing-menu h3 {
-  margin-bottom: 20px;
-  font-size: 1.4rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  font-family: 'Cinzel', serif;
-  letter-spacing: 0.1em;
-  border-bottom: 2px dashed #d7b85b;
-  padding-bottom: 8px;
-  color: #ffe8b2;
-}
-
-.blessing-menu ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.blessing-menu li {
-  margin-bottom: 18px;
-  border-bottom: 1px dotted #c2a65c;
-  padding-bottom: 10px;
-}
-
-.blessing-menu button {
-  cursor: pointer;
-  background: linear-gradient(to bottom, #dac99b, #b5a36d);
-  border: 2px solid #6c552a;
-  padding: 10px 18px;
-  font-weight: bold;
-  color: #2b1b0f;
-  border-radius: 8px;
-  font-family: 'Cinzel', serif;
-  font-size: 0.9rem;
-  text-shadow: 0 1px 0 #fff3cd;
-  transition: all 0.3s ease;
-  box-shadow: inset 0 2px 0 #f8eaa0, 0 3px 5px rgba(0, 0, 0, 0.4);
-}
-
-.blessing-menu button:hover:not(:disabled) {
-  background: linear-gradient(to top, #e6d8a8, #cab67a);
-  transform: scale(1.03);
-  box-shadow: inset 0 4px 4px #e0d183, 0 5px 7px #6b560e;
-}
-
-.blessing-menu button:disabled {
-  background-color: #4a3d19;
-  border-color: #3a2e11;
-  color: #a09362;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-=======
->>>>>>> Stashed changes
 </style>

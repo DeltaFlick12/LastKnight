@@ -1,72 +1,204 @@
 <template>
-  <div class="map-screen">
-    <img src="@/assets/Mapa_rpg_2.jpg" class="map-image" alt="Mapa de Albadia" />
+  <div class="map-screen" role="region" aria-label="Mapa Interativo de Albadia">
+    <img src="@/assets/Mapa.png" class="map-image" alt="Mapa de Albadia" @load="onImageLoad" />
 
-    <!-- Pontos de texto clicáveis -->
-    <div
-      v-for="(loc, index) in locations"
-      :key="index"
-      class="map-point"
-      :style="{ top: loc.top, left: loc.left }"
-      :class="{ unlocked: loc.unlocked }"
-      @click="goToLocation(loc)"
+    <!-- Áreas clicáveis do mapa -->
+<div
+  v-for="(area, index) in areas"
+  :key="index"
+  class="map-area"
+  :style="{ top: area.top, left: area.left, width: area.width, height: area.height }"
+  :class="{ unlocked: area.unlocked, locked: !area.unlocked, 'newly-unlocked': area.newlyUnlocked }"
+  @click="goToArea(area)"
+  role="button"
+  :aria-label="area.unlocked ? `Ir para ${area.name}` : `${area.name} (bloqueado)`"
+  :tabindex="area.unlocked ? 0 : -1"
+  @keydown.enter="goToArea(area)"
+  @mouseover="showTooltip(area)"
+  @mouseout="hideTooltip"
+>
+  <!-- Sombra preta sobre áreas bloqueadas -->
+  <div v-if="!area.unlocked" class="locked-overlay"></div>
+
+  <!-- Tooltip -->
+  <span v-if="area.unlocked && area.showTooltip" class="tooltip">
+    {{ area.description }}
+  </span>
+</div>
+
+    <button
+      class="back-btn"
+      @click="goBack"
+      aria-label="Voltar para a história"
+      tabindex="0"
     >
-      {{ loc.name }}
-    </div>
-
-    <button class="back-btn" @click="goBack">Voltar</button>
+      <span class="back-arrow" aria-hidden="true"></span>
+    </button>
   </div>
 </template>
 
-<<script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+<script setup>
+import { ref, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
-const router = useRouter()
+const router = useRouter();
 
-const locations = ref([
-  { name: 'Floresta', top: '60%', left: '15%', route: '/level/floresta', unlocked: true },
-  { name: 'Caverna', top: '32%', left: '44%', route: '/level/caverna', unlocked: false },
-  { name: 'Rio', top: '52%', left: '32%', route: '/level/rio', unlocked: false },
-  { name: 'Ruínas', top: '45%', left: '50%', route: '/level/ruinas', unlocked: false },
-  { name: 'Castelo', top: '28%', left: '72%', route: '/level/castelo', unlocked: false },
-])
+const areas = ref([
+  {
+    name: 'Reino Albadia',
+    top: '65%',
+    left: '17%',
+    width: '25%',
+    height: '30%',
+    route: '/level/albadia',
+    unlocked: true,
+    description: 'A cidade central de Albadia.',
+    newlyUnlocked: false,
+    showTooltip: false,
+  },
+  {
+    name: 'Floresta',
+    top: '15%',
+    left: '15%',
+    width: '30%',
+    height: '30%',
+    route: '/level/floresta',
+    unlocked: true,
+    description: 'Uma floresta misteriosa.',
+    newlyUnlocked: false,
+    showTooltip: false,
+  },
+  {
+    name: 'Rio',
+    top: '60%',
+    left: '40%',
+    width: '15%',
+    height: '15%',
+    route: '/level/rio',
+    unlocked: true,
+    description: 'Um rio cristalino.',
+    newlyUnlocked: false,
+    showTooltip: false,
+  },
+  {
+    name: 'Ruínas',
+    top: '65%',
+    left: '51%',
+    width: '20%',
+    height: '30%',
+    route: '/level/ruinas',
+    unlocked: false,
+    description: 'Restos de uma civilização antiga.',
+    newlyUnlocked: false,
+    showTooltip: false,
+  },
+  {
+    name: 'Caverna',
+    top: '52%',
+    left: '66%',
+    width: '25%',
+    height: '30%',
+    route: '/level/caverna',
+    unlocked: false,
+    description: 'Uma caverna sombria.',
+    newlyUnlocked: false,
+    showTooltip: false,
+  },
+  {
+    name: 'Montanha Glacial',
+    top: '25%',
+    left: '46%',
+    width: '23%',
+    height: '30%',
+    route: '/level/montanha',
+    unlocked: false,
+    description: 'Picos gelados e perigosos.',
+    newlyUnlocked: false,
+    showTooltip: false,
+  },
+  {
+    name: 'Castelo de Magnus',
+    top: '10%',
+    left: '57%',
+    width: '35%',
+    height: '30%',
+    route: '/level/castelo',
+    unlocked: false,
+    description: 'Um castelo imponente.',
+    newlyUnlocked: false,
+    showTooltip: false,
+  },
+]);
 
-const updateUnlockedLocations = () => {
-  const progress = localStorage.getItem('progress')
+const updateUnlockedAreas = () => {
+  const progress = localStorage.getItem('progress');
+  const previousProgress = localStorage.getItem('previousProgress') || '';
 
-  // Floresta já começa desbloqueada
-  if (progress === 'floresta-concluida') {
-    locations.value[1].unlocked = true // Rio
+  areas.value.forEach((area) => {
+    area.newlyUnlocked = false;
+  });
+
+  if (progress === 'floresta-concluida' && previousProgress !== progress) {
+    areas.value.find((a) => a.name === 'Rio').unlocked = true;
+    areas.value.find((a) => a.name === 'Rio').newlyUnlocked = true;
   }
-  if (progress === 'rio-concluido') {
-    locations.value[1].unlocked = true // Rio
-    locations.value[2].unlocked = true // Ruínas
+  if (progress === 'rio-concluido' && previousProgress !== progress) {
+    areas.value.find((a) => a.name === 'Rio').unlocked = true;
+    areas.value.find((a) => a.name === 'Ruínas').unlocked = true;
+    areas.value.find((a) => a.name === 'Ruínas').newlyUnlocked = true;
   }
-  if (progress === 'ruinas-concluidas') {
-    locations.value[1].unlocked = true
-    locations.value[2].unlocked = true
-    locations.value[3].unlocked = true // Castelo
+  if (progress === 'ruinas-concluidas' && previousProgress !== progress) {
+    areas.value.find((a) => a.name === 'Rio').unlocked = true;
+    areas.value.find((a) => a.name === 'Ruínas').unlocked = true;
+    areas.value.find((a) => a.name === 'Caverna').unlocked = true;
+    areas.value.find((a) => a.name === 'Montanha Glacial').unlocked = true;
+    areas.value.find((a) => a.name === 'Castelo de Magnus').unlocked = true;
+    areas.value.find((a) => a.name === 'Caverna').newlyUnlocked = true;
   }
-}
 
-const goToLocation = (loc) => {
-  if (loc.unlocked) {
-    router.push(loc.route)
-  } else {
-    alert('Área bloqueada! Termine a anterior.')
+  localStorage.setItem('previousProgress', progress);
+};
+
+const goToArea = (area) => {
+  if (!area.unlocked) {
+    alert('Área bloqueada! Complete a anterior.');
+    return;
   }
-}
+  if (confirm(`Deseja viajar para ${area.name}?`)) {
+    router.push(area.route);
+  }
+};
 
 const goBack = () => {
-  router.push('/story')
-}
+  router.push('/level/albadia');
+};
+
+const onImageLoad = () => {
+  const mapImage = document.querySelector('.map-image');
+  mapImage.classList.add('loaded');
+};
+
+const showTooltip = (area) => {
+  if (area.unlocked) {
+    area.showTooltip = true;
+  }
+};
+
+const hideTooltip = () => {
+  areas.value.forEach((area) => (area.showTooltip = false));
+};
 
 onMounted(() => {
-  updateUnlockedLocations()
-})
-</script>
+  updateUnlockedAreas();
+});
 
+watch(
+  () => localStorage.getItem('progress'),
+  () => {
+    updateUnlockedAreas();
+  }
+);
+</script>
 
 <style scoped>
 .map-screen {
@@ -74,51 +206,184 @@ onMounted(() => {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  font-family: 'Press Start 2P', cursive;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #1a1a1a;
 }
 
 .map-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width: 90%;
+  height: 110%;
+  margin-left: 10%;
+  object-fit: contain;
   filter: brightness(0.9);
+  border: 3px solid #4a4a4a;
+  border-radius: 10px;
+  transition: transform 0.5s ease;
 }
 
-.map-point {
+.map-image.loaded {
+  transform: scale(1.02);
+}
+
+.map-area {
   position: absolute;
-  transform: translate(-50%, -50%);
-  background-color: rgba(0, 0, 0, 0.6);
-  padding: 5px 10px;
-  border: 2px solid red;
-  border-radius: 8px;
-  color: white;
-  font-size: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.3s ease;
   pointer-events: none;
-  opacity: 0.5;
-  transition: 0.3s ease;
+  z-index: 100;
+
+  /* 🔧 ESSENCIAL para a borda funcionar corretamente */
+  box-sizing: border-box;
 }
 
-.map-point.unlocked {
-  border-color: gold;
-  opacity: 1;
+.map-area.unlocked {
   cursor: pointer;
   pointer-events: auto;
 }
 
-.map-point.unlocked:hover {
+.map-area.unlocked:hover .area-label {
+  filter: brightness(1.2);
+}
+
+.map-area.locked {
+  position: relative;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: brightness(0.6);
+}
+
+.map-area.newly-unlocked .area-label {
+  animation: pulse 1.5s infinite;
+}
+
+.locked-overlay {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 999999;
+}
+
+.area-label {
+  position: relative;
+  padding: 5px 10px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: 2px solid #ffd700;
+  border-radius: 5px;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  pointer-events: auto;
+  text-shadow: 1px 1px 2px black;
+  display: none;
+}
+
+.tooltip {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
   background-color: rgba(0, 0, 0, 0.8);
-  transform: translate(-50%, -50%) scale(1.1);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
 }
 
 .back-btn {
   position: absolute;
   bottom: 20px;
   left: 20px;
-  padding: 10px 20px;
   background-color: #8b5e3c;
-  color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.back-btn:hover {
+  background-color: #a67c52;
+  transform: scale(1.05);
+}
+
+.back-btn:focus {
+  outline: 2px solid #ffd700;
+}
+
+/* Estilo da seta medieval usando bordas */
+.back-arrow {
+  width: 0;
+  height: 0;
+  border-top: 14px solid transparent;
+  border-bottom: 14px solid transparent;
+  border-right: 24px solid #fff9d6;
+  filter: drop-shadow(1px 1px 0 #5a3f1c);
+  image-rendering: pixelated;
+}
+
+/* Ajustes mobile */
+@media (max-width: 768px) {
+  .back-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .back-arrow {
+    border-top: 12px solid transparent;
+    border-bottom: 12px solid transparent;
+    border-right: 20px solid #fff9d6;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 215, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .map-image {
+    width: 100%;
+    height: 100%;
+  }
+
+  .area-label {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .tooltip {
+    font-size: 10px;
+    top: -30px;
+  }
+
+  .back-btn {
+    font-family: 'MedievalSharp';
+  }
 }
 </style>
