@@ -36,7 +36,7 @@ export const useGameState = defineStore('game', {
         savedState = JSON.parse(stored);
         // Ensure 'lives' exists in saved state
         if (!savedState.player.hasOwnProperty('lives')) {
-          savedState.player.lives = 10;
+          savedState.player.lives = 3;
         }
       }
     } catch (e) {
@@ -52,7 +52,7 @@ export const useGameState = defineStore('game', {
         stamina: 100,
         maxStamina: 100,
         gold: 100,
-        lives: 10,
+        lives: 3,
         inventory: [{ itemId: 'sword_wood', quantity: 1 }, { itemId: 'potion_health', quantity: 1 }],
         equipment: {
           weapon: 'sword_wood',
@@ -129,7 +129,7 @@ export const useGameState = defineStore('game', {
       this.player.maxStamina = classData.baseStats.maxStamina;
       this.player.health = this.player.maxHealth;
       this.player.stamina = this.player.maxStamina;
-      this.player.lives = 10; // Reset lives when setting class
+      this.player.lives = 3; // Reset lives when setting class
       this.player.inventory = [];
       this.player.equipment = { weapon: null };
       for (const slot in classData.startItems) {
@@ -416,7 +416,7 @@ export const useGameState = defineStore('game', {
           stamina: 100,
           maxStamina: 100,
           gold: 100,
-          lives: 10,
+          lives: 3,
           inventory: [{ itemId: 'sword_wood', quantity: 1 }, { itemId: 'potion_health', quantity: 1 }],
           equipment: { weapon: 'sword_wood' },
           stats: { attack: 10, defense: 5, speed: 10 },

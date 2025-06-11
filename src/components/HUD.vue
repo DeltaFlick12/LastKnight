@@ -140,8 +140,8 @@ const filledStaminaSegments = computed(() => {
 
 .lives-count {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: 60%;
+  left: 80%;
   transform: translate(-50%, -50%);
   font-size: 16px;
   color: #fff;
