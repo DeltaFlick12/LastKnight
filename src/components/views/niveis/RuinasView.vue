@@ -1,14 +1,19 @@
+```vue
 <template>
   <div class="ruinas-view" :style="showCutscene ? cutsceneBackgroundStyle : backgroundStyle">
     <!-- Cutscene -->
     <div v-if="showCutscene" class="cutscene-container" tabindex="0">
       <div class="cutscene-content">
-        <div v-for="(line, index) in cutsceneLines" :key="index" class="cutscene-line"
-          :class="{ visible: index < currentCutsceneLine }">
+        <div v-for="(line, index) in cutsceneLines" :key="index" class="cutscene-line" :class="{ visible: index < currentCutsceneLine }">
           <span class="typewriter" ref="typewriterSpans">{{ displayedLines[index] || '' }}</span>
         </div>
-        <div v-if="currentCutsceneLine >= cutsceneLines.length" class="cutscene-arrow" @click.stop="endCutscene"
-          role="button" aria-label="Avançar para a interação">
+        <div
+          v-if="currentCutsceneLine >= cutsceneLines.length"
+          class="cutscene-arrow"
+          @click.stop="endCutscene"
+          role="button"
+          aria-label="Avançar para a interação"
+        >
           ➤
         </div>
       </div>
@@ -22,8 +27,12 @@
             <img src="/icons/life-icon.png" alt="Vida" class="icon" />
           </div>
           <div class="bar-container segmented">
-            <div v-for="i in maxBarSegments" :key="`vida-${i}`" class="segment"
-              :class="{ filled: i <= filledHealthSegments }"></div>
+            <div
+              v-for="i in maxBarSegments"
+              :key="`vida-${i}`"
+              class="segment"
+              :class="{ filled: i <= filledHealthSegments }"
+            ></div>
             <span class="bar-label">
               {{ Math.floor(gameState.player.health) }}/{{ Math.floor(gameState.player.maxHealth) }}
             </span>
@@ -34,8 +43,12 @@
             <img src="/icons/stam-icon.png" alt="Energia" class="icon" />
           </div>
           <div class="bar-container segmented">
-            <div v-for="i in maxBarSegments" :key="`energia-${i}`" class="segment"
-              :class="{ filled: i <= filledStaminaSegments }"></div>
+            <div
+              v-for="i in maxBarSegments"
+              :key="`energia-${i}`"
+              class="segment"
+              :class="{ filled: i <= filledStaminaSegments }"
+            ></div>
             <span class="bar-label">
               {{ Math.floor(gameState.player.stamina) }}/{{ Math.floor(gameState.player.maxStamina) }}
             </span>
@@ -77,8 +90,11 @@
               <span class="resource-value">{{ playerCharacter.currentHp }}/{{ playerCharacter.maxHp }}</span>
             </div>
           </div>
-          <div class="unit player-character" :class="{ 'is-attacking': playerAttacking, 'is-damaged': damagedPlayer }"
-            :style="{ top: `${playerCharacter.top}px`, left: `${playerCharacter.left}px` }">
+          <div
+            class="unit player-character"
+            :class="{ 'is-attacking': playerAttacking, 'is-damaged': damagedPlayer }"
+            :style="{ top: `${playerCharacter.top}px`, left: `${playerCharacter.left}px` }"
+          >
             <img :src="playerSprite" alt="Player" class="character-sprite" />
           </div>
 
@@ -94,16 +110,22 @@
                 <span class="resource-value">{{ enemy.currentHp }}/{{ enemy.maxHp }}</span>
               </div>
             </div>
-            <div class="unit enemy-character"
+            <div
+              class="unit enemy-character"
               :class="{ 'is-attacking': enemyAttacking === index, 'is-damaged': damagedEnemy === index, fainted: enemy.hpPercent <= 0 }"
-              :style="enemyStyle(index, enemy)">
+              :style="enemyStyle(index, enemy)"
+            >
               <img :src="enemySprite" alt="Enemy" class="character-sprite" />
             </div>
           </div>
 
           <!-- Damage Popup -->
-          <div v-if="damagePopup.active" class="damage-popup" :class="damagePopup.type"
-            :style="{ top: `${damagePopup.top}px`, left: `${damagePopup.left}px` }">
+          <div
+            v-if="damagePopup.active"
+            class="damage-popup"
+            :class="damagePopup.type"
+            :style="{ top: `${damagePopup.top}px`, left: `${damagePopup.left}px` }"
+          >
             {{ damagePopup.prefix }}{{ damagePopup.value }}
           </div>
 
@@ -119,12 +141,10 @@
             <p v-for="(message, index) in battleLog" :key="index" v-html="message"></p>
           </div>
           <div class="actions" v-if="isPlayerTurn && !isAttacking && !gameOver && !victory">
-            <button class="action-btn attack-btn" @click="attackEnemy"
-              :disabled="activeEnemies.length === 0 || playerCharacter.currentStamina < 10">
+            <button class="action-btn attack-btn" @click="attackEnemy" :disabled="activeEnemies.length === 0 || playerCharacter.currentStamina < 10">
               Atacar
             </button>
-            <button class="action-btn potion-btn" @click="usePotion"
-              :disabled="!canUsePotion || playerCharacter.currentStamina < 5">
+            <button class="action-btn potion-btn" @click="usePotion" :disabled="!canUsePotion || playerCharacter.currentStamina < 5">
               Poção ({{ potionCount }})
             </button>
           </div>
@@ -143,8 +163,13 @@
 
     <!-- Navigation Bar -->
     <div class="navigation-bar" v-if="!showCutscene">
-      <button v-if="bossDefeated" class="nav-btn" @click="goToNextArea"
-        aria-label="Seguir para a próxima área (Acampamento)" :disabled="!bossDefeated">
+      <button
+        v-if="bossDefeated"
+        class="nav-btn"
+        @click="goToNextArea"
+        aria-label="Seguir para a próxima área (Acampamento)"
+        :disabled="!bossDefeated"
+      >
         Seguir para Acampamento
       </button>
     </div>
@@ -158,10 +183,11 @@ import warriorImage from '@/assets/backviews/warrior.png';
 import warriorScaredImage from '@/assets/backviews/warrior-scared.png';
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { gameState, actions } from '@/stores/game.js';
+import { useGameState } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
 import { playAudio } from '@/utils/audioManager.js';
 
 const router = useRouter();
+const gameState = useGameState(); // Initialize the Pinia store
 
 // Cutscene State
 const showCutscene = ref(false);
@@ -180,10 +206,11 @@ const isFading = ref(false);
 
 // Background Styles
 const backgroundStyle = computed(() => ({
-  backgroundImage: `url(${inBattle.value && !showCutscene.value
+  backgroundImage: `url(${
+    inBattle.value && !showCutscene.value
       ? ruinasBattleImage
       : ruinasDragonImage // Default to dragon background
-    })`,
+  })`,
   backgroundSize: 'cover',
   backgroundPosition: 'center',
   opacity: isFading.value ? 0 : 1,
@@ -364,7 +391,7 @@ const confrontBoss = () => {
 
 const collectKey = () => {
   if (bossDefeated.value && !gameState.player.keys.ancestral) {
-    actions.collectKey('ancestral');
+    gameState.collectKey('ancestral'); // Use gameState instead of actions
     playAudio('collect_key_ancient');
     feedbackMessage.value = 'Chave Ancestral obtida!';
     showFeedback.value = true;
@@ -403,7 +430,7 @@ const attackEnemy = async () => {
   await showAttackEffect(playerElement, enemyElement);
   playerCharacter.left = originalLeft;
   damagedEnemy.value = enemyIndex;
-  const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 5 - 2);
+  const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 5);
   enemy.currentHp = Math.max(0, enemy.currentHp - damageDealt);
   enemy.hpPercent = (enemy.currentHp / enemy.maxHp) * 100;
   showPopup(damageDealt, enemyElement, 'enemy-damage');
@@ -438,7 +465,7 @@ const usePotion = async () => {
   gameState.player.stamina = playerCharacter.currentStamina;
   addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
   const playerElement = document.querySelector('.player-character');
-  actions.removeItemFromInventory('potion', 1);
+  gameState.removeItemFromInventory('potion', 1); // Use gameState instead of actions
   gameState.player.potions -= 1;
   const healAmount = 30;
   playerCharacter.currentHp = Math.min(playerCharacter.maxHp, playerCharacter.currentHp + healAmount);
@@ -456,10 +483,10 @@ const usePotion = async () => {
 
 const handleVictory = () => {
   bossDefeated.value = true;
-  actions.completeLevel('ruinas_boss');
+  gameState.completeLevel('ruinas_boss'); // Use gameState instead of actions
   inBattle.value = false;
   gameState.player.gold += 100;
-  actions.addItemToInventory('dragon_scale', 1);
+  gameState.addItemToInventory('dragon_scale', 1); // Use gameState instead of actions
   addLogMessage(`<span style="color: #d0a070;">💰 +100 ouro!</span>`);
   addLogMessage(`<span style="color: #d0a070;">🎁 Escama de Dragão!</span>`);
   feedbackMessage.value = 'Dragão Ancestral derrotado!';
@@ -483,7 +510,7 @@ const goToNextArea = () => {
 
 // Lifecycle Hooks
 onMounted(() => {
-  actions.setCurrentArea('Ruínas Ancestrais');
+  gameState.setCurrentArea('Ruínas Ancestrais'); // Use gameState instead of actions
   if (!gameState.player.keys) {
     gameState.player.keys = reactive({ ancestral: false, ice: false, fire: false });
   }
@@ -601,15 +628,8 @@ watch(
 }
 
 @keyframes pulse {
-
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.05);
-  }
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
 /* Dialog Transition */
@@ -617,8 +637,7 @@ watch(
   transition: opacity 0.5s ease, transform 0.5s ease;
 }
 
-.feedback-box.fade-enter,
-.feedback-box.fade-leave-to {
+.feedback-box.fade-enter, .feedback-box.fade-leave-to {
   opacity: 0;
   transform: translate(-50%, -60%);
 }
@@ -710,8 +729,7 @@ watch(
   justify-content: center;
 }
 
-.interactions,
-.feedback-box {
+.interactions, .feedback-box {
   background-color: rgba(10, 5, 15, 0.85);
   padding: 20px;
   border: 2px solid #a07c4f;
@@ -730,8 +748,7 @@ watch(
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  /* Add spacing between buttons */
+  gap: 10px; /* Add spacing between buttons */
 }
 
 .feedback-box {
@@ -747,10 +764,7 @@ watch(
   font-size: 16px;
 }
 
-.feedback-box button,
-.interactions button,
-.action-btn,
-.nav-btn {
+.feedback-box button, .interactions button, .action-btn, .nav-btn {
   background-color: #704d3a;
   border: 2px solid #5c4033;
   color: #d0b090;
@@ -761,17 +775,11 @@ watch(
   transition: filter 0.2s, transform 0.1s;
 }
 
-.feedback-box button:hover,
-.interactions button:hover,
-.action-btn:hover:not(:disabled),
-.nav-btn:hover:not(:disabled) {
+.feedback-box button:hover, .interactions button:hover, .action-btn:hover:not(:disabled), .nav-btn:hover:not(:disabled) {
   filter: brightness(1.2);
 }
 
-.feedback-box button:active,
-.interactions button:active,
-.action-btn:active:not(:disabled),
-.nav-btn:active:not(:disabled) {
+.feedback-box button:active, .interactions button:active, .action-btn:active:not(:disabled), .nav-btn:active:not(:disabled) {
   transform: translate(1px, 1px);
 }
 
@@ -828,30 +836,17 @@ watch(
   font-family: 'MedievalSharp', cursive;
 }
 
-.victory-message,
-.game-over-message {
+.victory-message, .game-over-message {
   font-size: 18px;
   animation: pulseGlow 1.5s infinite;
 }
 
-.victory-message {
-  color: #b09050;
-}
-
-.game-over-message {
-  color: #a04040;
-}
+.victory-message { color: #b09050; }
+.game-over-message { color: #a04040; }
 
 @keyframes pulseGlow {
-
-  0%,
-  100% {
-    filter: brightness(1);
-  }
-
-  50% {
-    filter: brightness(1.3);
-  }
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.3); }
 }
 
 .unit {
@@ -868,17 +863,9 @@ watch(
   image-rendering: pixelated;
 }
 
-.player-character {
-  z-index: 10;
-}
-
-.enemy-character {
-  z-index: 9;
-}
-
-.enemy-character.fainted {
-  filter: grayscale(100%) opacity(40%);
-}
+.player-character { z-index: 10; }
+.enemy-character { z-index: 9; }
+.enemy-character.fainted { filter: grayscale(100%) opacity(40%); }
 
 .character-info {
   position: absolute;
@@ -891,14 +878,8 @@ watch(
   min-width: 180px;
 }
 
-.player-info {
-  bottom: 50px;
-  left: 20px;
-}
-
-.enemy-info {
-  text-align: right;
-}
+.player-info { bottom: 50px; left: 20px; }
+.enemy-info { text-align: right; }
 
 .character-name {
   font-weight: bold;
@@ -964,9 +945,7 @@ watch(
   color: #c0a080;
 }
 
-.battle-log p {
-  margin: 0 0 6px 0;
-}
+.battle-log p { margin: 0 0 6px 0; }
 
 .battle-log::-webkit-scrollbar {
   width: 6px;
@@ -982,8 +961,7 @@ watch(
   border-radius: 5px;
 }
 
-.actions,
-.actions-placeholder {
+.actions, .actions-placeholder {
   width: 40%;
   display: flex;
   justify-content: center;
@@ -1006,40 +984,18 @@ watch(
   background-color: #5a704d;
 }
 
-.unit.is-attacking {
-  animation: attackShake 0.4s ease-in-out;
-}
-
-.unit.is-damaged {
-  animation: damageFlash 0.3s linear 2;
-}
+.unit.is-attacking { animation: attackShake 0.4s ease-in-out; }
+.unit.is-damaged { animation: damageFlash 0.3s linear 2; }
 
 @keyframes attackShake {
-
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-
-  25% {
-    transform: translateX(-5px);
-  }
-
-  75% {
-    transform: translateX(5px);
-  }
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
 }
 
 @keyframes damageFlash {
-
-  0%,
-  100% {
-    filter: brightness(1);
-  }
-
-  50% {
-    filter: brightness(1.5) saturate(1.2);
-  }
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.5) saturate(1.2); }
 }
 
 .damage-popup {
@@ -1053,28 +1009,13 @@ watch(
   text-shadow: 1px 1px 3px black;
 }
 
-.damage-popup.player-damage {
-  color: #c06060;
-}
-
-.damage-popup.enemy-damage {
-  color: #d0a070;
-}
-
-.damage-popup.hp-heal {
-  color: #90c090;
-}
+.damage-popup.player-damage { color: #c06060; }
+.damage-popup.enemy-damage { color: #d0a070; }
+.damage-popup.hp-heal { color: #90c090; }
 
 @keyframes floatUp {
-  0% {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50px);
-  }
+  0% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -50px); }
 }
 
 .attack-effect {

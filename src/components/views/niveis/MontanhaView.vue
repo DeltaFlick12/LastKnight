@@ -214,8 +214,9 @@
 
 <script setup>
 import montanhaBaseImage from '@/assets/backviews/montanha-base.png';
-import montanhaImage from '@/assets/backviews/montanha.png';
-// import montanhaBattleDragonImage from '@/assets/backviews/montanha-battle-dragon.png';
+import montanhaImage from '@/assets/backviews/montanha-base.png'; // Corrigido para uma imagem diferente
+import montanhaBattleDragonImage from '@/assets/backviews/montanha-confronto.png';
+import montanhaCenarioImage from '@/assets/backviews/montanha-cenario.png';
 import playerEmergingImage from '@/assets/backviews/player-emerging.png';
 import dragonIceSprite from '@/assets/sprites/dragon-ice-sprite.png';
 // import playerSprite from '@/assets/sprites/player-sprite.png';
@@ -263,13 +264,26 @@ const inBattle = ref(false);
 const currentEnemyIndex = ref(0);
 
 // Background Styles
-const backgroundStyle = computed(() => ({
-  backgroundImage: `url(${inBattle.value ? montanhaBattleDragonImage : montanhaImage})`,
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  opacity: isFading.value ? 0 : 1,
-  transition: 'opacity 0.5s ease',
-}));
+const backgroundStyle = computed(() => {
+  let backgroundImage;
+  
+  if (inBattle.value) {
+    backgroundImage = montanhaCenarioImage;
+  } else if (!atMountainBase.value && !bossDefeated.value) {
+    // No topo da montanha, com opção de enfrentar o dragão
+    backgroundImage = montanhaBattleDragonImage;
+  } else {
+    backgroundImage = montanhaImage;
+  }
+  
+  return {
+    backgroundImage: `url(${backgroundImage})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    opacity: isFading.value ? 0 : 1,
+    transition: 'opacity 0.5s ease',
+  };
+});
 const dialogueOrCutsceneBackgroundStyle = computed(() => ({
   backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url(${
     showDialogue.value ? montanhaBaseImage : cutsceneBackgroundImage.value
@@ -425,7 +439,6 @@ const endDialogue = async () => {
 };
 
 // Cutscene Logic
-const typewriterSpans = ref([]);
 const playCutscene = async () => {
   playAudio('mountain_ambient', { loop: true });
   playAudio('wind_howl');
@@ -754,6 +767,20 @@ watch(
   padding: 20px;
   max-width: 800px;
   border-radius: 5px;
+  margin: 10px auto 0;
+}
+
+.dialogue-arrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+  background-color: #4682b4;
+  border: 2px solid #2f4f4f;
+  color: #e0f0ff;
+  font-size: 24px;
+  border-radius: 5px;
   cursor: pointer;
   transition: background-color 0.3s, transform 0.1s;
   margin: 10px auto 0;
@@ -983,7 +1010,7 @@ watch(
 
 .navigation-bar {
   position: fixed;
-  bottom: 0px;
+  bottom: 10px;
   left: 0;
   width: 100%;
   background-color: rgba(40, 60, 80, 0.95);
@@ -1006,14 +1033,12 @@ watch(
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(rgba(20, 30, 40, 0.9), rgba(20, 30, 40, 0.9));
 }
 
 .battle-arena {
   position: relative;
   width: 100%;
   height: 80vh;
-  background: rgba(20, 30, 40, 0.95);
   overflow: hidden;
 }
 

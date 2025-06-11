@@ -71,9 +71,12 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { gameState, actions, ITEMS } from '@/stores/game.js'; // Remove ITEM_ICONS from import
+import { useGameState, ITEMS } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
 
 const emits = defineEmits(['update:show']);
+
+// Initialize the Pinia store
+const gameState = useGameState(); // Call useGameState to get the store instance
 
 const hoverItem = ref(null);
 const feedbackMessage = ref('');
@@ -108,13 +111,13 @@ const allItems = computed(() => {
       action: slot
         ? () => {
             if (gameState.player.equipment[slot] === invItem.itemId) {
-              actions.unequipItem(slot);
+              gameState.unequipItem(slot); // Use gameState to call the action
             } else {
-              actions.equipItem(invItem.itemId);
+              gameState.equipItem(invItem.itemId); // Use gameState to call the action
             }
           }
         : itemData.type.startsWith('Consumível')
-        ? () => actions.useItem(invItem.itemId)
+        ? () => gameState.useItem(invItem.itemId) // Use gameState to call the action
         : null,
     };
   }).filter(Boolean);
