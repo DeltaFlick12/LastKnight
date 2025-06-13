@@ -366,7 +366,9 @@ if (transitionAlpha > 0) {
   ctx.globalAlpha = transitionAlpha
   ctx.drawImage(foregrounds[nextBackgroundIndex], -cam.x, -cam.y, world.width, world.height)
 }
-    drawLights(ctx, cam)
+if (gameState.shaders) {
+  drawLights(ctx, cam)
+}
 ctx.globalAlpha = 1
   }
 
