@@ -13,24 +13,23 @@
         transform: `translate(-50%, -50%) scale(${zoomLevel})`
       }"
     >
+      <!-- Canvas para o personagem -->
+      <canvas
+        ref="characterCanvas"
+        class="character"
+        :style="{
+          transform: `translate(${characterPosition.x}px, ${characterPosition.y}px)`,
+          width: `${player.size}px`,
+          height: `${player.size}px`
+        }"
+      ></canvas>
+
       <!-- NPC Padre -->
       <div
         class="npc padre"
         :style="{
           transform: `translate(${padrePosition.x}px, ${padrePosition.y}px)`,
           backgroundImage: `url(${padreSprite})`
-        }"
-      ></div>
-
-      <!-- Personagem do jogador -->
-      <div
-        class="character"
-        :style="{
-          transform: `translate(${characterPosition.x}px, ${characterPosition.y}px)`,
-          backgroundImage: `url(${currentSprite})`,
-          backgroundSize: 'cover',
-          width: '80px',
-          height: '80px'
         }"
       ></div>
 
@@ -59,58 +58,119 @@
       />
     </div>
 
-    <!-- Caixa de diálogo do diálogo inicial -->
-    <div v-if="showDialog" class="dialog-box">
-      <p>{{ displayedText }}</p>
-      <button @click="nextDialog" :disabled="typing">Continuar</button>
-    </div>
+    <!-- Caixa de diálogo inicial -->
+    <transition name="fade">
+      <div v-if="showDialog" class="dialog-box dialog-style centered-dialog" key="dialog">
+        <p>{{ displayedText }}</p>
+        <button @click="nextDialog" :disabled="typing" class="dialog-button">Continuar</button>
+      </div>
+    </transition>
 
     <!-- Caixa de diálogo para sair da igreja -->
-    <div v-if="showExitDialog && !showDialog" class="dialog-box">
-      <p>{{ exitDialogText }}</p>
-    </div>
+    <transition name="fade">
+      <div v-if="showExitDialog && !showDialog" class="dialog-box dialog-style centered-dialog">
+        <p>{{ exitDialogText }}</p>
+      </div>
+    </transition>
 
-    <!-- NEW: Caixa de diálogo para a mensagem de bênção -->
-    <div v-if="showBlessingPrompt && !showDialog && !showBlessingMenu" class="dialog-box">
-      <p>Para receber a bênção do padre aperte "E"</p>
-    </div>
+    <!-- Caixa de diálogo para interação com o padre -->
+    <transition name="fade">
+      <div v-if="showBlessingPrompt && !showDialog && !showShop" class="dialog-box dialog-style centered-dialog">
+        <p>Para receber bênçãos do padre, aperte "E"</p>
+      </div>
+    </transition>
 
-    <!-- Menu de bênçãos aparece quando perto do padre -->
-    <div v-if="showBlessingMenu" class="blessing-menu dialog-box">
-      <h3>Bênçãos Disponíveis</h3>
-      <p>Ouro: {{ gold }}</p>
-      <ul>
-        <li v-for="(blessing, index) in blessingsAvailable" :key="index">
-          <button
-            @click="buyBlessing(blessing)"
-            :disabled="gold < blessing.cost || blessings.includes(blessing.name)"
-          >
-            {{ blessing.name }} - Custa {{ blessing.cost }} ouro
-          </button>
-          <span v-if="blessings.includes(blessing.name)"> (Comprado) </span>
-        </li>
-      </ul>
-      <button @click="closeBlessingMenu">Fechar</button>
-    </div>
+    <!-- Menu de compras -->
+    <transition name="shop-fade">
+      <div v-if="showShop" class="shop-box dialog-style" key="shop">
+        <button class="dialog-button exit-button" @click="closeShop">Sair</button>
+        <h3 class="shop-name">SANTUÁRIO DE ALBADIA</h3>
+        <h4 class="shop-title">Escolha sua bênção:</h4>
+        <div class="gold-display">
+          <img :src="goldIcon" alt="Gold Icon" class="gold-icon" />
+          : {{ gameState.player.gold }}
+        </div>
+        <div class="shop-content">
+          <div class="shop-items-container">
+            <div v-if="blessings.length === 0" class="shop-item no-items">
+              Não há bênçãos disponíveis no momento.
+            </div>
+            <div
+              v-for="item in blessings"
+              :key="item.itemId"
+              class="shop-item"
+              @mouseover="hoverItemDescription(item)"
+              @mouseleave="hideHoverDialog"
+            >
+              <div>
+                <strong>{{ item.name }}</strong>
+                <span>
+                  <img :src="goldIcon" alt="Gold Icon" class="gold-icon small" />
+                  Custo: {{ item.price }} Ouro
+                </span>
+              </div>
+              <p>{{ item.description }}</p>
+              <button @click="buyBlessing(item)" class="dialog-button buy-button">Comprar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- Diálogo da loja -->
+    <transition name="fade">
+      <div v-if="showShopDialog" class="dialog-box dialog-style shop-dialog" key="shopDialog">
+        <p>{{ displayedText }}</p>
+      </div>
+    </transition>
+
+    <!-- Diálogo de mensagem -->
+    <transition name="fade">
+      <div v-if="showMessageDialog" class="dialog-box dialog-style message-dialog" key="messageDialog">
+        <p>{{ displayedText }}</p>
+      </div>
+    </transition>
+
+    <!-- Diálogo de hover -->
+    <transition name="fade">
+      <div v-if="showHoverDialog" class="dialog-box dialog-style hover-dialog" key="hoverDialog">
+        <p>{{ displayedText }}</p>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useGameState, ITEMS } from '@/stores/gamestate.js'
 import bgImage from '@/assets/interior/igreja-bg.png'
 import padreSprite from '@/assets/Padre.png'
 
-// Sprites
-const sprites = {
-  idle: '/img/sprites/player/player_idle.png',
-  walk_up: '/img/sprites/player/player_walk_up.png',
-  walk_down: '/img/sprites/player/player_walk_down.png',
-  walk_left: '/img/sprites/player/player_walk_left.png',
-  walk_right: '/img/sprites/player/player_walk_right.png'
+// Configurações do jogador e sprite sheet
+const playerSpriteSheet = new Image()
+playerSpriteSheet.src = '/img/sprites/player/player_sprite.png'
+
+const player = {
+  size: 250,
+  speed: 3
 }
 
+const frameWidth = 96
+const frameHeight = 96
+const animations = {
+  idle: { row: 3, frames: [7, 1, 2, 3, 4, 5], frameInterval: 150 },
+  walk_down: { row: 6, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 },
+  walk_up: { row: 4, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 },
+  walk_left: { row: 20.1, frames: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], frameInterval: 70 },
+  walk_right: { row: 5, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 }
+}
+
+const currentFrameIndex = ref(0)
+const frameTimer = ref(0)
+const playerDirection = ref('idle')
+
 // Estado do personagem
-const currentSprite = ref(sprites.idle)
 const characterPosition = ref({ x: 0, y: 0 })
 const zoomLevel = ref(0.95)
 const moving = ref({ up: false, down: false, left: false, right: false })
@@ -119,42 +179,97 @@ const lastDirection = ref('up')
 // Estado do padre
 const padrePosition = ref({ x: 400, y: 120 })
 
-// Estado do jogador (ouro e bênçãos)
-const gold = ref(100)
-const blessings = ref([])
+// Estado do jogo
+const gameState = useGameState()
+const router = useRouter()
 
-// Definição das bênçãos disponíveis
-const blessingsAvailable = [
-  { name: 'Bênção da Força', cost: 30 },
-  { name: 'Bênção da Proteção', cost: 50 },
-  { name: 'Bênção da Velocidade', cost: 40 }
-]
-
-// Controla a exibição do menu de bênçãos e da mensagem
-const showBlessingMenu = ref(false)
-const showBlessingPrompt = ref(false) // NEW: Estado para a mensagem de bênção
-
-// Diálogo inicial
+// Diálogos e loja
 const showDialog = ref(true)
+const showShop = ref(false)
+const showShopDialog = ref(false)
+const showMessageDialog = ref(false)
+const showHoverDialog = ref(false)
+const showBlessingPrompt = ref(false)
+const showExitDialog = ref(false)
 const dialogIndex = ref(0)
-const dialogLines = [
+const displayedText = ref('')
+const typing = ref(false)
+const canMove = ref(false)
+const exitDialogText = "Pressione 'E' para Sair da Igreja"
+const hoverItemDescriptionText = ref('')
+const message = ref('')
+let typingInterval = null
+let currentHoverItem = null
+
+const dialogLines = ref([
   'Filho, bem-vindo à casa sagrada de Albadia.',
   'Aqui oferecemos bênçãos para proteger-te nas tuas batalhas.',
   'Cada bênção carrega consigo um poder divino e um preço justo.',
   'Escolha com fé...'
-]
-const displayedText = ref('')
-const typing = ref(false)
-const canMove = ref(false)
+])
 
-// Caixa diálogo para saída da igreja
-const showExitDialog = ref(false)
-const exitDialogText = "Pressione 'E' para Sair da Igreja"
+const shopDialogLines = ['Escolha uma bênção para sua jornada, filho!']
+
+// Itens disponíveis (bênçãos)
+const blessings = computed(() => {
+  const blessingList = [
+    {
+      itemId: 'blessing_strength',
+      name: 'Bênção da Força',
+      price: 30,
+      description: 'Aumenta sua força em combate.',
+      icon: ITEMS['blessing_strength']?.icon || '/icons/blessing-strength.png',
+      type: 'Bênção'
+    },
+    {
+      itemId: 'blessing_protection',
+      name: 'Bênção da Proteção',
+      price: 50,
+      description: 'Reduz o dano recebido.',
+      icon: ITEMS['blessing_protection']?.icon || '/icons/blessing-protection.png',
+      type: 'Bênção'
+    },
+    {
+      itemId: 'blessing_speed',
+      name: 'Bênção da Velocidade',
+      price: 40,
+      description: 'Aumenta sua velocidade de movimento.',
+      icon: ITEMS['blessing_speed']?.icon || '/icons/blessing-speed.png',
+      type: 'Bênção'
+    }
+  ]
+  console.log('Bênçãos geradas:', blessingList) // Depuração
+  return blessingList.filter(item => ITEMS[item.itemId] || true)
+})
+
+const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png')
+const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png')
+
+// Efeitos sonoros
+const sounds = {
+  dialogClick: new Audio('/sounds/click.wav'),
+  coinClank: new Audio('/sounds/coin_clank.mp3'),
+  typing: new Audio('/sounds/typing.mp3')
+}
+sounds.dialogClick.volume = 0.5
+sounds.coinClank.volume = 0.5
+sounds.typing.volume = 0.5
+
+const playSound = (audio) => {
+  if (!audio) return
+  audio.currentTime = 0
+  audio.play().catch(() => {})
+}
+
+// Configurações do canvas
+const characterCanvas = ref(null)
+let ctx = null
 
 // Tamanho do fundo
 const bgWidth = 1200
 const bgHeight = 1024
 let animationFrameId = null
+let lastUpdateTime = 0
 
 // Áreas de colisão
 const collisionAreas = [
@@ -165,14 +280,14 @@ const collisionAreas = [
   { x: 430, y: 890, width: 170, height: 50 }
 ]
 
-// Áreas interativas para "entrar" em lugares (área verde)
+// Áreas interativas
 const interactionAreas = [
-  { x: 430, y: 850, width: 170, height: 80, action: () => (window.location.href = '/level/albadia') }
+  { x: 430, y: 850, width: 170, height: 80, action: () => router.push('/level/albadia') }
 ]
 
 // Verificação de colisão
 const isColliding = (nextX, nextY) => {
-  const charBox = { x: nextX, y: nextY, width: 80, height: 80 }
+  const charBox = { x: nextX, y: nextY, width: player.size, height: player.size }
   return collisionAreas.some(
     area =>
       charBox.x < area.x + area.width &&
@@ -184,7 +299,7 @@ const isColliding = (nextX, nextY) => {
 
 // Verifica se personagem está numa área interativa
 const isInInteractionArea = () => {
-  const charBox = { x: characterPosition.value.x, y: characterPosition.value.y, width: 80, height: 80 }
+  const charBox = { x: characterPosition.value.x, y: characterPosition.value.y, width: player.size, height: player.size }
   return interactionAreas.find(
     area =>
       charBox.x < area.x + area.width &&
@@ -196,7 +311,7 @@ const isInInteractionArea = () => {
 
 // Verifica se personagem está perto do padre
 const isNearPadre = () => {
-  const charBox = { x: characterPosition.value.x, y: characterPosition.value.y, width: 80, height: 80 }
+  const charBox = { x: characterPosition.value.x, y: characterPosition.value.y, width: player.size, height: player.size }
   const padreBox = { x: padrePosition.value.x, y: padrePosition.value.y, width: 120, height: 120 }
   return (
     charBox.x < padreBox.x + padreBox.width + 30 &&
@@ -206,109 +321,230 @@ const isNearPadre = () => {
   )
 }
 
-// Digitação do texto do diálogo inicial
-const typeLine = () => {
-  typing.value = true
-  displayedText.value = ''
-  const line = dialogLines[dialogIndex.value]
-  let index = 0
-  const interval = setInterval(() => {
-    if (index < line.length) {
-      displayedText.value += line[index++]
-    } else {
-      clearInterval(interval)
-      typing.value = false
-    }
-  }, 40)
+// Digitação do texto
+const typeLine = (text) => {
+  return new Promise((resolve) => {
+    if (typingInterval) clearInterval(typingInterval)
+    displayedText.value = ''
+    typing.value = true
+
+    const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value
+    let index = 0
+
+    typingInterval = setInterval(() => {
+      if (index < line.length) {
+        displayedText.value += line[index++]
+        if (index % 3 === 0) playSound(sounds.typing)
+      } else {
+        clearInterval(typingInterval)
+        typingInterval = null
+        typing.value = false
+        resolve()
+      }
+    }, 40)
+  })
 }
 
-const nextDialog = () => {
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+const resetState = () => {
+  showDialog.value = true
+  dialogIndex.value = 0
+  showHoverDialog.value = false
+  showShopDialog.value = false
+  showMessageDialog.value = false
+  showShop.value = false
+  displayedText.value = ''
+  typing.value = false
+  hoverItemDescriptionText.value = ''
+  message.value = ''
+  if (typingInterval) {
+    clearInterval(typingInterval)
+    typingInterval = null
+  }
+  currentHoverItem = null
+}
+
+const nextDialog = async () => {
   if (typing.value) return
-  if (dialogIndex.value < dialogLines.length - 1) {
+  playSound(sounds.dialogClick)
+  if (dialogIndex.value < dialogLines.value.length - 1) {
     dialogIndex.value++
-    typeLine()
+    await typeLine(dialogLines.value[dialogIndex.value])
   } else {
     showDialog.value = false
     canMove.value = true
   }
 }
 
-const getMovementBounds = () => {
-  const screen = document.querySelector('.igreja-screen')
-  const rect = screen.getBoundingClientRect()
-  const bgRenderedWidth = bgWidth * zoomLevel.value
-  const bgRenderedHeight = bgHeight * zoomLevel.value
-
-  return {
-    minX: 0,
-    maxX: bgRenderedWidth - 80,
-    minY: 0,
-    maxY: bgRenderedHeight - 80
+const hideHoverDialog = () => {
+  showHoverDialog.value = false
+  currentHoverItem = null
+  if (typingInterval) {
+    clearInterval(typingInterval)
+    typingInterval = null
+    typing.value = false
   }
 }
 
-// Atualização do movimento
-const updateMovement = () => {
+const hideAllDialogs = () => {
+  showHoverDialog.value = false
+  showShopDialog.value = false
+  showMessageDialog.value = false
+  currentHoverItem = null
+  if (typingInterval) {
+    clearInterval(typingInterval)
+    typingInterval = null
+    typing.value = false
+  }
+}
+
+const hoverItemDescription = async (item) => {
+  if (!showShop.value) return
+  if (currentHoverItem === item.itemId) return
+  hideAllDialogs()
+  currentHoverItem = item.itemId
+  hoverItemDescriptionText.value = item.description
+  showHoverDialog.value = true
+  await typeLine(item.description)
+}
+
+const buyBlessing = async (item) => {
+  hideAllDialogs()
+  const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === item.itemId)
+  if (existingItem) {
+    message.value = `Você já possui ${item.name}.`
+  } else if (gameState.player.gold >= item.price) {
+    gameState.removeGold(item.price)
+    gameState.addItemToInventory(item.itemId, 1)
+    message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`
+    playSound(sounds.coinClank)
+  } else {
+    message.value = 'Você não tem ouro suficiente.'
+  }
+  showMessageDialog.value = true
+  await typeLine(message.value)
+  await delay(2000)
+  hideAllDialogs()
+  if (showShop.value) {
+    showShopDialog.value = true
+    await typeLine(shopDialogLines[0])
+  }
+}
+
+const closeShop = () => {
+  hideAllDialogs()
+  showShop.value = false
+  canMove.value = !showDialog.value
+}
+
+const getMovementBounds = () => {
+  const bgRenderedWidth = bgWidth * zoomLevel.value
+  const bgRenderedHeight = bgHeight * zoomLevel.value
+  return {
+    minX: 0,
+    maxX: bgRenderedWidth - player.size,
+    minY: 0,
+    maxY: bgRenderedHeight - player.size
+  }
+}
+
+const updateAnimation = (deltaSeconds) => {
+  const anim = animations[playerDirection.value] || animations.idle
+  const interval = anim.frameInterval || 70
+  frameTimer.value += deltaSeconds * 1000
+  if (frameTimer.value > interval) {
+    frameTimer.value = 0
+    currentFrameIndex.value++
+    if (currentFrameIndex.value >= anim.frames.length) currentFrameIndex.value = 0
+  }
+}
+
+const drawCharacter = () => {
+  if (!ctx || !playerSpriteSheet.complete) return
+  ctx.clearRect(0, 0, characterCanvas.value.width, characterCanvas.value.height)
+  const anim = animations[playerDirection.value] || animations.idle
+  const frame = anim.frames[currentFrameIndex.value]
+  const sx = frame * frameWidth
+  const sy = anim.row * frameHeight
+  ctx.drawImage(
+    playerSpriteSheet,
+    sx, sy, frameWidth, frameHeight,
+    0, 0, player.size, player.size
+  )
+}
+
+const updateMovement = (timestamp) => {
   if (!canMove.value) {
+    drawCharacter()
     animationFrameId = requestAnimationFrame(updateMovement)
     return
   }
 
-  const step = 3
+  if (!lastUpdateTime) lastUpdateTime = timestamp
+  const deltaSeconds = (timestamp - lastUpdateTime) / 1000
+  lastUpdateTime = timestamp
+
   let moved = false
   const bounds = getMovementBounds()
 
   if (moving.value.up) {
-    const nextY = characterPosition.value.y - step
+    const nextY = characterPosition.value.y - player.speed
     if (nextY >= bounds.minY && !isColliding(characterPosition.value.x, nextY)) {
       characterPosition.value.y = nextY
+      playerDirection.value = 'walk_up'
       lastDirection.value = 'up'
       moved = true
     }
   }
   if (moving.value.down) {
-    const nextY = characterPosition.value.y + step
+    const nextY = characterPosition.value.y + player.speed
     if (nextY <= bounds.maxY && !isColliding(characterPosition.value.x, nextY)) {
       characterPosition.value.y = nextY
+      playerDirection.value = 'walk_down'
       lastDirection.value = 'down'
       moved = true
     }
   }
   if (moving.value.left) {
-    const nextX = characterPosition.value.x - step
+    const nextX = characterPosition.value.x - player.speed
     if (nextX >= bounds.minX && !isColliding(nextX, characterPosition.value.y)) {
       characterPosition.value.x = nextX
+      playerDirection.value = 'walk_left'
       lastDirection.value = 'left'
       moved = true
     }
   }
   if (moving.value.right) {
-    const nextX = characterPosition.value.x + step
+    const nextX = characterPosition.value.x + player.speed
     if (nextX <= bounds.maxX && !isColliding(nextX, characterPosition.value.y)) {
       characterPosition.value.x = nextX
+      playerDirection.value = 'walk_right'
       lastDirection.value = 'right'
       moved = true
     }
   }
 
-  currentSprite.value = moved ? sprites[`walk_${lastDirection.value}`] : sprites.idle
+  if (!moved) {
+    playerDirection.value = 'idle'
+  }
 
-  // Verifica se personagem está dentro da área verde
+  updateAnimation(deltaSeconds)
+  drawCharacter()
+
   const insideArea = isInInteractionArea()
   showExitDialog.value = !!insideArea
 
-  // NEW: Atualiza a visibilidade da mensagem de bênção
-  showBlessingPrompt.value = isNearPadre() && !showBlessingMenu.value
+  showBlessingPrompt.value = isNearPadre() && !showShop.value
 
   animationFrameId = requestAnimationFrame(updateMovement)
 }
 
-// Controles do teclado
 const startMoving = (event) => {
   const key = event.key.toLowerCase()
 
-  if (showBlessingMenu.value) {
-    if (key === 'escape') closeBlessingMenu()
+  if (showShop.value) {
+    if (key === 'escape') closeShop()
     return
   }
 
@@ -319,7 +555,7 @@ const startMoving = (event) => {
     if (area) {
       area.action()
     } else if (isNearPadre()) {
-      showBlessingMenu.value = true
+      showShop.value = true
       canMove.value = false
     }
     return
@@ -343,22 +579,9 @@ const stopMoving = (event) => {
   }
 }
 
-// Comprar bênçãos
-const buyBlessing = (blessing) => {
-  if (gold.value >= blessing.cost && !blessings.value.includes(blessing.name)) {
-    gold.value -= blessing.cost
-    blessings.value.push(blessing.name)
-    alert(`Você comprou a ${blessing.name}!`)
-  }
-}
-
-// Fechar menu e liberar movimento
-const closeBlessingMenu = () => {
-  showBlessingMenu.value = false
-  canMove.value = !showDialog.value
-}
-
 onMounted(() => {
+  console.log('ITEMS no onMounted:', ITEMS) // Depuração
+  resetState()
   typeLine()
   const screen = document.querySelector('.igreja-screen')
   screen.focus()
@@ -368,7 +591,31 @@ onMounted(() => {
   characterPosition.value.x = (bounds.minX + bounds.maxX) / 2
   characterPosition.value.y = (bounds.minY + bounds.maxY) / 2
 
-  animationFrameId = requestAnimationFrame(updateMovement)
+  if (characterCanvas.value) {
+    ctx = characterCanvas.value.getContext('2d')
+    characterCanvas.value.width = player.size
+    characterCanvas.value.height = player.size
+  }
+
+  playerSpriteSheet.onload = () => {
+    animationFrameId = requestAnimationFrame(updateMovement)
+  }
+})
+
+onUnmounted(() => {
+  if (animationFrameId) cancelAnimationFrame(animationFrameId)
+  if (typingInterval) {
+    clearInterval(typingInterval)
+    typingInterval = null
+  }
+})
+
+watch(() => showShop, (newVal) => {
+  if (newVal) {
+    hideAllDialogs()
+    showShopDialog.value = true
+    typeLine(shopDialogLines[0])
+  }
 })
 </script>
 
@@ -405,7 +652,6 @@ onMounted(() => {
 
 .character {
   position: absolute;
-  transition: transform 0.05s linear;
   z-index: 3;
 }
 
@@ -418,12 +664,11 @@ onMounted(() => {
   z-index: 2;
 }
 
-.dialog-box {
+.dialog-style {
   position: fixed;
   background-color: rgba(40, 25, 15, 0.9);
   padding: 25px 35px;
-  border: 4px solid;
-  border-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAkAAAAJCAYAAADgkQYQAAAALElEQVQoU2NkIAIwEqGGAa5IU1OTEZkPM+jfv3+MyHxkNlZFMINwKcJpEgDlTRcFFzrw5QAAAABJRU5ErkJggg==') 3 repeat;
+  border: 4px solid #6c552a;
   border-radius: 8px;
   text-align: center;
   width: 90vw;
@@ -432,107 +677,229 @@ onMounted(() => {
   color: #f0e0c0;
   font-size: 15px;
   line-height: 1.7;
+  font-family: 'Press Start 2P', cursive;
+}
+
+.centered-dialog {
   bottom: 5vh;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  font-family: 'Press Start 2P', cursive;
-  transition: background-color 0.2s ease;
-  user-select: none;
 }
 
-.dialog-box:hover {
-  background-color: rgba(50, 35, 20, 0.95);
+.shop-dialog {
+  top: 15vh;
+  left: 1%;
+  transform: translateX(0);
+  z-index: 5;
 }
 
-.blessing-menu {
-  position: fixed;
-  top: 420px; /* Mover um pouco mais para baixo */
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90vw;
-  max-width: 700px;
-  max-height: 420px;
+.hover-dialog {
+  top: 15vh;
+  left: 1%;
+  transform: translateX(0);
+  z-index: 15;
+}
+
+.message-dialog {
+  top: 15vh;
+  left: 1%;
+  transform: translateX(0);
+  z-index: 15;
+}
+
+.shop-box {
+  top: 10vh;
+  bottom: 5vh;
+  left: 65%;
+  transform: translateX(-35%);
+  z-index: 2;
+  max-height: 80vh;
   overflow-y: auto;
-  background-color: rgba(40, 25, 15, 0.9);
-  padding: 20px 30px;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-  color: #f0e0c0;
-  font-size: 15px;
-  line-height: 1.6;
-  font-family: 'Press Start 2P', cursive;
-  border: 2px solid #6c552a;
-  text-align: center;
-  user-select: none;
-  transition: box-shadow 0.3s ease;
-  z-index: 20;
 }
 
-
-.blessing-menu:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.8);
+.dialog-style p {
+  margin: 0 0 20px 0;
 }
 
-.blessing-menu h3 {
-  margin-bottom: 18px;
-  font-size: 1.4rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  border-bottom: 2px dashed #d7b85b;
-  padding-bottom: 8px;
-  color: #ffe8b2;
-}
-
-.blessing-menu ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.blessing-menu li {
-  margin-bottom: 15px;
-  border-bottom: 1px dotted #c2a65c;
-  padding-bottom: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 14px;
-  color: #f0e0c0;
-  text-shadow: 1px 1px 0 #000;
-}
-
-.blessing-menu button {
-  cursor: pointer;
+.dialog-button {
+  display: block;
+  margin-left: auto;
+  margin-right: 0;
+  margin-top: 10px;
+  padding: 10px 20px;
   background-color: #e0a867;
   color: #5c2c1d;
   border: 4px solid #5c2c1d;
-  padding: 10px 20px;
   border-radius: 6px;
   font-family: 'Press Start 2P', cursive;
   font-size: 14px;
   font-weight: bold;
-  text-transform: uppercase;
-  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
+  cursor: pointer;
   transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
-  text-shadow: 1px 1px 0 #fff3cd;
+  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
+  text-transform: uppercase;
 }
 
-.blessing-menu button:hover:not(:disabled) {
+.dialog-button:hover:not(:disabled) {
   background-color: #f4b76a;
   color: #3e1e14;
   box-shadow: inset -6px -6px #c96a32, inset 6px 6px #ffd9a1;
-  transform: scale(1.05);
 }
 
-.blessing-menu button:disabled {
+.dialog-button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8e;
+}
+
+.dialog-button:disabled {
   opacity: 0.6;
   cursor: default;
-  background-color: #4a3d19;
-  border-color: #3a2e11;
+}
+
+.shop-name {
+  text-align: center;
+  color: #ffe8b2;
+  font-size: 18px;
+  margin-bottom: 5px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+}
+
+.shop-title {
+  text-align: center;
+  color: #ffe8b2;
+  margin-top: 0;
+  margin-bottom: 10px;
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.gold-display {
+  text-align: right;
+  font-size: 13px;
+  margin-bottom: 20px;
+  color: #f0b860;
+  text-shadow: 1px 1px 0 #000;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.gold-icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  image-rendering: pixelated;
+}
+
+.gold-icon.small {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+}
+
+.shop-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.shop-items-container {
+  flex: 1;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.shop-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 5px 15px;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid #6c552a;
+  background-color: rgba(40, 25, 15, 0.9);
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.shop-item:hover {
+  background-color: rgba(50, 35, 20, 0.95);
+}
+
+.shop-item.no-items {
+  text-align: center;
   color: #a09362;
-  box-shadow: none;
+  font-style: italic;
+}
+
+.shop-item img.blessing-icon {
+  grid-row: 1 / 3;
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.shop-item div {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.shop-item div strong {
+  font-size: 1.1em;
+  color: #f0e0c0;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.shop-item div span {
+  font-size: 0.9em;
+  color: #f0b860;
+  text-shadow: 1px 1px 0 #000;
+  display: flex;
+  align-items: center;
+}
+
+.shop-item p {
+  grid-column: 2 / 3;
+  grid-row: 2 / 3;
+  font-size: 0.9em;
+  color: #c0b090;
+  margin: 0;
+}
+
+.shop-item button.buy-button {
+  grid-column: 3 / 4;
+  grid-row: 1 / 3;
+  margin: 0;
+  align-self: center;
+}
+
+.exit-button {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  margin: 0;
+  background-color: #5c2c1d;
+  color: #f0e0c0;
+  border-color: #3e1e14;
+}
+
+.exit-button:hover:not(:disabled) {
+  background-color: #704030;
 }
 
 .fade-enter-active, .fade-leave-active {
@@ -553,7 +920,6 @@ onMounted(() => {
   transform: translateX(50px);
 }
 
-/* Manter invisível mas mantendo estrutura para debug */
 .collision-box {
   position: absolute;
   background-color: rgba(255, 0, 0, 0);
