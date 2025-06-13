@@ -5,15 +5,14 @@
     @keyup="stopMoving"
     tabindex="0"
   >
-    <!-- Camada com imagem e zoom centralizado -->
+    <!-- Fundo SEM zoom -->
     <div
       class="zoom-layer"
       :style="{
         backgroundImage: `url(${bgImage})`,
-        transform: `translate(-50%, -50%) scale(${zoomLevel})`
       }"
     >
-      <!-- NPC Padre -->
+      <!-- Padre NPC -->
       <div
         class="npc padre"
         :style="{
@@ -22,19 +21,18 @@
         }"
       ></div>
 
-      <!-- Personagem do jogador -->
-      <div
-        class="character"
+      <!-- Canvas do personagem com zoom 2x -->
+      <canvas
+        ref="characterCanvas"
+        class="character-canvas"
         :style="{
-          transform: `translate(${characterPosition.x}px, ${characterPosition.y}px)`,
-          backgroundImage: `url(${currentSprite})`,
-          backgroundSize: 'cover',
-          width: '80px',
-          height: '80px'
+          transform: `translate(${characterPosition.x}px, ${characterPosition.y}px)`
         }"
-      ></div>
+        width="288"
+        height="288"
+      ></canvas>
 
-      <!-- Visualização das colisões -->
+      <!-- Colisões e áreas interativas (mesmo estilo) -->
       <div
         v-for="(area, i) in collisionAreas"
         :key="i"
@@ -45,8 +43,6 @@
           height: `${area.height}px`
         }"
       />
-
-      <!-- Visualização das áreas interativas -->
       <div
         v-for="(area, i) in interactionAreas"
         :key="'interact-' + i"
@@ -59,23 +55,20 @@
       />
     </div>
 
-    <!-- Caixa de diálogo do diálogo inicial -->
+    <!-- Dialogs e menus (igual) -->
     <div v-if="showDialog" class="dialog-box">
       <p>{{ displayedText }}</p>
       <button @click="nextDialog" :disabled="typing">Continuar</button>
     </div>
 
-    <!-- Caixa de diálogo para sair da igreja -->
     <div v-if="showExitDialog && !showDialog" class="dialog-box">
       <p>{{ exitDialogText }}</p>
     </div>
 
-    <!-- NEW: Caixa de diálogo para a mensagem de bênção -->
     <div v-if="showBlessingPrompt && !showDialog && !showBlessingMenu" class="dialog-box">
       <p>Para receber a bênção do padre aperte "E"</p>
     </div>
 
-    <!-- Menu de bênçãos aparece quando perto do padre -->
     <div v-if="showBlessingMenu" class="blessing-menu dialog-box">
       <h3>Bênçãos Disponíveis</h3>
       <p>Ouro: {{ gold }}</p>
@@ -100,41 +93,41 @@ import { ref, onMounted } from 'vue'
 import bgImage from '@/assets/interior/igreja-bg.png'
 import padreSprite from '@/assets/Padre.png'
 
-// Sprites
-const sprites = {
-  idle: '/img/sprites/player/player_idle.png',
-  walk_up: '/img/sprites/player/player_walk_up.png',
-  walk_down: '/img/sprites/player/player_walk_down.png',
-  walk_left: '/img/sprites/player/player_walk_left.png',
-  walk_right: '/img/sprites/player/player_walk_right.png'
+const playerSpriteSheet = new Image()
+playerSpriteSheet.src = '/img/sprites/player/player_sprite.png'
+
+const frameWidth = 96
+const frameHeight = 96
+const scaleFactor = 3 // zoom só no personagem
+
+const animations = {
+  idle: { row: 3, frames: [7, 1, 2, 3, 4, 5], frameInterval: 150 },
+  walk_down: { row: 6, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 },
+  walk_up: { row: 4, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 },
+  walk_left: { row: 20.1, frames: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], frameInterval: 70 },
+  walk_right: { row: 5, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 }
 }
 
-// Estado do personagem
-const currentSprite = ref(sprites.idle)
-const characterPosition = ref({ x: 0, y: 0 })
-const zoomLevel = ref(0.95)
+const characterPosition = ref({ x: 400, y: 600 })
 const moving = ref({ up: false, down: false, left: false, right: false })
-const lastDirection = ref('up')
+const lastDirection = ref('idle')
 
-// Estado do padre
-const padrePosition = ref({ x: 400, y: 120 })
+let currentAnimation = 'idle'
+let currentFrameIndex = 0
+let frameTimer = 0
 
-// Estado do jogador (ouro e bênçãos)
+const characterCanvas = ref(null)
+
 const gold = ref(100)
 const blessings = ref([])
-
-// Definição das bênçãos disponíveis
 const blessingsAvailable = [
   { name: 'Bênção da Força', cost: 30 },
   { name: 'Bênção da Proteção', cost: 50 },
   { name: 'Bênção da Velocidade', cost: 40 }
 ]
 
-// Controla a exibição do menu de bênçãos e da mensagem
 const showBlessingMenu = ref(false)
-const showBlessingPrompt = ref(false) // NEW: Estado para a mensagem de bênção
-
-// Diálogo inicial
+const showBlessingPrompt = ref(false)
 const showDialog = ref(true)
 const dialogIndex = ref(0)
 const dialogLines = [
@@ -147,16 +140,11 @@ const displayedText = ref('')
 const typing = ref(false)
 const canMove = ref(false)
 
-// Caixa diálogo para saída da igreja
 const showExitDialog = ref(false)
 const exitDialogText = "Pressione 'E' para Sair da Igreja"
 
-// Tamanho do fundo
-const bgWidth = 1200
-const bgHeight = 1024
-let animationFrameId = null
+const padrePosition = ref({ x: 400, y: 120 })
 
-// Áreas de colisão
 const collisionAreas = [
   { x: 0, y: 200, width: 1024, height: 50 },
   { x: 0, y: 950, width: 1024, height: 50 },
@@ -165,12 +153,10 @@ const collisionAreas = [
   { x: 430, y: 890, width: 170, height: 50 }
 ]
 
-// Áreas interativas para "entrar" em lugares (área verde)
 const interactionAreas = [
   { x: 430, y: 850, width: 170, height: 80, action: () => (window.location.href = '/level/albadia') }
 ]
 
-// Verificação de colisão
 const isColliding = (nextX, nextY) => {
   const charBox = { x: nextX, y: nextY, width: 80, height: 80 }
   return collisionAreas.some(
@@ -182,7 +168,6 @@ const isColliding = (nextX, nextY) => {
   )
 }
 
-// Verifica se personagem está numa área interativa
 const isInInteractionArea = () => {
   const charBox = { x: characterPosition.value.x, y: characterPosition.value.y, width: 80, height: 80 }
   return interactionAreas.find(
@@ -194,7 +179,6 @@ const isInInteractionArea = () => {
   )
 }
 
-// Verifica se personagem está perto do padre
 const isNearPadre = () => {
   const charBox = { x: characterPosition.value.x, y: characterPosition.value.y, width: 80, height: 80 }
   const padreBox = { x: padrePosition.value.x, y: padrePosition.value.y, width: 120, height: 120 }
@@ -206,363 +190,258 @@ const isNearPadre = () => {
   )
 }
 
-// Digitação do texto do diálogo inicial
 const typeLine = () => {
   typing.value = true
   displayedText.value = ''
   const line = dialogLines[dialogIndex.value]
-  let index = 0
+  let i = 0
   const interval = setInterval(() => {
-    if (index < line.length) {
-      displayedText.value += line[index++]
-    } else {
+    displayedText.value += line[i]
+    i++
+    if (i >= line.length) {
       clearInterval(interval)
       typing.value = false
     }
-  }, 40)
+  }, 30)
 }
 
 const nextDialog = () => {
   if (typing.value) return
-  if (dialogIndex.value < dialogLines.length - 1) {
-    dialogIndex.value++
-    typeLine()
-  } else {
+  dialogIndex.value++
+  if (dialogIndex.value >= dialogLines.length) {
     showDialog.value = false
     canMove.value = true
+  } else {
+    typeLine()
   }
 }
-
-const getMovementBounds = () => {
-  const screen = document.querySelector('.igreja-screen')
-  const rect = screen.getBoundingClientRect()
-  const bgRenderedWidth = bgWidth * zoomLevel.value
-  const bgRenderedHeight = bgHeight * zoomLevel.value
-
-  return {
-    minX: 0,
-    maxX: bgRenderedWidth - 80,
-    minY: 0,
-    maxY: bgRenderedHeight - 80
-  }
-}
-
-// Atualização do movimento
-const updateMovement = () => {
-  if (!canMove.value) {
-    animationFrameId = requestAnimationFrame(updateMovement)
-    return
-  }
-
-  const step = 3
-  let moved = false
-  const bounds = getMovementBounds()
-
-  if (moving.value.up) {
-    const nextY = characterPosition.value.y - step
-    if (nextY >= bounds.minY && !isColliding(characterPosition.value.x, nextY)) {
-      characterPosition.value.y = nextY
-      lastDirection.value = 'up'
-      moved = true
-    }
-  }
-  if (moving.value.down) {
-    const nextY = characterPosition.value.y + step
-    if (nextY <= bounds.maxY && !isColliding(characterPosition.value.x, nextY)) {
-      characterPosition.value.y = nextY
-      lastDirection.value = 'down'
-      moved = true
-    }
-  }
-  if (moving.value.left) {
-    const nextX = characterPosition.value.x - step
-    if (nextX >= bounds.minX && !isColliding(nextX, characterPosition.value.y)) {
-      characterPosition.value.x = nextX
-      lastDirection.value = 'left'
-      moved = true
-    }
-  }
-  if (moving.value.right) {
-    const nextX = characterPosition.value.x + step
-    if (nextX <= bounds.maxX && !isColliding(nextX, characterPosition.value.y)) {
-      characterPosition.value.x = nextX
-      lastDirection.value = 'right'
-      moved = true
-    }
-  }
-
-  currentSprite.value = moved ? sprites[`walk_${lastDirection.value}`] : sprites.idle
-
-  // Verifica se personagem está dentro da área verde
-  const insideArea = isInInteractionArea()
-  showExitDialog.value = !!insideArea
-
-  // NEW: Atualiza a visibilidade da mensagem de bênção
-  showBlessingPrompt.value = isNearPadre() && !showBlessingMenu.value
-
-  animationFrameId = requestAnimationFrame(updateMovement)
-}
-
-// Controles do teclado
 const startMoving = (event) => {
-  const key = event.key.toLowerCase()
-
-  if (showBlessingMenu.value) {
-    if (key === 'escape') closeBlessingMenu()
-    return
-  }
-
   if (!canMove.value) return
-
-  if (key === 'e') {
-    const area = isInInteractionArea()
-    if (area) {
-      area.action()
-    } else if (isNearPadre()) {
-      showBlessingMenu.value = true
-      canMove.value = false
-    }
-    return
-  }
-
+  const key = event.key.toLowerCase()
   switch (key) {
-    case 'w': moving.value.up = true; break
-    case 's': moving.value.down = true; break
-    case 'a': moving.value.left = true; break
-    case 'd': moving.value.right = true; break
+    case 'w':
+      moving.value.up = true
+      lastDirection.value = 'walk_up'
+      break
+    case 's':
+      moving.value.down = true
+      lastDirection.value = 'walk_down'
+      break
+    case 'a':
+      moving.value.left = true
+      lastDirection.value = 'walk_left'
+      break
+    case 'd':
+      moving.value.right = true
+      lastDirection.value = 'walk_right'
+      break
+    case 'e':
+      handleAction()
+      break
   }
 }
 
 const stopMoving = (event) => {
-  if (!canMove.value) return
-  switch (event.key.toLowerCase()) {
-    case 'w': moving.value.up = false; break
-    case 's': moving.value.down = false; break
-    case 'a': moving.value.left = false; break
-    case 'd': moving.value.right = false; break
+  const key = event.key.toLowerCase()
+  switch (key) {
+    case 'w':
+      moving.value.up = false
+      break
+    case 's':
+      moving.value.down = false
+      break
+    case 'a':
+      moving.value.left = false
+      break
+    case 'd':
+      moving.value.right = false
+      break
+  }
+
+  if (
+    !moving.value.up &&
+    !moving.value.down &&
+    !moving.value.left &&
+    !moving.value.right
+  ) {
+    lastDirection.value = 'idle'
   }
 }
 
-// Comprar bênçãos
+
+
+
+
+const handleAction = () => {
+  if (isNearPadre()) {
+    if (showBlessingMenu.value) {
+      showBlessingMenu.value = false
+    } else {
+      showBlessingMenu.value = true
+      showBlessingPrompt.value = false
+    }
+  } else if (isInInteractionArea()) {
+    const area = isInInteractionArea()
+    area.action()
+  }
+}
+
 const buyBlessing = (blessing) => {
   if (gold.value >= blessing.cost && !blessings.value.includes(blessing.name)) {
     gold.value -= blessing.cost
     blessings.value.push(blessing.name)
-    alert(`Você comprou a ${blessing.name}!`)
   }
 }
 
-// Fechar menu e liberar movimento
 const closeBlessingMenu = () => {
   showBlessingMenu.value = false
-  canMove.value = !showDialog.value
+}
+
+const update = (deltaTime) => {
+  let speed = 3
+  let newX = characterPosition.value.x
+  let newY = characterPosition.value.y
+
+  if (moving.value.up) newY -= speed
+  if (moving.value.down) newY += speed
+  if (moving.value.left) newX -= speed
+  if (moving.value.right) newX += speed
+
+  if (!isColliding(newX, newY)) {
+    characterPosition.value.x = newX
+    characterPosition.value.y = newY
+  }
+
+  // Atualiza animação
+  frameTimer += deltaTime
+  const anim = animations[lastDirection.value] || animations.idle
+  if (frameTimer > anim.frameInterval) {
+    frameTimer = 0
+    currentFrameIndex = (currentFrameIndex + 1) % anim.frames.length
+  }
+  currentAnimation = lastDirection.value || 'idle'
+
+  drawCharacter()
+}
+
+const drawCharacter = () => {
+  const ctx = characterCanvas.value.getContext('2d')
+  ctx.clearRect(0, 0, frameWidth * scaleFactor, frameHeight * scaleFactor)
+
+  const anim = animations[currentAnimation] || animations.idle
+  const frame = anim.frames[currentFrameIndex % anim.frames.length]
+  const row = anim.row
+
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(
+    playerSpriteSheet,
+    frame * frameWidth,
+    row * frameHeight,
+    frameWidth,
+    frameHeight,
+    0,
+    0,
+    frameWidth * scaleFactor,
+    frameHeight * scaleFactor
+  )
+}
+
+let lastTimestamp = 0
+const gameLoop = (timestamp) => {
+  if (!lastTimestamp) lastTimestamp = timestamp
+  const deltaTime = timestamp - lastTimestamp
+  lastTimestamp = timestamp
+
+  update(deltaTime)
+  requestAnimationFrame(gameLoop)
 }
 
 onMounted(() => {
   typeLine()
-  const screen = document.querySelector('.igreja-screen')
-  screen.focus()
-  screen.addEventListener('click', () => screen.focus())
+  characterPosition.value.x = 360
+  characterPosition.value.y = 670
 
-  const bounds = getMovementBounds()
-  characterPosition.value.x = (bounds.minX + bounds.maxX) / 2
-  characterPosition.value.y = (bounds.minY + bounds.maxY) / 2
+  document.querySelector('.igreja-screen').focus()
 
-  animationFrameId = requestAnimationFrame(updateMovement)
+  playerSpriteSheet.onload = () => {
+    drawCharacter()
+    requestAnimationFrame(gameLoop)
+  }
 })
 </script>
 
 <style scoped>
-.fade-in {
-  animation: fadeIn 1.5s ease-in;
-}
-
-@keyframes fadeIn {
-  0% { opacity: 0; transform: scale(1); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
 .igreja-screen {
   position: relative;
-  height: 100vh;
-  width: 100vw;
-  color: #f0e0c0;
-  font-family: 'Press Start 2P', cursive;
+  width: 100%;
+  height: 1024px;
+  outline: none;
   overflow: hidden;
+  background: #222;
 }
 
 .zoom-layer {
   position: absolute;
-  top: 50%;
+  top: 40%;
   left: 50%;
-  width: 1024px;
-  height: 1024px;
+  width: 1024px; /* largura da imagem original */
+  height: 1024px; /* altura da imagem original */
   background-repeat: no-repeat;
-  background-position: center;
+  background-size: contain; /* garante que a imagem fique inteira visível */
+  background-position: center center; /* centraliza a imagem */
   transform-origin: center center;
-  z-index: 0;
-}
+  user-select: none;
 
-.character {
-  position: absolute;
-  transition: transform 0.05s linear;
-  z-index: 3;
+  /* Centraliza a div em relação à tela */
+  transform: translate(-50%, -50%) scale(0.89);
 }
 
 .npc.padre {
   position: absolute;
   width: 120px;
   height: 120px;
-  background-size: contain;
   background-repeat: no-repeat;
-  z-index: 2;
+  background-size: contain;
+  pointer-events: none;
 }
 
-.dialog-box {
-  position: fixed;
-  background-color: rgba(40, 25, 15, 0.9);
-  padding: 25px 35px;
-  border: 4px solid;
-  border-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAkAAAAJCAYAAADgkQYQAAAALElEQVQoU2NkIAIwEqGGAa5IU1OTEZkPM+jfv3+MyHxkNlZFMINwKcJpEgDlTRcFFzrw5QAAAABJRU5ErkJggg==') 3 repeat;
-  border-radius: 8px;
-  text-align: center;
-  width: 90vw;
-  max-width: 750px;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-  color: #f0e0c0;
-  font-size: 15px;
-  line-height: 1.7;
-  bottom: 5vh;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  font-family: 'Press Start 2P', cursive;
-  transition: background-color 0.2s ease;
-  user-select: none;
-}
-
-.dialog-box:hover {
-  background-color: rgba(50, 35, 20, 0.95);
-}
-
-.blessing-menu {
-  position: fixed;
-  top: 420px; /* Mover um pouco mais para baixo */
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90vw;
-  max-width: 700px;
-  max-height: 420px;
-  overflow-y: auto;
-  background-color: rgba(40, 25, 15, 0.9);
-  padding: 20px 30px;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-  color: #f0e0c0;
-  font-size: 15px;
-  line-height: 1.6;
-  font-family: 'Press Start 2P', cursive;
-  border: 2px solid #6c552a;
-  text-align: center;
-  user-select: none;
-  transition: box-shadow 0.3s ease;
-  z-index: 20;
-}
-
-
-.blessing-menu:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.8);
-}
-
-.blessing-menu h3 {
-  margin-bottom: 18px;
-  font-size: 1.4rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  border-bottom: 2px dashed #d7b85b;
-  padding-bottom: 8px;
-  color: #ffe8b2;
-}
-
-.blessing-menu ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.blessing-menu li {
-  margin-bottom: 15px;
-  border-bottom: 1px dotted #c2a65c;
-  padding-bottom: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 14px;
-  color: #f0e0c0;
-  text-shadow: 1px 1px 0 #000;
-}
-
-.blessing-menu button {
-  cursor: pointer;
-  background-color: #e0a867;
-  color: #5c2c1d;
-  border: 4px solid #5c2c1d;
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-family: 'Press Start 2P', cursive;
-  font-size: 14px;
-  font-weight: bold;
-  text-transform: uppercase;
-  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
-  text-shadow: 1px 1px 0 #fff3cd;
-}
-
-.blessing-menu button:hover:not(:disabled) {
-  background-color: #f4b76a;
-  color: #3e1e14;
-  box-shadow: inset -6px -6px #c96a32, inset 6px 6px #ffd9a1;
-  transform: scale(1.05);
-}
-
-.blessing-menu button:disabled {
-  opacity: 0.6;
-  cursor: default;
-  background-color: #4a3d19;
-  border-color: #3a2e11;
-  color: #a09362;
-  box-shadow: none;
-}
-
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.4s ease, transform 0.4s ease;
-}
-
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-  transform: scale(0.98);
-}
-
-.shop-fade-enter-active, .shop-fade-leave-active {
-  transition: opacity 1s ease, transform 1s ease;
-}
-
-.shop-fade-enter-from, .shop-fade-leave-to {
-  opacity: 0;
-  transform: translateX(50px);
-}
-
-/* Manter invisível mas mantendo estrutura para debug */
-.collision-box {
+.character-canvas {
   position: absolute;
-  background-color: rgba(255, 0, 0, 0);
-  z-index: 1;
+  width: 288px;
+  height: 288px;
+  image-rendering: pixelated;
+  pointer-events: none;
+  user-select: none;
+  /* ajusta para centralizar o personagem pelo meio do sprite */
+  transform-origin: top left;
+}
+
+.collision-box {
+  position: relative;
+  background: rgba(255, 0, 0, 0.5);
+  pointer-events: none;
 }
 
 .interaction-box {
   position: absolute;
-  background-color: rgba(0, 255, 0, 0);
-  z-index: 1;
+  background: rgba(0, 255, 0, 0.0);
+  pointer-events: none;
+}
+
+.dialog-box {
+  position: absolute;
+  bottom: 500px;
+  left: 46.5%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 15px;
+  width: 600px;
+  border-radius: 8px;
+  user-select: none;
+}
+
+.blessing-menu {
+  max-width: 400px;
 }
 </style>
