@@ -58,13 +58,42 @@ onMounted(() => {
 });
 
 function confirmarClasse() {
-  if (!playerName.value.trim()) return;
-  if (clickSound.value) clickSound.value.play();
+  console.log('Nome digitado:', playerName.value);
+
+  if (!playerName.value.trim()) {
+    console.warn('Nome vazio, não prossegue.');
+    return;
+  }
+
+  if (clickSound.value) {
+    try {
+      clickSound.value.play();
+    } catch (e) {
+      console.error('Erro ao tocar som:', e);
+    }
+  } else {
+    console.warn('Elemento de som não encontrado');
+  }
 
   const nome = playerName.value.trim();
-  gameState.setPlayerName(nome);
-  gameState.setPlayerClass('guerreiro');
-  router.push('/tutorial');
+
+  if (typeof gameState.setPlayerName === 'function') {
+    gameState.setPlayerName(nome);
+  } else {
+    console.error('setPlayerName não é uma função');
+  }
+
+  if (typeof gameState.setPlayerClass === 'function') {
+    gameState.setPlayerClass('guerreiro');
+  } else {
+    console.error('setPlayerClass não é uma função');
+  }
+
+  try {
+    router.push('/tutorial');
+  } catch (err) {
+    console.error('Erro ao redirecionar:', err);
+  }
 }
 </script>
 

@@ -1,16 +1,14 @@
 <template>
   <div class="medieval-battle-container">
     <!-- Bartolomeu's Dialog -->
-    <img
-      src="@/assets/bartolomeu.png"
-      alt="Bartolomeu"
-      class="bartolomeu-image"
-      v-if="showDialog"
-    />
+    <img src="@/assets/bartolomeu.png" alt="Bartolomeu" class="bartolomeu-image" v-if="showDialog" />
     <div v-if="showDialog" class="skip-button menu-button" @click="skipTutorial">Pular Tutorial</div>
     <div v-if="showDialog" class="dialog-box">
       <p>{{ displayedText }}</p>
-      <button class="menu-button" @click="nextDialog">Continuar</button>
+      <button @click="nextDialog" class="menu-button"
+        style="height: 50px; display: inline-flex; justify-content: center; align-items: center;">
+        Continuar
+      </button>
     </div>
 
     <!-- Battle Arena -->
@@ -33,22 +31,16 @@
           <span class="resource-value">{{ playerCharacter.currentHp }}/{{ playerCharacter.maxHp }}</span>
         </div>
       </div>
-      <div
-        v-if="combatStarted"
-        class="unit player-character"
-        verbs="none"
+      <div v-if="combatStarted" class="unit player-character" verbs="none"
         :class="{ 'is-attacking': playerAttacking, 'is-damaged': damagedPlayer }"
-        :style="{ top: playerCharacter.top + 'px', left: playerCharacter.left + 'px' }"
-      >
+        :style="{ top: playerCharacter.top + 'px', left: playerCharacter.left + 'px' }">
         <img src="@/assets/sprites/player/player_idle.png" alt="Player" class="character-sprite" />
       </div>
 
       <!-- Enemy (Dummy de Treino) -->
       <div v-if="combatStarted && enemies[0].hpPercent > 0">
-        <div
-          class="character-info enemy-info"
-          :style="{ top: (enemies[0].top - 90) + 'px', left: `calc(80vw - 120px)` }"
-        >
+        <div class="character-info enemy-info"
+          :style="{ top: (enemies[0].top - 90) + 'px', left: `calc(80vw - 120px)` }">
           <span class="character-name">{{ enemies[0].name }}</span>
           <div class="resource-bar-container">
             <div class="hp-bar-label">Vida:</div>
@@ -58,31 +50,20 @@
             <span class="resource-value">{{ enemies[0].currentHp }}/{{ enemies[0].maxHp }}</span>
           </div>
         </div>
-        <div
-          class="unit enemy-character"
-          verbs="none"
+        <div class="unit enemy-character" verbs="none"
           :class="{ 'is-attacking': enemyAttacking === 0, 'is-damaged': damagedEnemy === 0 }"
-          :style="{ top: enemies[0].top + 'px', left: enemies[0].left + 'px' }"
-        >
+          :style="{ top: enemies[0].top + 'px', left: enemies[0].left + 'px' }">
           <!-- <img src="@/assets/sprites/enemies/dummy.png" alt="Enemy" class="character-sprite" /> -->
         </div>
       </div>
-      <div
-        v-if="combatStarted && enemies[0].hpPercent <= 0"
-        class="unit enemy-character fainted"
-        verbs="none"
-        :style="{ top: initialEnemyPositions[0].top + 'px', left: initialEnemyPositions[0].left + 'px' }"
-      >
+      <div v-if="combatStarted && enemies[0].hpPercent <= 0" class="unit enemy-character fainted" verbs="none"
+        :style="{ top: initialEnemyPositions[0].top + 'px', left: initialEnemyPositions[0].left + 'px' }">
         <!-- <img src="@/assets/sprites/enemies/dummy.png" alt="Enemy" class="character-sprite" /> -->
       </div>
 
       <!-- Damage Popup -->
-      <div
-        v-if="damagePopup.active"
-        class="damage-popup"
-        :class="damagePopup.type"
-        :style="{ top: damagePopup.top + 'px', left: damagePopup.left + 'px' }"
-      >
+      <div v-if="damagePopup.active" class="damage-popup" :class="damagePopup.type"
+        :style="{ top: damagePopup.top + 'px', left: damagePopup.left + 'px' }">
         {{ damagePopup.prefix }}{{ damagePopup.value }}
       </div>
 
@@ -98,18 +79,10 @@
         <p v-for="(message, index) in battleLog" :key="index" v-html="message"></p>
       </div>
       <div class="actions" v-if="isPlayerTurn && !isAttacking && !gameOver && !victory">
-        <button
-          class="action-btn attack-btn"
-          @click="attackEnemy"
-          :disabled="activeEnemies.length === 0"
-        >
+        <button class="action-btn attack-btn" @click="attackEnemy" :disabled="activeEnemies.length === 0">
           Atacar
         </button>
-        <button
-          class="action-btn potion-btn"
-          @click="usePotion"
-          :disabled="!canUsePotion"
-        >
+        <button class="action-btn potion-btn" @click="usePotion" :disabled="!canUsePotion">
           Usar Poção ({{ potionCount }})
         </button>
       </div>
@@ -190,7 +163,7 @@ const typeLine = async () => {
       dialogSounds[dialogIndex.value].pause();
       dialogSounds[dialogIndex.value].currentTime = 0;
       await dialogSounds[dialogIndex.value].play();
-    } catch {}
+    } catch { }
   }
 
   typingInterval.value = setInterval(() => {
@@ -537,16 +510,14 @@ onUnmounted(() => {
 
 .bartolomeu-image {
   position: absolute;
-  width: 600px;
-  bottom: 20vh;
-  left: -100px;
+  width: 800px;
   z-index: 30;
+
 }
 
 .skip-button {
   position: fixed;
   top: 20px;
-  right: 20px;
   z-index: 35;
 }
 
@@ -592,7 +563,8 @@ onUnmounted(() => {
   transform: translateX(-50%);
   background: rgba(40, 25, 15, 0.85);
   padding: 20px;
-  border: none; /* Removed border to avoid visual divisions */
+  border: none;
+  /* Removed border to avoid visual divisions */
   border-radius: 8px;
   max-width: 500px;
   text-align: center;
@@ -648,9 +620,17 @@ onUnmounted(() => {
 }
 
 @keyframes pulseGlow {
-  0% { filter: brightness(1); }
-  50% { filter: brightness(1.3); }
-  100% { filter: brightness(1); }
+  0% {
+    filter: brightness(1);
+  }
+
+  50% {
+    filter: brightness(1.3);
+  }
+
+  100% {
+    filter: brightness(1);
+  }
 }
 
 .unit {
@@ -900,21 +880,28 @@ onUnmounted(() => {
 }
 
 @keyframes attackShake {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateX(0);
   }
+
   25% {
     transform: translateX(-5px);
   }
+
   75% {
     transform: translateX(5px);
   }
 }
 
 @keyframes damageFlash {
-  0%, 100% {
+
+  0%,
+  100% {
     filter: brightness(1) drop-shadow(5px 5px 5px rgba(0, 0, 0, 0.7));
   }
+
   50% {
     filter: brightness(1.5) saturate(1.2) drop-shadow(5px 5px 5px rgba(100, 0, 0, 0.7));
   }
@@ -950,6 +937,7 @@ onUnmounted(() => {
     opacity: 1;
     transform: translate(-50%, 0);
   }
+
   100% {
     opacity: 0;
     transform: translate(-50%, -50px);

@@ -46,7 +46,7 @@ export const useGameState = defineStore('game', {
     return savedState || {
       player: {
         classe: 'Guerreiro',
-        name: 'Joao',
+        name: null,
         health: 100,
         maxHealth: 100,
         stamina: 100,
@@ -410,7 +410,7 @@ export const useGameState = defineStore('game', {
       Object.assign(this.$state, {
         player: {
           classe: 'Guerreiro',
-          name: 'Joao',
+          name: null,
           health: 100,
           maxHealth: 100,
           stamina: 100,

@@ -73,7 +73,7 @@
 <script setup>
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useGameState, ITEMS } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
+import { useGameState, ITEMS } from '@/stores/gameState.js'; // Import useGameState instead of gameState and actions
 import bgImage from '@/assets/interior/ferreiro-bg.gif';
 import bjornParado from '/public/img/sprites/bjorn/bjorn.png';
 import bjornFalando from '/public/img/sprites/bjorn/bjorn-falando.gif';
