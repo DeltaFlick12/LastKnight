@@ -183,7 +183,7 @@ import warriorImage from '@/assets/backviews/warrior.png';
 import warriorScaredImage from '@/assets/backviews/warrior-scared.png';
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { useGameState } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
+import { useGameState } from '@/stores/gameState.js'; // Import useGameState instead of gameState and actions
 import { playAudio } from '@/utils/audioManager.js';
 
 const router = useRouter();

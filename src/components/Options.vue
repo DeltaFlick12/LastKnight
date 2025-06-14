@@ -25,6 +25,17 @@
           </select>
         </div>
 
+        <!-- Novo botão toggle para shaders -->
+        <div class="option-group">
+          <label>✨ {{ texts[language].shaders }}</label>
+          <div class="toggle-container" @click="toggleShaders">
+            <div class="toggle-switch" :class="{ 'active': shadersEnabled }">
+              <div class="toggle-button"></div>
+            </div>
+            <span class="toggle-label">{{ shadersEnabled ? texts[language].on : texts[language].off }}</span>
+          </div>
+        </div>
+
         <div class="buttons">
           <div class="menu-button" @click="saveSettings">{{ texts[language].save }}</div>
           <div class="menu-button" @click="goBack">{{ texts[language].back }}</div>
@@ -43,8 +54,10 @@
 <script setup>
 import { ref, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
+import { useGameState } from '@/stores/gamestate.js';
 
 const router = useRouter();
+const gameState = useGameState();
 
 const texts = {
   pt: {
@@ -54,7 +67,10 @@ const texts = {
     save: "SALVAR",
     back: "VOLTAR",
     reset: "RESETAR PROGRESSO",
-    savedMsg: "Configurações salvas!"
+    savedMsg: "Configurações salvas!",
+    shaders: "Efeitos de Luz",
+    on: "Ligado",
+    off: "Desligado"
   },
   en: {
     title: "OPTIONS",
@@ -63,7 +79,10 @@ const texts = {
     save: "SAVE",
     back: "BACK",
     reset: "RESET PROGRESS",
-    savedMsg: "Settings saved!"
+    savedMsg: "Settings saved!",
+    shaders: "Light Effects",
+    on: "On",
+    off: "Off"
   }
 };
 
@@ -77,6 +96,7 @@ const resetProgress = () => {
 
 const musicVolume = ref(50);
 const language = ref("pt");
+const shadersEnabled = ref(true);
 const saved = ref(false);
 
 let clickSound;
@@ -91,6 +111,9 @@ onMounted(() => {
   } else {
     language.value = "pt";
   }
+
+  // Carrega o estado dos shaders do gameState
+  shadersEnabled.value = gameState.shaders !== undefined ? gameState.shaders : true;
 
   clickSound = new Audio("/audio/click.ogg");
   clickSound.volume = 0.4;
@@ -107,10 +130,19 @@ const saveSettings = () => {
   localStorage.setItem("musicVolume", musicVolume.value);
   localStorage.setItem("language", language.value);
 
+  // Salva o estado dos shaders no gameState
+  gameState.shaders = shadersEnabled.value;
+  gameState.saveState();
+
   updateVolume("music");
 
   saved.value = true;
   setTimeout(() => (saved.value = false), 1500);
+};
+
+const toggleShaders = () => {
+  playClick();
+  shadersEnabled.value = !shadersEnabled.value;
 };
 
 const goBack = () => {
@@ -270,6 +302,51 @@ select {
 select:focus {
   outline: none;
   background-color: #ffcb8e;
+}
+
+/* Estilo para o toggle switch de shaders */
+.toggle-container {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-top: 5px;
+}
+
+.toggle-switch {
+  position: relative;
+  width: 60px;
+  height: 30px;
+  background: #d17844;
+  border: 2px solid #5c2c1d;
+  border-radius: 15px;
+  transition: all 0.3s;
+}
+
+.toggle-switch.active {
+  background: #5c2c1d;
+}
+
+.toggle-button {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 26px;
+  height: 26px;
+  background: #ffcb8e;
+  border-radius: 50%;
+  transition: all 0.3s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-switch.active .toggle-button {
+  left: 32px;
+  background: #ffcb8e;
+}
+
+.toggle-label {
+  margin-left: 10px;
+  font-size: 18px;
+  font-weight: bold;
 }
 
 .buttons {

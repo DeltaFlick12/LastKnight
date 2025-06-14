@@ -71,7 +71,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { useGameState, ITEMS } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
+import { useGameState, ITEMS } from '@/stores/gameState.js'; // Import useGameState instead of gameState and actions
 
 const emits = defineEmits(['update:show']);
 

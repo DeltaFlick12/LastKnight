@@ -38,6 +38,10 @@ export const useGameState = defineStore('game', {
         if (!savedState.player.hasOwnProperty('lives')) {
           savedState.player.lives = 3;
         }
+        // Ensure 'shaders' exists in saved state
+        if (!savedState.hasOwnProperty('shaders')) {
+          savedState.shaders = true;
+        }
       }
     } catch (e) {
       console.error('Error loading state from localStorage:', e);
@@ -63,9 +67,9 @@ export const useGameState = defineStore('game', {
           speed: 10,
         },
         keys: {
-          ancestral: false,
-          ice: false,
-          fire: false,
+          ancestral: true,
+          ice: true,
+          fire: true,
         },
         hasRiverBlessing: false,
         hasForbiddenPotion: false,
@@ -97,6 +101,7 @@ export const useGameState = defineStore('game', {
       endingType: null,
       isBagOpen: false,
       currentDialog: null,
+      shaders: true, // Adicionado a propriedade shaders com valor padrão true
     };
   },
 
@@ -406,6 +411,12 @@ export const useGameState = defineStore('game', {
       this.saveState();
     },
 
+    // Nova ação para alternar o estado dos shaders
+    toggleShaders() {
+      this.shaders = !this.shaders;
+      this.saveState();
+    },
+
     resetGame() {
       Object.assign(this.$state, {
         player: {
@@ -443,6 +454,7 @@ export const useGameState = defineStore('game', {
         endingType: null,
         isBagOpen: false,
         currentDialog: null,
+        shaders: true, // Mantém o valor padrão dos shaders ao resetar o jogo
       });
       localStorage.removeItem('gameState');
       this.saveState();

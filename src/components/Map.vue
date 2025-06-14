@@ -53,7 +53,7 @@ const areas = ref([
     route: '/level/albadia',
     unlocked: true,
     description: 'A cidade central de Albadia.',
-    newlyUnlocked: false,
+    newlyunlocked: true,
     showTooltip: false,
   },
   {
@@ -65,7 +65,7 @@ const areas = ref([
     route: '/level/floresta',
     unlocked: true,
     description: 'Uma floresta misteriosa.',
-    newlyUnlocked: false,
+    newlyunlocked: true,
     showTooltip: false,
   },
   {
@@ -77,7 +77,7 @@ const areas = ref([
     route: '/level/rio',
     unlocked: true,
     description: 'Um rio cristalino.',
-    newlyUnlocked: false,
+    newlyunlocked: true,
     showTooltip: false,
   },
   {
@@ -87,9 +87,9 @@ const areas = ref([
     width: '20%',
     height: '30%',
     route: '/level/ruinas',
-    unlocked: false,
+    unlocked: true,
     description: 'Restos de uma civilização antiga.',
-    newlyUnlocked: false,
+    newlyunlocked: true,
     showTooltip: false,
   },
   {
@@ -99,9 +99,9 @@ const areas = ref([
     width: '25%',
     height: '30%',
     route: '/level/caverna',
-    unlocked: false,
+    unlocked: true,
     description: 'Uma caverna sombria.',
-    newlyUnlocked: false,
+    newlyunlocked: true,
     showTooltip: false,
   },
   {
@@ -111,9 +111,9 @@ const areas = ref([
     width: '23%',
     height: '30%',
     route: '/level/montanha',
-    unlocked: false,
+    unlocked: true,
     description: 'Picos gelados e perigosos.',
-    newlyUnlocked: false,
+    newlyunlocked: true,
     showTooltip: false,
   },
   {
@@ -123,9 +123,9 @@ const areas = ref([
     width: '35%',
     height: '30%',
     route: '/level/castelo',
-    unlocked: false,
+    unlocked: true,
     description: 'Um castelo imponente.',
-    newlyUnlocked: false,
+    newlyunlocked: true,
     showTooltip: false,
   },
 ]);
@@ -218,7 +218,6 @@ watch(
   margin-left: 10%;
   object-fit: contain;
   filter: brightness(0.9);
-  border: 3px solid #4a4a4a;
   border-radius: 10px;
   transition: transform 0.5s ease;
 }
@@ -236,7 +235,6 @@ watch(
   pointer-events: none;
   z-index: 100;
 
-  /* 🔧 ESSENCIAL para a borda funcionar corretamente */
   box-sizing: border-box;
 }
 
