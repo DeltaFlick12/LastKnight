@@ -28,17 +28,14 @@ export const ITEMS = {
 
 export const useGameState = defineStore('game', {
   state: () => {
-    // Inline load state logic
     let savedState = null;
     try {
       const stored = localStorage.getItem('gameState');
       if (stored) {
         savedState = JSON.parse(stored);
-        // Ensure 'lives' exists in saved state
         if (!savedState.player.hasOwnProperty('lives')) {
           savedState.player.lives = 3;
         }
-        // Ensure 'shaders' exists in saved state
         if (!savedState.hasOwnProperty('shaders')) {
           savedState.shaders = true;
         }
@@ -101,7 +98,7 @@ export const useGameState = defineStore('game', {
       endingType: null,
       isBagOpen: false,
       currentDialog: null,
-      shaders: true, // Adicionado a propriedade shaders com valor padrão true
+      shaders: true,
     };
   },
 
@@ -125,7 +122,6 @@ export const useGameState = defineStore('game', {
       }
     },
 
-    // Ações do jogador
     setPlayerClass(className) {
       if (!CLASSES[className]) return;
       const classData = CLASSES[className];
@@ -134,7 +130,7 @@ export const useGameState = defineStore('game', {
       this.player.maxStamina = classData.baseStats.maxStamina;
       this.player.health = this.player.maxHealth;
       this.player.stamina = this.player.maxStamina;
-      this.player.lives = 3; // Reset lives when setting class
+      this.player.lives = 3;
       this.player.inventory = [];
       this.player.equipment = { weapon: null };
       for (const slot in classData.startItems) {
@@ -160,11 +156,17 @@ export const useGameState = defineStore('game', {
           }
         }
       }
+      console.log('Before recalc: health=', this.player.health, 'maxHealth=', this.player.maxHealth);
       this.player.stats = currentStats;
+      const oldMaxHealth = this.player.maxHealth;
       this.player.maxHealth = currentStats.maxHealth;
       this.player.maxStamina = currentStats.maxStamina;
-      this.player.health = Math.min(this.player.health, this.player.maxHealth);
+      // Only clamp health if maxHealth increases
+      if (this.player.maxHealth > oldMaxHealth) {
+        this.player.health = Math.min(this.player.health, this.player.maxHealth);
+      }
       this.player.stamina = Math.min(this.player.stamina, this.player.maxStamina);
+      console.log('After recalc: health=', this.player.health, 'maxHealth=', this.player.maxHealth);
       this.saveState();
     },
 
@@ -257,7 +259,7 @@ export const useGameState = defineStore('game', {
     },
 
     restorePlayer() {
-      this.player.health = this.player.maxHealth;
+      this.player.health = 110;
       this.player.stamina = this.player.maxStamina;
       this.saveState();
     },
@@ -411,7 +413,6 @@ export const useGameState = defineStore('game', {
       this.saveState();
     },
 
-    // Nova ação para alternar o estado dos shaders
     toggleShaders() {
       this.shaders = !this.shaders;
       this.saveState();
@@ -454,7 +455,7 @@ export const useGameState = defineStore('game', {
         endingType: null,
         isBagOpen: false,
         currentDialog: null,
-        shaders: true, // Mantém o valor padrão dos shaders ao resetar o jogo
+        shaders: true,
       });
       localStorage.removeItem('gameState');
       this.saveState();

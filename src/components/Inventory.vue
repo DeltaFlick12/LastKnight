@@ -1,3 +1,4 @@
+```vue
 <template>
   <div
     ref="inventoryModal"
@@ -15,22 +16,11 @@
       <button class="close-btn" @click="handleClose">✖</button>
     </div>
 
-    <div class="filter-bar">
-      <button
-        v-for="cat in categories"
-        :key="cat"
-        :class="{ 'filter-btn': true, active: activeCategory === cat }"
-        @click="activeCategory = cat"
-      >
-        {{ cat }}
-      </button>
-    </div>
-
     <div class="inventory-content">
       <div class="item-grid">
         <transition-group name="item-fade" tag="div" class="grid-container">
           <div
-            v-for="item in filteredItems"
+            v-for="item in allItems"
             :key="item.itemId"
             class="item-card"
             :class="{
@@ -39,31 +29,26 @@
               'low-quantity': item.quantity === 1 && item.usable,
             }"
             @click="handleClick(item)"
-            @mouseenter="hoverItem = item"
-            @mouseleave="hoverItem = null"
           >
-            <img :src="item.icon" :style="{ width: '64px', height: '64px' }" :alt="item.name" />
-            <div class="item-info">
-              <span class="item-name">{{ item.name }}</span>
-              <span v-if="item.quantity > 1" class="item-quantity">×{{ item.quantity }}</span>
-              <span v-if="item.equipped" class="equipped-tag"></span>
+            <div class="item-header">
+              <img :src="item.icon" :style="{ width: '64px', height: '64px', imageRendering: 'pixelated' }" :alt="item.name" />
+              <div class="item-info">
+                <span class="item-name">{{ item.name }}</span>
+                <span v-if="item.quantity > 1" class="item-quantity">×{{ item.quantity }}</span>
+                <span v-if="item.equipped" class="equipped-tag">Equipado</span>
+              </div>
+            </div>
+            <div class="item-details">
+              <p class="description">{{ item.description }}</p>
+              <p v-if="item.type" class="detail">Tipo: {{ item.type }}</p>
+              <p v-if="item.stats?.attack" class="detail">Dano: +{{ item.stats.attack }}</p>
+              <p v-if="item.stats?.defense" class="detail">Defesa: +{{ item.stats.defense }}</p>
+              <p v-if="item.stats?.speed" class="detail">Velocidade: {{ item.stats.speed > 0 ? '+' : '' }}{{ item.stats.speed }}</p>
+              <p v-if="item.equipped" class="equipped-notice">Item atualmente equipado</p>
             </div>
           </div>
         </transition-group>
       </div>
-
-      <div class="details-panel" v-if="hoverItem">
-        <div class="details-header">
-          <img :src="hoverItem.icon" :style="{ width: '56px', height: '56px', imageRendering: 'pixelated' }" :alt="hoverItem.name" />
-          <h3>{{ hoverItem.name }}</h3>
-        </div>
-        <p class="description">{{ hoverItem.description }}</p>
-        <p v-if="hoverItem.type" class="detail">Tipo: {{ hoverItem.type }}</p>
-        <p v-if="hoverItem.stats?.attack" class="detail">Dano: +{{ hoverItem.stats.attack }}</p>
-        <p v-if="hoverItem.stats?.defense" class="detail">Defesa: +{{ hoverItem.stats.defense }}</p>
-        <p v-if="hoverItem.equipped" class="equipped-notice">Item atualmente equipado</p>
-      </div>
-
       <p v-if="feedbackMessage" class="feedback-message">{{ feedbackMessage }}</p>
     </div>
   </div>
@@ -71,24 +56,18 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { useGameState, ITEMS } from '@/stores/gameState.js'; // Import useGameState instead of gameState and actions
+import { useGameState, ITEMS } from '@/stores/gameState.js';
 
 const emits = defineEmits(['update:show']);
+const gameState = useGameState();
 
-// Initialize the Pinia store
-const gameState = useGameState(); // Call useGameState to get the store instance
-
-const hoverItem = ref(null);
 const feedbackMessage = ref('');
-const activeCategory = ref('Todos');
 const isClosing = ref(false);
-
-const categories = ['Todos', 'Consumíveis', 'Armas', 'Armadura', 'Chave'];
 
 const inventoryModal = ref(null);
 const header = ref(null);
 
-const getItemIcon = (itemId) => ITEMS[itemId]?.icon || '/assets/icons/unknown-item.png'; // Use ITEMS directly
+const getItemIcon = (itemId) => ITEMS[itemId]?.icon || '/assets/icons/unknown-item.png';
 
 const allItems = computed(() => {
   return gameState.player.inventory.map((invItem) => {
@@ -100,7 +79,7 @@ const allItems = computed(() => {
     return {
       itemId: invItem.itemId,
       name: itemData.name,
-      icon: getItemIcon(invItem.itemId), // Use the updated getItemIcon
+      icon: getItemIcon(invItem.itemId),
       quantity: invItem.quantity,
       description: itemData.description,
       type: itemData.type === 'Armadura' ? 'Armadura' : itemData.type,
@@ -111,23 +90,16 @@ const allItems = computed(() => {
       action: slot
         ? () => {
             if (gameState.player.equipment[slot] === invItem.itemId) {
-              gameState.unequipItem(slot); // Use gameState to call the action
+              gameState.unequipItem(slot);
             } else {
-              gameState.equipItem(invItem.itemId); // Use gameState to call the action
+              gameState.equipItem(invItem.itemId);
             }
           }
         : itemData.type.startsWith('Consumível')
-        ? () => gameState.useItem(invItem.itemId) // Use gameState to call the action
+        ? () => gameState.useItem(invItem.itemId)
         : null,
     };
   }).filter(Boolean);
-});
-
-const filteredItems = computed(() => {
-  if (activeCategory.value === 'Todos') return allItems.value;
-  return allItems.value.filter(
-    (item) => item.type.toLowerCase() === activeCategory.value.toLowerCase()
-  );
 });
 
 const handleClick = (item) => {
@@ -248,37 +220,52 @@ onBeforeUnmount(() => {
     transform: scale(0.9);
   }
 }
-/* Animação de abertura (scroll unroll) */
-/* Modal principal - couro envelhecido com costura */
+
 .inventory-modal {
   position: fixed;
   z-index: 10000;
-  left: 50%; /* Corrigido de 30% para 50% */
-  top: 50%;  /* Centralização vertical */
+  left: 50%;
+  top: 50%;
   transform: translate(-50%, -50%);
   width: 800px;
-  height: 500px;
+  height: 600px;
   background: #533200;
   border: 2px solid #00000044;
   border-radius: 12px;
-  padding: 16px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   color: white;
 }
 
-/* Removido: estilo condicional que sobrescrevia a centralização */
-.inventory-modal:not([style*="left"]) {
-  transform: translate(-50%, -50%);
+.inventory-modal::-webkit-scrollbar {
+  width: 8px;
 }
 
-/* Costura estilo pontos */
+.inventory-modal::-webkit-scrollbar-track {
+  background: #4a3118;
+  border-radius: 4px;
+}
+
+.inventory-modal::-webkit-scrollbar-thumb {
+  background: #a6793b;
+  border-radius: 4px;
+}
+
+.inventory-modal::-webkit-scrollbar-thumb:hover {
+  background: #f3d88c;
+}
+
 .inventory-modal::before {
   content: '';
   position: absolute;
-  top: 12px; bottom: 12px; left: 12px; right: 12px;
+  top: 12px;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
   border: 2px dashed #a6793b;
   border-radius: 14px;
   pointer-events: none;
@@ -289,8 +276,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 12px;
-  margin-bottom: 20px;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
   border-bottom: 3px solid #a6793b;
   z-index: 2;
   cursor: grab;
@@ -333,7 +320,7 @@ onBeforeUnmount(() => {
   font-size: 18px;
   cursor: pointer;
   box-shadow: 1px 1px 2px #3c2611 inset;
-  transition: background 0.3s ease, color 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .close-btn:hover {
@@ -342,72 +329,66 @@ onBeforeUnmount(() => {
   border-color: #7f5b24;
 }
 
-/* Barra de filtros */
-.filter-bar {
-  margin-bottom: 20px;
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.filter-btn {
-  padding: 10px 28px;
-  background: #5d3a1a;
-  color: #f1d7b1;
-  border: 2px solid #7f5b24;
-  font-weight: 600;
-  margin-left: 3%;
-  cursor: pointer;
-  box-shadow: 1px 1px 2px #3c2611 inset;
-  user-select: none;
-  transition: background 0.25s ease, color 0.25s ease;
-}
-
-.filter-btn:hover,
-.filter-btn.active {
-  background: #f3d88c;
-  color: #4a3118;
-  border-color: #a6793b;
-  font-weight: bold;
-  box-shadow: 0 0 6px #f3d88c;
-}
-
-/* Conteúdo principal do inventário */
 .inventory-content {
   display: flex;
-  gap: 18px;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-top: 8px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-/* Grid de itens */
+.inventory-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.inventory-content::-webkit-scrollbar-track {
+  background: #4a3118;
+  border-radius: 4px;
+}
+
+.inventory-content::-webkit-scrollbar-thumb {
+  background: #a6793b;
+  border-radius: 4px;
+}
+
+.inventory-content::-webkit-scrollbar-thumb:hover {
+  background: #f3d88c;
+}
+
 .item-grid {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
-  padding: 12px;
-  background: none; /* Remova qualquer fundo ou borda geral */
-  border: none;     /* Remova borda geral */
+  padding: 6px;
+  background: none;
+  border: none;
+  max-width: 100%;
 }
 
 .item-card {
-  width: 100px;
-  height: 100px;
-  border: 2px solid #a6793b; /* cor mais visível e temática */
+  width: 100%;
+  max-width: calc(100% - 12px); /* Account for padding and border */
+  padding: 6px;
+  border: 2px solid #a6793b;
   border-radius: 8px;
   background-color: #1a1a1a;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
   position: relative;
   cursor: default;
   transition: transform 0.15s ease, border-color 0.2s;
-  box-shadow: inset 0 0 4px #3c2611; /* opcional: reforça a moldura */
-} 
+  box-shadow: inset 0 0 4px #3c2611;
+  box-sizing: border-box;
+}
 
 .item-card:hover {
-  border-color: #aaa;
-  transform: scale(1.05);
+  border-color: #f3d88c;
+  transform: scale(1.02);
 }
 
 .item-card.clickable {
@@ -419,14 +400,32 @@ onBeforeUnmount(() => {
   border-color: gold;
 }
 
+.item-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+  width: 100%;
+}
+
 .item-info {
-  text-align: center;
-  font-size: 10px;
-  color: #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: calc(100% - 76px); /* Account for icon (64px) + gap (12px) */
+}
+
+.item-name {
+  font-size: 16px;
+  color: #f1d7b1;
+  font-weight: 600;
+  text-shadow: 1px 1px 0 #593e16;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .item-quantity {
-  font-size: 13px;
+  font-size: 14px;
   color: #ffda8e;
   font-weight: 700;
 }
@@ -438,58 +437,63 @@ onBeforeUnmount(() => {
   text-shadow: 1px 1px 0 #593e16;
 }
 
-/* Painel de detalhes do item */
-.details-panel {
-  flex: 1 1 35%;
-  border: 3px solid #7f5b24;
-  border-radius: 14px;
-  padding: 18px 24px;
+.item-details {
+  padding: 3px;
   background: linear-gradient(145deg, #593e16, #4a3118);
-  box-shadow: inset 0 0 10px 3px #7f5b24;
-  color: #f1d7b1;
-  user-select: none;
+  border-radius: 6px;
+  width: 100%;
+  max-width: 100%;
+  max-height: 120px;
+  overflow-y: auto;
+  box-shadow: inset 0 0 6px #7f5b24;
+  box-sizing: border-box;
 }
 
-.details-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 14px;
+.item-details::-webkit-scrollbar {
+  width: 6px;
 }
 
-.details-header h3 {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 0;
-  text-shadow: 1px 1px 2px #2f1e0d;
+.item-details::-webkit-scrollbar-track {
+  background: #4a3118;
+  border-radius: 3px;
+}
+
+.item-details::-webkit-scrollbar-thumb {
+  background: #a6793b;
+  border-radius: 3px;
+}
+
+.item-details::-webkit-scrollbar-thumb:hover {
+  background: #f3d88c;
 }
 
 .description {
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   font-size: 14px;
   line-height: 1.4;
   color: #e5c98a;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .detail {
   font-size: 14px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   font-weight: 600;
   color: #f3d88c;
   text-shadow: 1px 1px 0 #593e16;
 }
 
 .equipped-notice {
-  margin-top: 12px;
+  margin-top: 6px;
   font-weight: 700;
   color: #f3d88c;
   text-shadow: 0 0 5px #ffdb66;
 }
 
-/* Mensagem de feedback */
 .feedback-message {
-  position: absolute;
-  bottom: 22px;
+  position: sticky;
+  bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
   background: #a6793b;
@@ -503,6 +507,10 @@ onBeforeUnmount(() => {
   animation: fadeinout 3s ease forwards;
   pointer-events: none;
   font-family: 'Cinzel', serif;
+  z-index: 2;
+  max-width: 90%;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 @keyframes fadeinout {
@@ -512,7 +520,6 @@ onBeforeUnmount(() => {
   100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
 }
 
-/* Transitions do grupo de itens */
 .item-fade-enter-active,
 .item-fade-leave-active {
   transition: all 0.3s ease;
@@ -523,8 +530,10 @@ onBeforeUnmount(() => {
   opacity: 0;
   transform: translateY(12px);
 }
+
 .inventory-modal.dragging {
   cursor: grabbing !important;
   user-select: none;
 }
 </style>
+```
