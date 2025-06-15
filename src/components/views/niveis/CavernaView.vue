@@ -1,5 +1,8 @@
 <template>
   <div class="caverna-view" :style="showCutscene ? cutsceneBackgroundStyle : backgroundStyle">
+    <!-- Heat Overlay -->
+    <div v-if="showHeatEffect" class="heat-overlay"></div>
+
     <!-- Cutscene -->
     <div v-if="showCutscene" class="cutscene-container" tabindex="0">
       <div class="cutscene-content">
@@ -92,9 +95,9 @@
           >
             <img :src="playerSprite" alt="Player" class="character-sprite" />
           </div>
-          <<div class="character-info player-info">
-  <span class="character-name">{{ playerCharacter.name }} ({{ playerCharacter.className }})</span>
-</div>
+          <div class="character-info player-info">
+            <span class="character-name">{{ playerCharacter.name }} ({{ playerCharacter.className }})</span>
+          </div>
 
           <!-- Enemy -->
           <div v-for="(enemy, index) in activeEnemies" :key="`enemy-${index}`">
@@ -177,18 +180,23 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { playAudio } from '@/utils/audioManager.js';
 
-// Import background images to ensure Vite processes them
+// Import assets
 import caveImage1 from '@/assets/backviews/caverna-entrada.png';
 import caveImage2 from '@/assets/backviews/caverna-confronto.png';
 import caveBattleImage from '@/assets/backviews/caverna-cenario.png';
-// Other assets remain as strings (public/ or adjust as needed)
-const dragonFireSprite = '/assets/sprites/dragao-fogo.png';
-const playerSprite = '/assets/sprites/player/player_idle.png';
-const attackEffectSpritePlayer = '/assets/sprites/ataque-efeito.png';
-const attackEffectSpriteDragon = '/assets/sprites/ataque-dragao.png';
+import dragonFireSprite from '@/assets/sprites/dragao-fogo.png';
+import playerSprite from '@/assets/sprites/player/player_idle.png';
+import attackEffectSpritePlayer from '@/assets/sprites/ataque-efeito.png';
+import attackEffectSpriteDragon from '@/assets/sprites/ataque-dragao.png';
 
-// Mock game state (replace with actual store if available)
+const battleMusic = new Audio('/audio/musica-combate.mp3');
+battleMusic.loop = true;
+
+const router = useRouter();
+
+// Game State Store (Mock, replace with actual store)
 const gameState = reactive({
   player: {
     name: 'Herói',
@@ -205,18 +213,14 @@ const gameState = reactive({
   },
 });
 const actions = {
-  setCurrentArea(area) {
-    gameState.player.currentArea = area;
-  },
-  collectKey(key) {
-    gameState.player.keys[key] = true;
-  },
+  setCurrentArea(area) { gameState.player.currentArea = area; },
+  collectKey(key) { gameState.player.keys[key] = true; },
   completeLevel(level) {
     if (!gameState.player.levelsCompleted.includes(level)) {
       gameState.player.levelsCompleted.push(level);
     }
   },
-  addItemToInventory(item, quantity) {
+  addItemFromInventory(item, quantity) {
     gameState.player[item] = (gameState.player[item] || 0) + quantity;
   },
   removeItemFromInventory(item, quantity) {
@@ -224,12 +228,8 @@ const actions = {
       gameState.player[item] = Math.max(0, gameState.player[item] - quantity);
     }
   },
-  getItemQuantity(item) {
-    return gameState.player[item] || 0;
-  },
+  getItemQuantity(item) { return gameState.player[item] || 0; },
 };
-
-const router = useRouter();
 
 // Cutscene State
 const showCutscene = ref(true);
@@ -246,6 +246,9 @@ const displayedLines = ref([]);
 const cutsceneBackgroundImage = ref(caveImage1);
 const isFading = ref(false);
 
+// Heat Effect State
+const showHeatEffect = ref(false);
+
 // Game State
 const showFeedback = ref(false);
 const feedbackMessage = ref('');
@@ -255,36 +258,20 @@ const currentEnemyIndex = ref(0);
 const hasFireKey = computed(() => gameState.player.keys.fire);
 
 // Background Styles
-const backgroundStyle = computed(() => {
-  const style = {
-    backgroundColor: '#3c2f2f',
-    backgroundImage: `url(${inBattle.value ? caveBattleImage : caveImage2})`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    opacity: isFading.value ? 0 : 1,
-    transition: 'opacity 0.5s ease',
-  };
-  console.log('backgroundStyle:', style);
-  return style;
-});
-
-const cutsceneBackgroundStyle = computed(() => {
-  const style = {
-    backgroundColor: '#3c2f2f',
-    backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url(${cutsceneBackgroundImage.value})`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    opacity: isFading.value ? 0 : 1,
-    transition: 'opacity 0.5s ease',
-  };
-  console.log('cutsceneBackgroundStyle:', style);
-  return style;
-});
-
-// Watch for cutscene background changes
-watch(cutsceneBackgroundImage, (newVal) => {
-  console.log('cutsceneBackgroundImage changed:', newVal);
-});
+const backgroundStyle = computed(() => ({
+  backgroundImage: `url(${inBattle.value ? caveBattleImage : caveImage2})`,
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  opacity: isFading.value ? 0 : 1,
+  transition: 'opacity 0.5s ease',
+}));
+const cutsceneBackgroundStyle = computed(() => ({
+  backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url(${cutsceneBackgroundImage.value})`,
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  opacity: isFading.value ? 0 : 1,
+  transition: 'opacity 0.5s ease',
+}));
 
 // HUD
 const maxBarSegments = 10;
@@ -418,47 +405,40 @@ const showAttackEffect = async (attackerElement, targetElement, isPlayer = true)
 
 // Cutscene Logic
 const playCutscene = async () => {
-  console.log('Starting cutscene');
-  try {
-    displayedLines.value = new Array(cutsceneLines.length).fill('');
-    for (let i = 0; i < cutsceneLines.length; i++) {
-      console.log(`Processing line ${i + 1}`);
-      currentCutsceneLine.value = i + 1;
-      const text = cutsceneLines[i];
-      if (i === 4) {
-        cutsceneBackgroundImage.value = caveImage2;
-      }
-      for (let j = 0; j <= text.length; j++) {
-        displayedLines.value[i] = text.slice(0, j);
-        displayedLines.value = [...displayedLines.value];
-        await sleep(50);
-      }
-      if (i === 4) {
-        isFading.value = true;
-        await sleep(500);
-        isFading.value = false;
-        await sleep(2000);
-      } else {
-        await sleep(1500);
-      }
+  playAudio('cave_ambient', { loop: true });
+  playAudio('fire_crackle');
+  displayedLines.value = new Array(cutsceneLines.length).fill('');
+  for (let i = 0; i < cutsceneLines.length; i++) {
+    currentCutsceneLine.value = i + 1;
+    const text = cutsceneLines[i];
+    if (i === 4) {
+      cutsceneBackgroundImage.value = caveImage2;
     }
-    console.log('Cutscene complete');
-  } catch (err) {
-    console.error('Cutscene error:', err);
+    for (let j = 0; j <= text.length; j++) {
+      displayedLines.value[i] = text.slice(0, j);
+      displayedLines.value = [...displayedLines.value];
+      if (j > 0) playAudio('typewriter_click');
+      await sleep(50);
+    }
+    if (i === 4) {
+      playAudio('dragon_fire_roar');
+      isFading.value = true;
+      await sleep(500);
+      isFading.value = false;
+      await sleep(2000);
+    } else {
+      await sleep(1500);
+    }
   }
 };
 
 const endCutscene = async () => {
-  console.log('Ending cutscene');
-  try {
-    isFading.value = true;
-    await sleep(500);
-    isFading.value = false;
-    showCutscene.value = false;
-    gameState.player.hasViewedCavernaCutscene = true;
-  } catch (err) {
-    console.error('Error ending cutscene:', err);
-  }
+  playAudio('cave_ambient', { stop: true });
+  isFading.value = true;
+  await sleep(500);
+  isFading.value = false;
+  showCutscene.value = false;
+  gameState.player.hasViewedCavernaCutscene = true;
 };
 
 // Game Functions
@@ -466,8 +446,12 @@ const confrontBoss = () => {
   inBattle.value = true;
   currentEnemyIndex.value = 0;
   battleLog.value = [`${playerCharacter.name} enfrenta o Dragão de Fogo!`];
+  playAudio('battle_start_dragon_fire');
   feedbackMessage.value = 'O Dragão de Fogo surge rugindo das chamas!';
   showFeedback.value = true;
+  battleMusic.pause();
+  battleMusic.currentTime = 0;
+  battleMusic.play().catch(err => console.warn('Error playing battle music:', err));
 };
 
 const attackEnemy = async () => {
@@ -477,52 +461,49 @@ const attackEnemy = async () => {
     }
     return;
   }
-  try {
-    isAttacking.value = true;
-    playerAttacking.value = true;
-    playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 10);
-    gameState.player.stamina = playerCharacter.currentStamina;
-    addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
-    const enemyIndex = currentEnemyIndex.value;
-    const enemy = enemies[enemyIndex];
-    const playerElement = document.querySelector('.player-character');
-    const enemyElement = document.querySelectorAll('.enemy-character')[0];
-    battleStatus.value = `${playerCharacter.name} ataca!`;
-    addLogMessage(`⚔️ ${playerCharacter.name} golpeia!`);
-    const originalLeft = playerCharacter.left;
-    playerCharacter.left += 40;
-    await sleep(200);
-    await showAttackEffect(playerElement, enemyElement, true);
-    playerCharacter.left = originalLeft;
-    damagedEnemy.value = enemyIndex;
-    const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 6 + 10);
-    enemy.currentHp = Math.max(0, enemy.currentHp - damageDealt);
-    enemy.hpPercent = (enemy.currentHp / enemy.maxHp) * 100;
-    showPopup(damageDealt, enemyElement, 'enemy-damage');
-    addLogMessage(`<span style="color: #d0a070;">💥 ${damageDealt} de dano!</span>`);
-    await sleep(500);
-    damagedEnemy.value = null;
-    playerAttacking.value = false;
-    if (enemy.hpPercent <= 0) {
-      addLogMessage(`<span style="color: #a09080;">☠️ Dragão de Fogo caiu!</span>`);
-      victory.value = true;
-      battleStatus.value = 'Triunfo!';
-      handleVictory();
-      isAttacking.value = false;
-      return;
-    }
-    isPlayerTurn.value = false;
-    battleStatus.value = `Dragão de Fogo prepara um ataque!`;
-    await sleep(1000);
-    await enemyTurn();
-    if (!gameOver.value && !victory.value) {
-      isPlayerTurn.value = true;
-      battleStatus.value = 'Desfira seu golpe!';
-    }
+  isAttacking.value = true;
+  playerAttacking.value = true;
+  playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 10);
+  gameState.player.stamina = playerCharacter.currentStamina;
+  addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
+  const enemyIndex = currentEnemyIndex.value;
+  const enemy = enemies[enemyIndex];
+  const playerElement = document.querySelector('.player-character');
+  const enemyElement = document.querySelectorAll('.enemy-character')[0];
+  battleStatus.value = `${playerCharacter.name} ataca!`;
+  addLogMessage(`⚔️ ${playerCharacter.name} golpeia!`);
+  playAudio('attack');
+  const originalLeft = playerCharacter.left;
+  playerCharacter.left += 40;
+  await sleep(200);
+  await showAttackEffect(playerElement, enemyElement, true);
+  playerCharacter.left = originalLeft;
+  damagedEnemy.value = enemyIndex;
+  const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 6 + 10);
+  enemy.currentHp = Math.max(0, enemy.currentHp - damageDealt);
+  enemy.hpPercent = (enemy.currentHp / enemy.maxHp) * 100;
+  showPopup(damageDealt, enemyElement, 'enemy-damage');
+  addLogMessage(`<span style="color: #d0a070;">💥 ${damageDealt} de dano!</span>`);
+  await sleep(500);
+  damagedEnemy.value = null;
+  playerAttacking.value = false;
+  if (enemy.hpPercent <= 0) {
+    addLogMessage(`<span style="color: #a09080;">☠️ Dragão de Fogo caiu!</span>`);
+    victory.value = true;
+    battleStatus.value = 'Triunfo!';
+    handleVictory();
     isAttacking.value = false;
-  } catch (err) {
-    console.error('Error in attackEnemy:', err);
+    return;
   }
+  isPlayerTurn.value = false;
+  battleStatus.value = `Dragão de Fogo prepara um ataque!`;
+  await sleep(1000);
+  await enemyTurn();
+  if (!gameOver.value && !victory.value) {
+    isPlayerTurn.value = true;
+    battleStatus.value = 'Desfira seu golpe!';
+  }
+  isAttacking.value = false;
 };
 
 const usePotion = async () => {
@@ -532,143 +513,130 @@ const usePotion = async () => {
     }
     return;
   }
-  try {
-    isAttacking.value = true;
-    playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 5);
-    gameState.player.stamina = playerCharacter.currentStamina;
-    addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
-    const playerElement = document.querySelector('.player-character');
-    actions.removeItemFromInventory('potions', 1);
-    const healAmount = 30;
-    playerCharacter.currentHp = Math.min(playerCharacter.maxHp, playerCharacter.currentHp + healAmount);
-    playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
-    gameState.player.health = playerCharacter.currentHp;
-    showPopup(healAmount, playerElement, 'hp-heal');
-    addLogMessage(`<span style="color: #90c090;">🧪 +${healAmount} vida!</span>`);
-    await sleep(1000);
-    isPlayerTurn.value = false;
-    battleStatus.value = `Dragão de Fogo prepara um ataque!`;
-    await sleep(1000);
-    await enemyTurn();
-    if (!gameOver.value && !victory.value) {
-      isPlayerTurn.value = true;
-      battleStatus.value = 'Desfira seu golpe!';
-    }
-    isAttacking.value = false;
-  } catch (err) {
-    console.error('Error in usePotion:', err);
+  isAttacking.value = true;
+  playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 5);
+  gameState.player.stamina = playerCharacter.currentStamina;
+  addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
+  const playerElement = document.querySelector('.player-character');
+  actions.removeItemFromInventory('potions', 1);
+  const healAmount = 30;
+  playerCharacter.currentHp = Math.min(playerCharacter.maxHp, playerCharacter.currentHp + healAmount);
+  playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
+  gameState.player.health = playerCharacter.currentHp;
+  showPopup(healAmount, playerElement, 'hp-heal');
+  addLogMessage(`<span style="color: #90c090;">🧪 +${healAmount} vida!</span>`);
+  playAudio('potion');
+  await sleep(1000);
+  isPlayerTurn.value = false;
+  battleStatus.value = `Dragão de Fogo prepara um ataque!`;
+  await sleep(1000);
+  await enemyTurn();
+  if (!gameOver.value && !victory.value) {
+    isPlayerTurn.value = true;
+    battleStatus.value = 'Desfira seu golpe!';
   }
+  isAttacking.value = false;
 };
 
 const enemyTurn = async () => {
   if (!activeEnemies.value.length || playerCharacter.hpPercent <= 0) return;
-  try {
-    const enemy = enemies[currentEnemyIndex.value];
-    const playerElement = document.querySelector('.player-character');
-    const enemyElement = document.querySelectorAll('.enemy-character')[0];
-    addLogMessage(`<b>🐉 Dragão de Fogo</b> ataca!`);
-    await sleep(800);
-    enemyAttacking.value = currentEnemyIndex.value;
-    const damageTaken = enemy.attackPower + Math.floor(Math.random() * 6 + 5);
-    playerCharacter.currentHp = Math.max(0, playerCharacter.currentHp - damageTaken);
-    playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
-    gameState.player.health = playerCharacter.currentHp;
-    showPopup(damageTaken, playerElement, 'player-damage');
-    addLogMessage(`<span style="color: #c06060;">💥 ${playerCharacter.name} sofre ${damageTaken} de dano!</span>`);
-    await sleep(500);
-    enemyAttacking.value = null;
-    damagedPlayer.value = true;
-    await sleep(300);
-    damagedPlayer.value = false;
-    if (playerCharacter.hpPercent <= 0) {
-      gameOver.value = true;
-      addLogMessage(`<b>💀 ${playerCharacter.name} foi derrotado!</b>`);
-      handleDefeat();
-      isAttacking.value = false;
-      return;
-    }
-  } catch (err) {
-    console.error('Error in enemyTurn:', err);
+  const enemy = enemies[currentEnemyIndex.value];
+  const playerElement = document.querySelector('.player-character');
+  const enemyElement = document.querySelectorAll('.enemy-character')[0];
+  addLogMessage(`<b>🐉 Dragão de Fogo</b> ataca!`);
+  playAudio('hit');
+  await sleep(800);
+  enemyAttacking.value = currentEnemyIndex.value;
+  const damageTaken = enemy.attackPower + Math.floor(Math.random() * 6 + 5);
+  playerCharacter.currentHp = Math.max(0, playerCharacter.currentHp - damageTaken);
+  playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
+  gameState.player.health = playerCharacter.currentHp;
+  showPopup(damageTaken, playerElement, 'player-damage');
+  addLogMessage(`<span style="color: #c06060;">💥 ${playerCharacter.name} sofre ${damageTaken} de dano!</span>`);
+  await sleep(500);
+  enemyAttacking.value = null;
+  damagedPlayer.value = true;
+  await sleep(300);
+  damagedPlayer.value = false;
+  if (playerCharacter.hpPercent <= 0) {
+    gameOver.value = true;
+    addLogMessage(`<b>💀 ${playerCharacter.name} foi derrotado!</b>`);
+    handleDefeat();
+    isAttacking.value = false;
+    return;
   }
 };
 
 const handleVictory = () => {
-  try {
-    bossDefeated.value = true;
-    actions.completeLevel('caverna_boss');
-    inBattle.value = false;
-    gameState.player.gold += 100;
-    actions.addItemToInventory('fire_shard', 1);
-    addLogMessage(`<span style="color: #d0a070;">💰 +100 ouro!</span>`);
-    addLogMessage(`<span style="color: #d0a070;">🎁 Fragmento de Fogo!</span>`);
-    feedbackMessage.value = 'Dragão de Fogo derrotado!';
-    showFeedback.value = true;
-  } catch (err) {
-    console.error('Error in handleVictory:', err);
-  }
+  bossDefeated.value = true;
+  actions.completeLevel('caverna_boss');
+  inBattle.value = false;
+  gameState.player.gold += 100;
+  actions.addItemFromInventory('fire_shard', 1);
+  addLogMessage(`<span style="color: #d0a070;">💰 +100 ouro!</span>`);
+  addLogMessage(`<span style="color: #d0a070;">🎁 Fragmento de Fogo!</span>`);
+  playAudio('boss_defeat');
+  feedbackMessage.value = 'Dragão de Fogo derrotado!';
+  showFeedback.value = true;
+  battleMusic.pause();
+  battleMusic.currentTime = 0;
 };
 
 const handleDefeat = () => {
-  try {
-    gameState.player.health = 0;
-    inBattle.value = false;
-    feedbackMessage.value = 'Você foi derrotado!';
-    showFeedback.value = true;
-    setTimeout(() => router.push('/'), 2000);
-  } catch (err) {
-    console.error('Error in handleDefeat:', err);
-  }
+  gameState.player.health = 0;
+  inBattle.value = false;
+  playAudio('player_defeat');
+  feedbackMessage.value = 'Você foi derrotado!';
+  showFeedback.value = true;
+  battleMusic.pause();
+  battleMusic.currentTime = 0;
+  setTimeout(() => router.push('/'), 2000);
 };
 
 const collectKey = () => {
-  try {
-    if (bossDefeated.value && !gameState.player.keys.fire) {
-      actions.collectKey('fire');
-      feedbackMessage.value = 'Chave Incandescente obtida!';
-      showFeedback.value = true;
-    } else {
-      feedbackMessage.value = 'Não há chave aqui ou você já a pegou.';
-      showFeedback.value = true;
-    }
-  } catch (err) {
-    console.error('Error in collectKey:', err);
+  if (bossDefeated.value && !gameState.player.keys.fire) {
+    actions.collectKey('fire');
+    playAudio('collect_key_fire');
+    feedbackMessage.value = 'Chave Incandescente obtida!';
+    showFeedback.value = true;
+  } else {
+    feedbackMessage.value = 'Não há chave aqui ou você já a pegou.';
+    showFeedback.value = true;
   }
 };
 
 const fleeArea = () => {
-  try {
-    router.push('/map');
-  } catch (err) {
-    console.error('Error in fleeArea:', err);
-  }
+  playAudio('ui_confirm');
+  router.push('/map');
 };
 
 const goToNextArea = () => {
-  try {
-    if (!bossDefeated.value) return;
-    router.push({ name: 'NextArea' });
-  } catch (err) {
-    console.error('Error in goToNextArea:', err);
-  }
+  if (!bossDefeated.value) return;
+  playAudio('ui_confirm');
+  router.push({ name: 'NextArea' });
 };
 
 // Lifecycle Hooks
 onMounted(() => {
-  try {
-    console.log('Mounting Caverna, gameState:', gameState);
-    actions.setCurrentArea('Caverna de Fogo');
-    bossDefeated.value = gameState.player.levelsCompleted.includes('caverna_boss');
-    console.log('bossDefeated:', bossDefeated.value, 'hasViewedCavernaCutscene:', gameState.player.hasViewedCavernaCutscene);
-    if (!bossDefeated.value && !gameState.player.hasViewedCavernaCutscene) {
-      showCutscene.value = true;
-      playCutscene();
-    } else {
-      showCutscene.value = false;
-    }
-  } catch (err) {
-    console.error('Error in onMounted:', err);
+  actions.setCurrentArea('Caverna de Fogo');
+  bossDefeated.value = gameState.player.levelsCompleted.includes('caverna_boss');
+  if (!bossDefeated.value && !gameState.player.hasViewedCavernaCutscene) {
+    showCutscene.value = true;
+    playCutscene();
+  } else {
+    showCutscene.value = false;
   }
 });
+
+// Watch for health and stamina changes
+watch(
+  () => [gameState.player.health, gameState.player.stamina],
+  ([newHealth, newStamina]) => {
+    playerCharacter.currentHp = newHealth;
+    playerCharacter.hpPercent = (newHealth / playerCharacter.maxHp) * 100;
+    playerCharacter.currentStamina = newStamina;
+  }
+);
 </script>
 
 <style scoped>
@@ -678,8 +646,27 @@ onMounted(() => {
   position: relative;
   width: 100%;
   height: 100vh;
-  overflow: hidden;
-  background-color: #3c2f2f;
+  overflow: auto;
+  transition: opacity 0.5s ease;
+  background-color: #3c2f2f; /* Fallback color */
+}
+
+/* Heat Overlay */
+.heat-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 69, 0, 0.3);
+  animation: heatPulse 2s ease-in-out;
+  pointer-events: none;
+  z-index: 8;
+}
+
+@keyframes heatPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.5; }
 }
 
 /* Cutscene */
@@ -693,9 +680,11 @@ onMounted(() => {
   justify-content: center;
   align-items: flex-end;
   z-index: 100;
+  outline: none;
 }
 
 .cutscene-content {
+  position: relative;
   background: rgba(40, 20, 10, 0.95);
   border: 4px solid #b64e1a;
   padding: 20px;
@@ -711,16 +700,19 @@ onMounted(() => {
 .cutscene-line {
   line-height: 1.6;
   margin-bottom: 10px;
+  display: block;
   opacity: 0;
 }
 
 .cutscene-line.visible {
   opacity: 1;
+  display: block;
 }
 
 .typewriter {
   display: inline-block;
   white-space: nowrap;
+  overflow: hidden;
 }
 
 .cutscene-arrow {
@@ -835,7 +827,7 @@ onMounted(() => {
 }
 
 .interactions, .feedback-box {
-  background-color: rgba(40, 20, 10, 0.85);
+  background-color: rgba(70, 30, 20, 0.85);
   padding: 20px;
   border: 2px solid #b64e1a;
   border-radius: 8px;
