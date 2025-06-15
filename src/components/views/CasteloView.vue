@@ -14,10 +14,24 @@
         backgroundSize: 'cover'
       }"
     >
+      <!-- Áreas de interação -->
       <div
         v-for="(area, i) in interactionAreas"
         :key="'interact-' + i"
         class="interaction-box"
+        :style="{
+          left: `${area.x - cameraOffset.x}px`,
+          top: `${area.y - cameraOffset.y}px`,
+          width: `${area.width}px`,
+          height: `${area.height}px`
+        }"
+      />
+
+      <!-- Áreas de colisão visíveis -->
+      <div
+        v-for="(area, i) in collisionAreas"
+        :key="'collision-' + i"
+        class="collision-box"
         :style="{
           left: `${area.x - cameraOffset.x}px`,
           top: `${area.y - cameraOffset.y}px`,
@@ -60,7 +74,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import bgImage from '@/assets/interior/bossroom.png'
-// Foreground image (detalhes do plano de fundo)
 import fgImage from '@/assets/interior/bossroom_detalhes.png'
 
 const currentFrame = ref(0)
@@ -68,7 +81,7 @@ const frameTimer = ref(0)
 const frameWidth = 96
 const frameHeight = 96
 
-const characterPosition = ref({ x: 500, y: 500 })
+const characterPosition = ref({ x: 850, y: 1100 })
 const moving = ref({ up: false, down: false, left: false, right: false })
 const lastDirection = ref('down')
 const isAttacking = ref(false)
@@ -160,6 +173,15 @@ const interactionAreas = [
   }
 ]
 
+// Áreas de colisão manuais
+const collisionAreas = [
+  { x: 0, y: 0, width: 100, height: 1266 },
+  { x: 0, y: 1266, width: 2048, height: 100 },
+  { x: 2000, y: 0, width: 100, height: 1266 },
+  { x: 0, y: 200, width: 2048, height: 100 },
+  { x: 750, y: 590, width: 250, height: 120 },
+]
+
 const screenSize = { width: window.innerWidth, height: window.innerHeight }
 
 const cameraOffset = computed(() => ({
@@ -177,27 +199,49 @@ const isInInteractionArea = () => {
   )
 }
 
+// Verificação de colisão
+const checkCollision = (nextX, nextY) => {
+  const hitbox = {
+    x: nextX + 8,
+    y: nextY + 40,
+    width: 80,
+    height: 40
+  }
+
+  return collisionAreas.some(area =>
+    hitbox.x < area.x + area.width &&
+    hitbox.x + hitbox.width > area.x &&
+    hitbox.y < area.y + area.height &&
+    hitbox.y + hitbox.height > area.y
+  )
+}
+
 let animationFrameId = null
 
 const updateMovement = () => {
   const step = 3
+  const nextPos = { ...characterPosition.value }
 
   if (canMove.value && !isAttacking.value) {
     if (moving.value.up) {
-      characterPosition.value.y -= step
+      nextPos.y -= step
       lastDirection.value = 'up'
     }
     if (moving.value.down) {
-      characterPosition.value.y += step
+      nextPos.y += step
       lastDirection.value = 'down'
     }
     if (moving.value.left) {
-      characterPosition.value.x -= step
+      nextPos.x -= step
       lastDirection.value = 'left'
     }
     if (moving.value.right) {
-      characterPosition.value.x += step
+      nextPos.x += step
       lastDirection.value = 'right'
+    }
+
+    if (!checkCollision(nextPos.x, nextPos.y)) {
+      characterPosition.value = nextPos
     }
   }
 
@@ -261,21 +305,10 @@ onMounted(() => {
   outline: none;
   font-family: 'Press Start 2P', cursive;
   color: white;
+  filter: brightness(2.2);
 }
 
-/* Background Layer */
-.zoom-layer.background {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-repeat: no-repeat;
-  background-size: cover;
-  z-index: 0;
-}
-
-/* Foreground Layer */
+.zoom-layer.background,
 .zoom-layer.foreground {
   position: absolute;
   top: 0;
@@ -284,22 +317,25 @@ onMounted(() => {
   height: 100vh;
   background-repeat: no-repeat;
   background-size: cover;
-  pointer-events: none; /* Para não atrapalhar cliques */
+}
+
+.zoom-layer.foreground {
+  pointer-events: none;
   z-index: 5;
 }
 
-/* Character Layer */
 .character {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  /* filter: brightness(0.5); */ /* Opcional: pode tirar se não quiser escurecer personagem */
   scale: 3;
   z-index: 3;
+ filter: brightness(0.4);
 }
 
 .dialog-box {
+  filter: brightness(0.5);
   position: absolute;
   bottom: 40px;
   left: 50%;
@@ -317,5 +353,11 @@ onMounted(() => {
   position: absolute;
   background-color: rgba(0, 255, 0, 0.0);
   z-index: 1;
+}
+
+.collision-box {
+  position: absolute;
+  background-color: rgba(255, 0, 0, 0.0);
+  z-index: 2;
 }
 </style>
