@@ -1,18 +1,16 @@
 import { defineStore } from 'pinia';
-import { reactive } from 'vue';
 
-// Definição de classes e itens
 const CLASSES = {
   Guerreiro: {
     name: 'Guerreiro',
     description: 'Combatente equilibrado, focado em dano corpo a corpo.',
-    baseStats: { attack: 12, defense: 8, speed: 10, maxHealth: 110, maxStamina: 100 },
+    baseStats: { attack: 12, defense: 8, speed: 10, maxHealth: 100, maxStamina: 100 },
     startItems: { weapon: 'sword_wood' }
   },
 };
 
 export const ITEMS = {
-  sword_wood: { id: 'sword_wood', name: 'Espada de Madeira', type: 'Arma', slot: 'weapon', stats: { attack: 5 }, description: 'Uma espada de treino.', icon: '/icons/weapons/sword-wood.png' },
+  sword_wood: { id: 'sword_wood', name: 'Espada de Madeira', type: 'Arma', slot: 'weapon', stats: { attack: 5 }, description: 'Uma espada de treino.', icon: '/icons/weapons/sword_wood.png' },
   axe_iron: { id: 'axe_iron', name: 'Machado de Ferro', type: 'Arma', slot: 'weapon', stats: { attack: 8, speed: -1 }, description: 'Pesado, mas poderoso.', icon: '/icons/weapons/axe_iron.png' },
   sword_iron: { id: 'sword_iron', name: 'Espada de Ferro', type: 'Arma', slot: 'weapon', price: 50, stats: { attack: 10 }, description: 'Uma espada básica, mas confiável.', icon: '/icons/weapons/sword_iron.png' },
   sword_mythril: { id: 'sword_mythril', name: 'Lança Rúnica', type: 'Arma', slot: 'weapon', price: 200, stats: { attack: 20 }, description: 'Aumenta o dano em +20. Forjada com magia anã.', icon: '/icons/weapons/sword_mythril.png' },
@@ -52,7 +50,7 @@ export const useGameState = defineStore('game', {
         maxHealth: 100,
         stamina: 100,
         maxStamina: 100,
-        gold: 100,
+        gold: 0,
         lives: 3,
         inventory: [{ itemId: 'sword_wood', quantity: 1 }, { itemId: 'potion_health', quantity: 1 }],
         equipment: {
@@ -259,7 +257,7 @@ export const useGameState = defineStore('game', {
     },
 
     restorePlayer() {
-      this.player.health = 110;
+      this.player.health = 100;
       this.player.stamina = this.player.maxStamina;
       this.saveState();
     },
@@ -300,10 +298,7 @@ export const useGameState = defineStore('game', {
     },
 
     collectKey(keyType) {
-      if (keyType === 'small_rusty') {
-        this.addItemToInventory('key_small_rusty', 1);
-        this.castleState.foundSmallKey = true;
-      } else if (this.player.keys.hasOwnProperty(keyType)) {
+      if (this.player.keys.hasOwnProperty(keyType)) {
         this.player.keys[keyType] = true;
         this.addItemToInventory(`key_${keyType}`, 1);
       }
@@ -380,16 +375,6 @@ export const useGameState = defineStore('game', {
       this.saveState();
     },
 
-    completeQuest(questId) {
-      if (this.quests.hasOwnProperty(questId)) {
-        this.quests[questId] = true;
-        if (questId === 'luccaRescued') {
-          this.completeLevel('acampamento');
-        }
-      }
-      this.saveState();
-    },
-
     setCurrentArea(areaName) {
       this.currentArea = areaName;
       this.saveState();
@@ -415,49 +400,6 @@ export const useGameState = defineStore('game', {
 
     toggleShaders() {
       this.shaders = !this.shaders;
-      this.saveState();
-    },
-
-    resetGame() {
-      Object.assign(this.$state, {
-        player: {
-          classe: 'Guerreiro',
-          name: null,
-          health: 100,
-          maxHealth: 100,
-          stamina: 100,
-          maxStamina: 100,
-          gold: 100,
-          lives: 3,
-          inventory: [{ itemId: 'sword_wood', quantity: 1 }, { itemId: 'potion_health', quantity: 1 }],
-          equipment: { weapon: 'sword_wood' },
-          stats: { attack: 10, defense: 5, speed: 10 },
-          keys: { ancestral: false, ice: false, fire: false },
-          hasRiverBlessing: false,
-          hasForbiddenPotion: false,
-        },
-        boss: {
-          name: 'Magnus',
-          health: 500,
-          maxHealth: 500,
-          stamina: 100,
-          maxStamina: 100,
-          phase: 1,
-          isVulnerable: false,
-          attackPattern: null,
-        },
-        currentArea: 'CutsceneInicial',
-        levelsCompleted: [],
-        quests: { mainQuestStep: 0, luccaRescued: false },
-        castleState: { leverPulled: false, foundSmallKey: false, crossedBridge: false, finalDoorOpened: false },
-        magnusDefeated: false,
-        endingTriggered: false,
-        endingType: null,
-        isBagOpen: false,
-        currentDialog: null,
-        shaders: true,
-      });
-      localStorage.removeItem('gameState');
       this.saveState();
     },
   },
