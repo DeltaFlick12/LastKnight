@@ -1,4 +1,3 @@
-```vue
 <template>
   <div class="montanha-view" :style="showDialogue || showCutscene ? dialogueOrCutsceneBackgroundStyle : backgroundStyle">
     <!-- Cold Overlay -->
@@ -215,16 +214,23 @@
 
 <script setup>
 import montanhaBaseImage from '@/assets/backviews/montanha-base.png';
-import montanhaImage from '@/assets/backviews/montanha.png';
+import montanhaImage from '@/assets/backviews/montanha-base.png';
+import montanhaBattleDragonImage from '@/assets/backviews/montanha-confronto.png';
+import montanhaCenarioImage from '@/assets/backviews/montanha-cenario.png';
 import playerEmergingImage from '@/assets/backviews/player-emerging.png';
 import dragonIceSprite from '@/assets/sprites/dragon-ice-sprite.png';
+// import playerSprite from '@/assets/sprites/player-sprite.png'; // Descomentei
+// import attackEffectSprite from '@/assets/sprites/attack-effect.png'; // Descomentei
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { useGameState } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
+import { useGameState } from '@/stores/gameState.js'; // Importação corrigida
 import { playAudio } from '@/utils/audioManager.js';
 
+const gameStore = useGameState(); // Obtém o store
+const gameState = gameStore.$state; // Acessa o estado reativo
+const actions = gameStore; // Ações estão no objeto do store
+
 const router = useRouter();
-const gameState = useGameState(); // Initialize the Pinia store
 
 // Dialogue State (at mountain base)
 const showDialogue = ref(true);
@@ -262,14 +268,23 @@ const inBattle = ref(false);
 const currentEnemyIndex = ref(0);
 
 // Background Styles
-const montanhaBattleDragonImage = montanhaImage; // Fallback since commented out
-const backgroundStyle = computed(() => ({
-  backgroundImage: `url(${inBattle.value ? montanhaBattleDragonImage : montanhaImage})`,
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  opacity: isFading.value ? 0 : 1,
-  transition: 'opacity 0.5s ease',
-}));
+const backgroundStyle = computed(() => {
+  let backgroundImage;
+  if (inBattle.value) {
+    backgroundImage = montanhaCenarioImage;
+  } else if (!atMountainBase.value && !bossDefeated.value) {
+    backgroundImage = montanhaBattleDragonImage;
+  } else {
+    backgroundImage = montanhaImage;
+  }
+  return {
+    backgroundImage: `url(${backgroundImage})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    opacity: isFading.value ? 0 : 1,
+    transition: 'opacity 0.5s ease',
+  };
+});
 const dialogueOrCutsceneBackgroundStyle = computed(() => ({
   backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url(${
     showDialogue.value ? montanhaBaseImage : cutsceneBackgroundImage.value
@@ -292,7 +307,7 @@ const filledStaminaSegments = computed(() =>
 // Player Character
 const playerCharacter = reactive({
   name: gameState.player.name || 'Herói',
-  className: gameState.player.className || 'Guerreiro',
+  className: gameState.player.classe || 'Guerreiro', // Ajustado para 'classe'
   hpPercent: (gameState.player.health / gameState.player.maxHealth) * 100,
   currentHp: gameState.player.health || 100,
   maxHp: gameState.player.maxHealth || 100,
@@ -334,11 +349,9 @@ const gameOver = ref(false);
 const victory = ref(false);
 const damagePopup = reactive({ active: false, value: 0, top: 0, left: 0, type: 'enemy-damage', prefix: '-' });
 const attackEffect = reactive({ active: false, style: {} });
-const playerSprite = playerEmergingImage; // Fallback since commented out
-const attackEffectSprite = dragonIceSprite; // Fallback since commented out
 
 // Computed Properties
-const potionCount = computed(() => gameState.player.potions || 0);
+const potionCount = computed(() => gameStore.getItemQuantity('potion_health') || 0); // Ajustado para usar getter
 const canUsePotion = computed(() => potionCount.value > 0 && playerCharacter.currentHp < playerCharacter.maxHp);
 const activeEnemies = computed(() => enemies.filter(enemy => enemy.hpPercent > 0 && enemies.indexOf(enemy) === currentEnemyIndex.value));
 const enemyInfoStyle = index => ({
@@ -427,7 +440,6 @@ const endDialogue = async () => {
 };
 
 // Cutscene Logic
-const typewriterSpans = ref([]);
 const playCutscene = async () => {
   playAudio('mountain_ambient', { loop: true });
   playAudio('wind_howl');
@@ -508,7 +520,7 @@ const fleeArea = () => {
 
 const collectKey = () => {
   if (bossDefeated.value && !gameState.player.keys.ice) {
-    gameState.collectKey('ice'); // Use gameState instead of actions
+    actions.collectKey('ice');
     playAudio('collect_key_ice');
     feedbackMessage.value = 'Você obteve a Chave de Gelo!';
     showFeedback.value = true;
@@ -582,8 +594,8 @@ const usePotion = async () => {
   gameState.player.stamina = playerCharacter.currentStamina;
   addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
   const playerElement = document.querySelector('.player-character');
-  gameState.removeItemFromInventory('potion', 1); // Use gameState instead of actions
-  gameState.player.potions -= 1;
+  actions.removeItemFromInventory('potion_health', 1); // Ajustado para potion_health
+  gameState.player.potions = gameStore.getItemQuantity('potion_health'); // Atualiza potions
   const healAmount = 30;
   playerCharacter.currentHp = Math.min(playerCharacter.maxHp, playerCharacter.currentHp + healAmount);
   playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
@@ -634,10 +646,10 @@ const enemyTurn = async () => {
 
 const handleVictory = () => {
   bossDefeated.value = true;
-  gameState.completeLevel('montanha_boss'); // Use gameState instead of actions
+  actions.completeLevel('montanha_boss');
   inBattle.value = false;
   gameState.player.gold += 100;
-  gameState.addItemToInventory('ice_shard', 1); // Use gameState instead of actions
+  actions.addItemToInventory('ice_shard', 1);
   addLogMessage(`<span style="color: #d0a070;">💰 +100 ouro!</span>`);
   addLogMessage(`<span style="color: #d0a070;">🎁 Fragmento de Gelo!</span>`);
   playAudio('boss_defeat');
@@ -662,13 +674,23 @@ const goToNextArea = () => {
 
 // Lifecycle Hooks
 onMounted(() => {
-  gameState.setCurrentArea('Montanha Congelada'); // Use gameState instead of actions
+  actions.setCurrentArea('Montanha Congelada');
   if (!gameState.player.keys) {
     gameState.player.keys = reactive({ ancestral: false, ice: false, fire: false });
   }
   if (!gameState.player.stamina) {
     gameState.player.stamina = 100;
     gameState.player.maxStamina = 100;
+  }
+  if (!gameState.player.health) {
+    gameState.player.health = 100;
+    gameState.player.maxHealth = 100;
+  }
+  if (!gameState.player.potions) {
+    gameState.player.potions = 3;
+  }
+  if (!gameState.player.gold) {
+    gameState.player.gold = 0;
   }
   if (!gameState.player.hasViewedMontanhaCutscene) {
     gameState.player.hasViewedMontanhaCutscene = false;
@@ -755,7 +777,20 @@ watch(
   border: 4px solid #4682b4;
   padding: 20px;
   max-width: 800px;
- root: 4px solid #2f4f4f;
+  border-radius: 5px;
+  margin: 10px auto 0;
+}
+
+.dialogue-arrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+  background-color: #4682b4;
+  border: 2px solid #2f4f4f;
+  color: #e0f0ff;
+  font-size: 24px;
   border-radius: 5px;
   cursor: pointer;
   transition: background-color 0.3s, transform 0.1s;
@@ -986,7 +1021,7 @@ watch(
 
 .navigation-bar {
   position: fixed;
-  bottom: 10px;
+  bottom: 0px;
   left: 0;
   width: 100%;
   background-color: rgba(40, 60, 80, 0.95);
@@ -1009,14 +1044,12 @@ watch(
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(rgba(20, 30, 40, 0.9), rgba(20, 30, 40, 0.9));
 }
 
 .battle-arena {
   position: relative;
   width: 100%;
   height: 80vh;
-  background: rgba(20, 30, 40, 0.95);
   overflow: hidden;
 }
 
