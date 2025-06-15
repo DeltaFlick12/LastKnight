@@ -5,47 +5,50 @@
     @keyup="stopMoving"
     tabindex="0"
   >
+    <!-- Background Layer -->
     <div
-      class="zoom-layer"
+      class="zoom-layer background"
       :style="{
         backgroundImage: `url(${bgImage})`,
-        transform: `translate(-50%, -50%) scale(${zoomLevel})`
+        backgroundPosition: `${-cameraOffset.x}px ${-cameraOffset.y}px`,
+        backgroundSize: 'cover'
       }"
     >
-      <div
-        class="character"
-        :style="{
-          transform: `translate(${characterPosition.x}px, ${characterPosition.y}px)`,
-          backgroundImage: `url(${spriteSheet})`,
-          backgroundPosition: `-${animations[currentAnimation].frames[currentFrame] * frameWidth}px -${animations[currentAnimation].row * frameHeight}px`,
-          width: frameWidth + 'px',
-          height: frameHeight + 'px'
-        }"
-      />
-
-      <div
-        v-for="(area, i) in collisionAreas"
-        :key="i"
-        class="collision-box"
-        :style="{
-          transform: `translate(${area.x}px, ${area.y}px)`,
-          width: `${area.width}px`,
-          height: `${area.height}px`
-        }"
-      />
-
       <div
         v-for="(area, i) in interactionAreas"
         :key="'interact-' + i"
         class="interaction-box"
         :style="{
-          transform: `translate(${area.x}px, ${area.y}px)`,
+          left: `${area.x - cameraOffset.x}px`,
+          top: `${area.y - cameraOffset.y}px`,
           width: `${area.width}px`,
           height: `${area.height}px`
         }"
       />
     </div>
 
+    <!-- Character Layer -->
+    <div
+      class="character"
+      :style="{
+        backgroundImage: `url(${spriteSheet})`,
+        backgroundPosition: `-${animations[currentAnimation].frames[currentFrame] * frameWidth}px -${animations[currentAnimation].row * frameHeight}px`,
+        width: frameWidth + 'px',
+        height: frameHeight + 'px'
+      }"
+    />
+
+    <!-- Foreground Layer -->
+    <div
+      class="zoom-layer foreground"
+      :style="{
+        backgroundImage: `url(${fgImage})`,
+        backgroundPosition: `${-cameraOffset.x}px ${-cameraOffset.y}px`,
+        backgroundSize: 'cover'
+      }"
+    />
+
+    <!-- Dialog -->
     <div v-if="showDialog" class="dialog-box">
       <p>{{ displayedText }}</p>
       <button @click="nextDialog" :disabled="typing">Continuar</button>
@@ -57,14 +60,15 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import bgImage from '@/assets/interior/bossroom.png'
+// Foreground image (detalhes do plano de fundo)
+import fgImage from '@/assets/interior/bossroom_detalhes.png'
 
 const currentFrame = ref(0)
 const frameTimer = ref(0)
 const frameWidth = 96
 const frameHeight = 96
 
-const zoomLevel = ref(0.95)
-const characterPosition = ref({ x: 0, y: 0 })
+const characterPosition = ref({ x: 500, y: 500 })
 const moving = ref({ up: false, down: false, left: false, right: false })
 const lastDirection = ref('down')
 const isAttacking = ref(false)
@@ -144,14 +148,6 @@ const skipDialog = () => {
   canMove.value = true
 }
 
-const collisionAreas = [
-  { x: 0, y: 200, width: 1024, height: 50 },
-  { x: 0, y: 950, width: 1024, height: 50 },
-  { x: 1020, y: 200, width: 50, height: 1000 },
-  { x: 820, y: 700, width: 130, height: 100 },
-  { x: 430, y: 890, width: 170, height: 50 }
-]
-
 const interactionAreas = [
   {
     x: 430,
@@ -164,15 +160,12 @@ const interactionAreas = [
   }
 ]
 
-const isColliding = (nextX, nextY) => {
-  const charBox = { x: nextX, y: nextY, width: 80, height: 80 }
-  return collisionAreas.some(area =>
-    charBox.x < area.x + area.width &&
-    charBox.x + charBox.width > area.x &&
-    charBox.y < area.y + area.height &&
-    charBox.y + charBox.height > area.y
-  )
-}
+const screenSize = { width: window.innerWidth, height: window.innerHeight }
+
+const cameraOffset = computed(() => ({
+  x: characterPosition.value.x - screenSize.width / 2 + frameWidth / 2,
+  y: characterPosition.value.y - screenSize.height / 2 + frameHeight / 2
+}))
 
 const isInInteractionArea = () => {
   const charBox = { ...characterPosition.value, width: 80, height: 80 }
@@ -184,42 +177,27 @@ const isInInteractionArea = () => {
   )
 }
 
-const getMovementBounds = () => {
-  return {
-    minX: 0,
-    maxX: 1024 - 80,
-    minY: 0,
-    maxY: 1024 - 80
-  }
-}
-
 let animationFrameId = null
 
-const updateMovement = (timestamp) => {
-  const bounds = getMovementBounds()
+const updateMovement = () => {
   const step = 3
-  let moved = false
 
   if (canMove.value && !isAttacking.value) {
-    if (moving.value.up && characterPosition.value.y - step >= bounds.minY && !isColliding(characterPosition.value.x, characterPosition.value.y - step)) {
+    if (moving.value.up) {
       characterPosition.value.y -= step
       lastDirection.value = 'up'
-      moved = true
     }
-    if (moving.value.down && characterPosition.value.y + step <= bounds.maxY && !isColliding(characterPosition.value.x, characterPosition.value.y + step)) {
+    if (moving.value.down) {
       characterPosition.value.y += step
       lastDirection.value = 'down'
-      moved = true
     }
-    if (moving.value.left && characterPosition.value.x - step >= bounds.minX && !isColliding(characterPosition.value.x - step, characterPosition.value.y)) {
+    if (moving.value.left) {
       characterPosition.value.x -= step
       lastDirection.value = 'left'
-      moved = true
     }
-    if (moving.value.right && characterPosition.value.x + step <= bounds.maxX && !isColliding(characterPosition.value.x + step, characterPosition.value.y)) {
+    if (moving.value.right) {
       characterPosition.value.x += step
       lastDirection.value = 'right'
-      moved = true
     }
   }
 
@@ -268,9 +246,6 @@ onMounted(() => {
   screen.focus()
   screen.addEventListener('click', () => screen.focus())
 
-  characterPosition.value.x = (1024 - frameWidth) / 2
-  characterPosition.value.y = (1024 - frameHeight) / 2
-
   frameTimer.value = performance.now()
   animationFrameId = requestAnimationFrame(updateMovement)
   typeLine()
@@ -288,23 +263,39 @@ onMounted(() => {
   color: white;
 }
 
-.zoom-layer {
+/* Background Layer */
+.zoom-layer.background {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 1024px;
-  height: 1024px;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   background-repeat: no-repeat;
-  background-position: center;
-  transform-origin: center center;
+  background-size: cover;
   z-index: 0;
 }
 
+/* Foreground Layer */
+.zoom-layer.foreground {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-repeat: no-repeat;
+  background-size: cover;
+  pointer-events: none; /* Para não atrapalhar cliques */
+  z-index: 5;
+}
+
+/* Character Layer */
 .character {
   position: absolute;
-  transform-origin: top left;
-  filter: brightness(0.45);
-  scale: 1.9;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  /* filter: brightness(0.5); */ /* Opcional: pode tirar se não quiser escurecer personagem */
+  scale: 3;
   z-index: 3;
 }
 
@@ -320,12 +311,6 @@ onMounted(() => {
   text-align: center;
   max-width: 600px;
   z-index: 10;
-}
-
-.collision-box {
-  position: absolute;
-  background-color: rgba(255, 0, 0, 0.0);
-  z-index: 1;
 }
 
 .interaction-box {
