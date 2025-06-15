@@ -61,8 +61,12 @@
     <div class="content-area">
       <!-- Interactions -->
       <div v-if="!bossDefeated && !inBattle && !showCutscene" class="interactions">
-        <button @click="confrontBoss">Enfrentar o Dragão Ancestral</button>
-        <button @click="fleeArea">Fugir</button>
+        <p>As ruínas ecoam com um rugido ancestral.</p>
+        <p><strong>Inimigo Final:</strong> O Dragão Ancestral aguarda.</p>
+        <div class="interaction-buttons">
+          <button @click="confrontBoss">Enfrentar o Dragão Ancestral</button>
+          <button @click="fleeArea">Fugir</button>
+        </div>
       </div>
       <div v-if="!inBattle && bossDefeated && !showCutscene" class="interactions">
         <p>O Dragão Ancestral foi derrotado.</p>
@@ -80,16 +84,6 @@
           </div>
 
           <!-- Player Character -->
-          <div class="character-info player-info">
-            <span class="character-name">{{ playerCharacter.name }} ({{ playerCharacter.className }})</span>
-            <div class="resource-bar-container">
-              <div class="hp-bar-label">Vida:</div>
-              <div class="hp-bar">
-                <div class="hp" :style="{ width: `${playerCharacter.hpPercent}%` }"></div>
-              </div>
-              <span class="resource-value">{{ playerCharacter.currentHp }}/{{ playerCharacter.maxHp }}</span>
-            </div>
-          </div>
           <div
             class="unit player-character"
             :class="{ 'is-attacking': playerAttacking, 'is-damaged': damagedPlayer }"
@@ -97,6 +91,9 @@
           >
             <img :src="playerSprite" alt="Player" class="character-sprite" />
           </div>
+          <div class="character-info player-info">
+  <span class="character-name">{{ playerCharacter.name }} ({{ playerCharacter.className }})</span>
+</div>
 
           <!-- Enemy (Ancestral Dragon) -->
           <div v-for="(enemy, index) in activeEnemies" :key="`enemy-${index}`">
@@ -111,11 +108,11 @@
               </div>
             </div>
             <div
-              class="unit enemy-character"
+              class="unit enemy-character dragao-ruina"
               :class="{ 'is-attacking': enemyAttacking === index, 'is-damaged': damagedEnemy === index, fainted: enemy.hpPercent <= 0 }"
               :style="enemyStyle(index, enemy)"
             >
-              <img :src="enemySprite" alt="Enemy" class="character-sprite" />
+              <img :src="enemySprites[enemy.name]" alt="Enemy" class="character-sprite" />
             </div>
           </div>
 
@@ -131,7 +128,7 @@
 
           <!-- Attack Effect -->
           <div v-if="attackEffect.active" class="attack-effect" :style="attackEffect.style">
-            <img :src="attackEffectSprite" alt="Attack Effect" class="effect-sprite" />
+            <img :src="attackEffect.sprite" alt="Attack Effect" class="effect-sprite" />
           </div>
         </div>
 
@@ -149,7 +146,7 @@
             </button>
           </div>
           <div class="actions-placeholder" v-else>
-            Aguarde sua vez...
+            Dragão Ancestral prepara um ataque...
           </div>
         </div>
       </div>
@@ -177,17 +174,28 @@
 </template>
 
 <script setup>
+import attackEffectSpritePlayer from '@/assets/sprites/ataque-efeito.png';
+import attackEffectSpriteDragon from '@/assets/sprites/ataque-dragao.png';
+import playerIdleSprite from '@/assets/sprites/player/player_idle.png';
+import dragonRuinaSprite from '@/assets/sprites/dragao-ruina.png';
 import ruinasDragonImage from '@/assets/backviews/ruinas-dragon.png';
 import ruinasBattleImage from '@/assets/backviews/ruinas-battle.png';
 import warriorImage from '@/assets/backviews/warrior.png';
 import warriorScaredImage from '@/assets/backviews/warrior-scared.png';
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { useGameState } from '@/stores/gameState.js'; // Import useGameState instead of gameState and actions
+import { useGameState } from '@/stores/gameState.js';
 import { playAudio } from '@/utils/audioManager.js';
 
 const router = useRouter();
-const gameState = useGameState(); // Initialize the Pinia store
+const gameState = useGameState();
+const battleMusic = new Audio('/audio/musica-combate.mp3');
+battleMusic.loop = true;
+
+const playerSprite = playerIdleSprite;
+const enemySprites = {
+  'Dragão Ancestral': dragonRuinaSprite,
+};
 
 // Cutscene State
 const showCutscene = ref(false);
@@ -206,11 +214,7 @@ const isFading = ref(false);
 
 // Background Styles
 const backgroundStyle = computed(() => ({
-  backgroundImage: `url(${
-    inBattle.value && !showCutscene.value
-      ? ruinasBattleImage
-      : ruinasDragonImage // Default to dragon background
-  })`,
+  backgroundImage: `url(${inBattle.value ? ruinasBattleImage : ruinasDragonImage})`,
   backgroundSize: 'cover',
   backgroundPosition: 'center',
   opacity: isFading.value ? 0 : 1,
@@ -260,11 +264,14 @@ const enemiesConfig = [{
   currentHp: 200,
   maxHp: 200,
   top: 200,
-  left: 1100,
+  left: '80vw',
   attackPower: 20,
 }];
-const initialEnemyPositions = enemiesConfig.map(enemy => ({ top: enemy.top, left: enemy.left }));
-const enemies = reactive(enemiesConfig.map(enemy => ({ ...enemy, hpPercent: 100 })));
+const initialEnemyPositions = enemiesConfig.map(enemy => ({
+  top: enemy.top,
+  left: typeof enemy.left === 'string' ? enemy.left : `${enemy.left}px`,
+}));
+const enemies = reactive(enemiesConfig.map(enemy => ({ ...enemy })));
 
 // Battle State
 const damagedEnemy = ref(null);
@@ -278,7 +285,7 @@ const battleStatus = ref('Desfira seu golpe!');
 const gameOver = ref(false);
 const victory = ref(false);
 const damagePopup = reactive({ active: false, value: 0, top: 0, left: 0, type: 'enemy-damage', prefix: '-' });
-const attackEffect = reactive({ active: false, style: {} });
+const attackEffect = reactive({ active: false, style: {}, sprite: null });
 
 // Computed Properties
 const potionCount = computed(() => gameState.player.potions || 0);
@@ -286,11 +293,13 @@ const canUsePotion = computed(() => potionCount.value > 0 && playerCharacter.cur
 const activeEnemies = computed(() => enemies.filter(enemy => enemy.hpPercent > 0));
 const enemyInfoStyle = index => ({
   top: `${initialEnemyPositions[index].top - 90}px`,
-  left: `calc(80vw - ${120 + index * 50}px)`,
+  left: `calc(${initialEnemyPositions[index].left} - 120px)`,
 });
 const enemyStyle = (index, enemy) => ({
-  top: `${enemy.hpPercent > 0 ? enemy.top : initialEnemyPositions[index].top}px`,
-  left: `${enemy.hpPercent > 0 ? `calc(80vw - ${index * 50}px)` : initialEnemyPositions[index].left}px`,
+  top: `${(enemy.hpPercent > 0 ? enemy.top : initialEnemyPositions[index].top) + 100}px`,
+  left: enemy.hpPercent > 0 ? enemy.left : initialEnemyPositions[index].left,
+  transform: 'scale(3.5)',
+  transformOrigin: 'center center',
 });
 
 // Utility Functions
@@ -319,10 +328,11 @@ const showPopup = (value, targetElement, type = 'enemy-damage') => {
   setTimeout(() => Object.assign(damagePopup, { active: false }), 800);
 };
 
-const showAttackEffect = async (attackerElement, targetElement) => {
+const showAttackEffect = async (attackerElement, targetElement, isPlayer = true) => {
   const startRect = attackerElement.getBoundingClientRect();
   const endRect = targetElement.getBoundingClientRect();
   const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
+  const spriteToUse = isPlayer ? attackEffectSpritePlayer : attackEffectSpriteDragon;
   Object.assign(attackEffect, {
     active: true,
     style: {
@@ -330,6 +340,7 @@ const showAttackEffect = async (attackerElement, targetElement) => {
       left: `${startRect.left - containerRect.left + startRect.width / 2}px`,
       opacity: 1,
     },
+    sprite: spriteToUse,
   });
   await sleep(50);
   Object.assign(attackEffect.style, {
@@ -339,10 +350,10 @@ const showAttackEffect = async (attackerElement, targetElement) => {
     transition: 'top 0.3s ease-out, left 0.3s ease-out, opacity 0.3s ease-out',
   });
   await sleep(300);
-  Object.assign(attackEffect, { active: false, style: {} });
+  Object.assign(attackEffect, { active: false, style: {}, sprite: null });
 };
 
-// Cutscene Logic with Background Transitions and Audio
+// Cutscene Logic
 const typewriterSpans = ref([]);
 const playCutscene = async () => {
   playAudio('ruins_ambient', { loop: true });
@@ -384,6 +395,11 @@ const endCutscene = async () => {
 // Game Functions
 const confrontBoss = () => {
   inBattle.value = true;
+  battleLog.value = [`${playerCharacter.name} enfrenta o Dragão Ancestral!`];
+  playAudio('ruins_ambient', { stop: true });
+  battleMusic.pause();
+  battleMusic.currentTime = 0;
+  battleMusic.play().catch(err => console.warn('Erro ao tocar música de batalha:', err));
   playAudio('battle_start_dragon_ancestral');
   feedbackMessage.value = 'O Dragão Ancestral desperta!';
   showFeedback.value = true;
@@ -391,7 +407,7 @@ const confrontBoss = () => {
 
 const collectKey = () => {
   if (bossDefeated.value && !gameState.player.keys.ancestral) {
-    gameState.collectKey('ancestral'); // Use gameState instead of actions
+    gameState.collectKey('ancestral');
     playAudio('collect_key_ancient');
     feedbackMessage.value = 'Chave Ancestral obtida!';
     showFeedback.value = true;
@@ -421,16 +437,17 @@ const attackEnemy = async () => {
   const enemyIndex = 0;
   const enemy = enemies[enemyIndex];
   const playerElement = document.querySelector('.player-character');
-  const enemyElement = document.querySelectorAll('.enemy-character')[enemyIndex];
+  const enemyElement = document.querySelectorAll('.enemy-character')[0];
   battleStatus.value = `${playerCharacter.name} ataca!`;
   addLogMessage(`⚔️ ${playerCharacter.name} golpeia!`);
+  playAudio('attack');
   const originalLeft = playerCharacter.left;
   playerCharacter.left += 40;
   await sleep(200);
-  await showAttackEffect(playerElement, enemyElement);
+  await showAttackEffect(playerElement, enemyElement, true);
   playerCharacter.left = originalLeft;
   damagedEnemy.value = enemyIndex;
-  const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 5);
+  const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 6 + 10);
   enemy.currentHp = Math.max(0, enemy.currentHp - damageDealt);
   enemy.hpPercent = (enemy.currentHp / enemy.maxHp) * 100;
   showPopup(damageDealt, enemyElement, 'enemy-damage');
@@ -447,9 +464,13 @@ const attackEnemy = async () => {
     return;
   }
   isPlayerTurn.value = false;
-  battleStatus.value = 'O dragão ruge!';
+  battleStatus.value = 'Dragão Ancestral prepara um ataque!';
   await sleep(1000);
-  isPlayerTurn.value = true;
+  await enemyTurn();
+  if (!gameOver.value && !victory.value) {
+    isPlayerTurn.value = true;
+    battleStatus.value = 'Desfira seu golpe!';
+  }
   isAttacking.value = false;
 };
 
@@ -465,7 +486,7 @@ const usePotion = async () => {
   gameState.player.stamina = playerCharacter.currentStamina;
   addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
   const playerElement = document.querySelector('.player-character');
-  gameState.removeItemFromInventory('potion', 1); // Use gameState instead of actions
+  gameState.removeItemFromInventory('potion', 1);
   gameState.player.potions -= 1;
   const healAmount = 30;
   playerCharacter.currentHp = Math.min(playerCharacter.maxHp, playerCharacter.currentHp + healAmount);
@@ -473,24 +494,62 @@ const usePotion = async () => {
   gameState.player.health = playerCharacter.currentHp;
   showPopup(healAmount, playerElement, 'hp-heal');
   addLogMessage(`<span style="color: #90c090;">🧪 +${healAmount} vida!</span>`);
+  playAudio('potion');
   await sleep(1000);
   isPlayerTurn.value = false;
-  battleStatus.value = 'O dragão ruge!';
+  battleStatus.value = 'Dragão Ancestral prepara um ataque!';
   await sleep(1000);
-  isPlayerTurn.value = true;
+  await enemyTurn();
+  if (!gameOver.value && !victory.value) {
+    isPlayerTurn.value = true;
+    battleStatus.value = 'Desfira seu golpe!';
+  }
   isAttacking.value = false;
+};
+
+const enemyTurn = async () => {
+  if (!activeEnemies.value.length || playerCharacter.hpPercent <= 0) return;
+  const enemy = enemies[0];
+  const playerElement = document.querySelector('.player-character');
+  const enemyElement = document.querySelectorAll('.enemy-character')[0];
+  addLogMessage(`<b>🐉 Dragão Ancestral</b> ataca!`);
+  playAudio('hit');
+  await sleep(800);
+  enemyAttacking.value = 0;
+  const damageTaken = enemy.attackPower + Math.floor(Math.random() * 6 + 5);
+  playerCharacter.currentHp = Math.max(0, playerCharacter.currentHp - damageTaken);
+  playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
+  gameState.player.health = playerCharacter.currentHp;
+  showPopup(damageTaken, playerElement, 'player-damage');
+  addLogMessage(`<span style="color: #c06060;">💥 ${playerCharacter.name} sofre ${damageTaken} de dano!</span>`);
+  await showAttackEffect(enemyElement, playerElement, false);
+  await sleep(500);
+  enemyAttacking.value = null;
+  damagedPlayer.value = true;
+  await sleep(300);
+  damagedPlayer.value = false;
+  if (playerCharacter.hpPercent <= 0) {
+    gameOver.value = true;
+    addLogMessage(`<b>💀 ${playerCharacter.name} foi derrotado!</b>`);
+    handleDefeat();
+    isAttacking.value = false;
+    return;
+  }
 };
 
 const handleVictory = () => {
   bossDefeated.value = true;
-  gameState.completeLevel('ruinas_boss'); // Use gameState instead of actions
+  gameState.completeLevel('ruinas_boss');
   inBattle.value = false;
   gameState.player.gold += 100;
-  gameState.addItemToInventory('dragon_scale', 1); // Use gameState instead of actions
+  gameState.addItemToInventory('dragon_scale', 1);
   addLogMessage(`<span style="color: #d0a070;">💰 +100 ouro!</span>`);
   addLogMessage(`<span style="color: #d0a070;">🎁 Escama de Dragão!</span>`);
+  playAudio('boss_defeat');
   feedbackMessage.value = 'Dragão Ancestral derrotado!';
   showFeedback.value = true;
+  battleMusic.pause();
+  battleMusic.currentTime = 0;
 };
 
 const handleDefeat = () => {
@@ -500,6 +559,8 @@ const handleDefeat = () => {
   feedbackMessage.value = 'Você foi derrotado!';
   showFeedback.value = true;
   setTimeout(() => router.push('/'), 2000);
+  battleMusic.pause();
+  battleMusic.currentTime = 0;
 };
 
 const goToNextArea = () => {
@@ -510,7 +571,7 @@ const goToNextArea = () => {
 
 // Lifecycle Hooks
 onMounted(() => {
-  gameState.setCurrentArea('Ruínas Ancestrais'); // Use gameState instead of actions
+  gameState.setCurrentArea('Ruínas Ancestrais');
   if (!gameState.player.keys) {
     gameState.player.keys = reactive({ ancestral: false, ice: false, fire: false });
   }
@@ -555,6 +616,7 @@ watch(
   height: 100vh;
   overflow: auto;
   transition: opacity 0.5s ease;
+  background-color: #e0ffff;
 }
 
 /* Cutscene Style */
@@ -573,13 +635,13 @@ watch(
 
 .cutscene-content {
   position: relative;
-  background: rgba(40, 20, 10, 0.95);
-  border: 4px solid #a07c50;
-  padding: 20px;
-  max-width: 800px;
+  background: rgba(244, 228, 188, 0.95); /* Sand-like color */
+  border: 4px solid #D4C4A0;
+  padding: 15px;
+  max-width: 600px; /* Reduced size */
   margin-bottom: 100px;
   text-align: left;
-  color: #f0f0e0;
+  color: #3C2F2F; /* Darker text for contrast */
   font-family: 'MedievalSharp', cursive;
   font-size: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
@@ -609,9 +671,9 @@ watch(
   align-items: center;
   width: 40px;
   height: 40px;
-  background-color: #704d3a;
-  border: 2px solid #5c4033;
-  color: #d0b090;
+  background: linear-gradient(to bottom, #F4E4BC, #D4C4A0); /* Sand-like gradient */
+  border: 2px solid #D4C4A0;
+  color: #3C2F2F;
   font-size: 24px;
   border-radius: 5px;
   cursor: pointer;
@@ -620,32 +682,17 @@ watch(
 }
 
 .cutscene-arrow:hover {
-  background-color: #8b6a47;
+  background: linear-gradient(to bottom, #FFF5E1, #E4D4B0); /* Lighter sand gradient */
 }
 
 .cutscene-arrow:active {
   transform: translate(1px, 1px);
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-
-/* Dialog Transition */
-.feedback-box {
-  transition: opacity 0.5s ease, transform 0.5s ease;
-}
-
-.feedback-box.fade-enter, .feedback-box.fade-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -60%);
-}
-
 /* HUD Styles */
 .main-hud {
   position: fixed;
-  bottom: 10px;
+  top: 10px;
   left: 10px;
   z-index: 90;
   font-size: 14px;
@@ -682,7 +729,7 @@ watch(
   width: 200px;
   height: 24px;
   background: rgba(0, 0, 0, 0.7);
-  border: 2px solid #333;
+  border: 2px solid #D4C4A0; /* Sand-like border */
   border-radius: 4px;
   overflow: hidden;
 }
@@ -693,7 +740,7 @@ watch(
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 12px;
-  color: #fff9d6;
+  color: #3C2F2F;
   text-shadow: 1px 1px 0 #000;
   font-family: 'MedievalSharp', cursive;
 }
@@ -708,7 +755,7 @@ watch(
   flex: 1;
   height: 20px;
   background: rgba(0, 0, 0, 0.3);
-  border: 1px solid #222;
+  border: 1px solid #D4C4A0;
 }
 
 .vida .segment.filled {
@@ -716,7 +763,7 @@ watch(
 }
 
 .energia .segment.filled {
-  background: linear-gradient(to bottom, #33cc33, #0b700b);
+  background: linear-gradient(to bottom, #33cc33, #0ff);
 }
 
 /* Content Area */
@@ -730,13 +777,13 @@ watch(
 }
 
 .interactions, .feedback-box {
-  background-color: rgba(10, 5, 15, 0.85);
+  background-color: rgba(244, 228, 188, 0.85); /* Sand-like color */
   padding: 20px;
-  border: 2px solid #a07c4f;
+  border: 2px solid #D4C4A0;
   border-radius: 8px;
   text-align: center;
   max-width: 400px;
-  color: #e0d8c0;
+  color: #3C2F2F;
   font-family: 'MedievalSharp', cursive;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
 }
@@ -746,9 +793,12 @@ watch(
   bottom: 15%;
   left: 50%;
   transform: translateX(-50%);
+}
+
+.interaction-buttons {
   display: flex;
   flex-direction: column;
-  gap: 10px; /* Add spacing between buttons */
+  gap: 10px;
 }
 
 .feedback-box {
@@ -765,22 +815,30 @@ watch(
 }
 
 .feedback-box button, .interactions button, .action-btn, .nav-btn {
-  background-color: #704d3a;
-  border: 2px solid #5c4033;
-  color: #d0b090;
-  padding: 8px 20px;
-  border-radius: 5px;
+  background: linear-gradient(to bottom, #F4E4BC, #D4C4A0); /* Sand-like gradient */
+  border: 3px solid #D4C4A0;
+  color: #3C2F2F;
+  padding: 10px 20px;
+  font-size: 16px;
+  border-radius: 8px;
   cursor: pointer;
-  font-family: 'UnifrakturMaguntia', cursive;
+  font-family: 'MedievalSharp', cursive;
+  text-shadow: 1px 1px 2px #000;
+  box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.1), 2px 2px 6px rgba(0, 0, 0, 0.5);
   transition: filter 0.2s, transform 0.1s;
 }
 
-.feedback-box button:hover, .interactions button:hover, .action-btn:hover:not(:disabled), .nav-btn:hover:not(:disabled) {
+.feedback-box button:hover:not(:disabled), .interactions button:hover:not(:disabled), .action-btn:hover:not(:disabled), .nav-btn:hover:not(:disabled) {
   filter: brightness(1.2);
 }
 
-.feedback-box button:active, .interactions button:active, .action-btn:active:not(:disabled), .nav-btn:active:not(:disabled) {
-  transform: translate(1px, 1px);
+.feedback-box button:active:not(:disabled), .interactions button:active:not(:disabled), .action-btn:active:not(:disabled), .nav-btn:active:not(:disabled) {
+  transform: scale(0.97);
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.potion-btn {
+  background: linear-gradient(to bottom, #E4D4B0, #C4B490); /* Slightly darker sand gradient */
 }
 
 /* Navigation Bar */
@@ -789,8 +847,8 @@ watch(
   bottom: 0;
   left: 0;
   width: 100%;
-  background: rgba(40, 25, 15, 0.9);
-  border-top: 4px solid #5c4033;
+  background: rgba(244, 228, 188, 0.95); /* Sand-like color */
+  border-top: 4px solid #D4C4A0;
   padding: 10px 20px;
   display: flex;
   justify-content: center;
@@ -810,14 +868,12 @@ watch(
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(rgba(20, 10, 5, 0.9), rgba(20, 10, 5, 0.9));
 }
 
 .battle-arena {
   position: relative;
   width: 100%;
   height: 80vh;
-  background: rgba(20, 10, 5, 0.95);
   overflow: hidden;
 }
 
@@ -827,12 +883,12 @@ watch(
   left: 50%;
   transform: translateX(-50%);
   font-size: 16px;
-  color: #d0b090;
-  background: rgba(40, 25, 15, 0.9);
+  color: #3C2F2F;
+  background: rgba(244, 228, 188, 0.9); /* Sand-like color */
   padding: 10px 20px;
   border-radius: 5px;
   z-index: 20;
-  border: 2px solid #8b6a47;
+  border: 2px solid #D4C4A0;
   font-family: 'MedievalSharp', cursive;
 }
 
@@ -841,7 +897,7 @@ watch(
   animation: pulseGlow 1.5s infinite;
 }
 
-.victory-message { color: #b09050; }
+.victory-message { color: #b0c4de; }
 .game-over-message { color: #a04040; }
 
 @keyframes pulseGlow {
@@ -869,22 +925,26 @@ watch(
 
 .character-info {
   position: absolute;
-  background: rgba(40, 25, 15, 0.9);
-  border: 2px solid #8b6a47;
+  background: rgba(244, 228, 188, 0.9); /* Sand-like color */
+  border: 2px solid #D4C4A0;
   border-radius: 8px;
   padding: 10px;
-  color: #d0b090;
+  color: #3C2F2F;
   font-size: 12px;
   min-width: 180px;
 }
 
-.player-info { bottom: 50px; left: 20px; }
+.player-info {
+  bottom: 20px;
+  left: 20px;
+  z-index: 5;
+}
 .enemy-info { text-align: right; }
 
 .character-name {
   font-weight: bold;
   font-size: 14px;
-  color: #e0c0a0;
+  color: #3C2F2F;
   margin-bottom: 8px;
   display: block;
 }
@@ -905,16 +965,16 @@ watch(
 .hp-bar {
   flex-grow: 1;
   height: 14px;
-  border: 2px solid #5c4033;
+  border: 2px solid #D4C4A0;
   border-radius: 5px;
-  background: #3c2a1d;
+  background: #E4D4B0; /* Slightly darker sand */
   overflow: hidden;
 }
 
 .hp {
   height: 100%;
-  background: linear-gradient(to right, #804040, #a06060);
-  transition: width 0.5s ease-out;
+  background: linear-gradient(to right, #4682b4, #87ceeb);
+  transition: width 0.5s ease;
 }
 
 .resource-value {
@@ -926,8 +986,8 @@ watch(
 .battle-log-container {
   width: 100%;
   height: 20vh;
-  background: rgba(40, 25, 15, 0.95);
-  border-top: 4px solid #5c4033;
+  background: rgba(244, 228, 188, 0.95); /* Sand-like color */
+  border-top: 4px solid #D4C4A0;
   display: flex;
   justify-content: space-between;
   padding: 10px;
@@ -940,9 +1000,9 @@ watch(
   font-size: 12px;
   line-height: 1.5;
   padding: 10px;
-  border: 2px solid #8b6a47;
+  border: 2px solid #D4C4A0;
   border-radius: 5px;
-  color: #c0a080;
+  color: #3C2F2F;
 }
 
 .battle-log p { margin: 0 0 6px 0; }
@@ -952,12 +1012,12 @@ watch(
 }
 
 .battle-log::-webkit-scrollbar-track {
-  background: #3c2a1d;
+  background: #E4D4B0; /* Slightly darker sand */
   border-radius: 5px;
 }
 
 .battle-log::-webkit-scrollbar-thumb {
-  background: #8b6a47;
+  background: #D4C4A0;
   border-radius: 5px;
 }
 
@@ -970,7 +1030,7 @@ watch(
 }
 
 .actions-placeholder {
-  color: #a09070;
+  color: #3C2F2F;
   font-size: 14px;
   font-style: italic;
 }
@@ -980,12 +1040,24 @@ watch(
   cursor: not-allowed;
 }
 
-.potion-btn {
-  background-color: #5a704d;
+.enemy-character.dragao-ruina {
+  transform: scale(3.5);
+  transform-origin: center center;
+}
+
+.enemy-character.dragao-ruina.is-attacking {
+  animation: dragonShake 0.4s ease-in-out;
+  transform: scale(3.5);
 }
 
 .unit.is-attacking { animation: attackShake 0.4s ease-in-out; }
 .unit.is-damaged { animation: damageFlash 0.3s linear 2; }
+
+@keyframes dragonShake {
+  0%, 100% { transform: scale(3.5) translateX(0); }
+  25% { transform: scale(3.5) translateX(-5px); }
+  75% { transform: scale(3.5) translateX(5px); }
+}
 
 @keyframes attackShake {
   0%, 100% { transform: translateX(0); }
@@ -1031,3 +1103,4 @@ watch(
   image-rendering: pixelated;
 }
 </style>
+```

@@ -1,59 +1,235 @@
 <template>
-  <transition name="fade">
-    <div :class="['cave-view', { shake: isShaking }]">
-      <img src="@/assets/backviews/caverna.jpg" alt="Fundo da Caverna" class="bg-image" />
-
-      <div class="hud">
-        <div>❤️ Vida: {{ playerHealth }}/100</div>
-        <div>⚔️ Arma: {{ equippedWeapon }}</div>
-      </div>
-
-      <div class="battle-box">
-        <div :class="['enemy', { hit: enemyHit }]">
-          <h2>🔥 {{ enemy.name }}</h2>
-          <p>🩸 Vida: {{ enemy.health }}/{{ enemy.maxHealth }}</p>
+  <div class="caverna-view" :style="showCutscene ? cutsceneBackgroundStyle : backgroundStyle">
+    <!-- Cutscene -->
+    <div v-if="showCutscene" class="cutscene-container" tabindex="0">
+      <div class="cutscene-content">
+        <div v-for="(line, index) in cutsceneLines" :key="index" class="cutscene-line" :class="{ visible: index < currentCutsceneLine }">
+          <span class="typewriter">{{ displayedLines[index] || '' }}</span>
         </div>
-
-        <div class="actions">
-          <button @click="attackEnemy" :disabled="enemy.health <= 0 || playerHealth <= 0">Atacar</button>
-          <button @click="usePotion" :disabled="potions <= 0">Usar Poção ({{ potions }})</button>
+        <div
+          v-if="currentCutsceneLine >= cutsceneLines.length"
+          class="cutscene-arrow"
+          @click.stop="endCutscene"
+          role="button"
+          aria-label="Avançar"
+        >
+          ➤
         </div>
-
-        <p class="log animated-text">{{ battleLog }}</p>
-
-        <button v-if="enemy.health <= 0" @click="finishBattle">🏆 Vitória! Continuar</button>
       </div>
     </div>
-  </transition>
+
+    <!-- HUD -->
+    <div v-if="inBattle && !showCutscene" class="main-hud">
+      <div class="panel-frame">
+        <div class="stat vida">
+          <div class="icon-container">
+            <img src="/icons/life-icon.png" alt="Vida" class="icon" />
+          </div>
+          <div class="bar-container segmented">
+            <div
+              v-for="i in maxBarSegments"
+              :key="`vida-${i}`"
+              class="segment"
+              :class="{ filled: i <= filledHealthSegments }"
+            ></div>
+            <span class="bar-label">
+              {{ Math.floor(playerCharacter.currentHp) }}/{{ Math.floor(playerCharacter.maxHp) }}
+            </span>
+          </div>
+        </div>
+        <div class="stat energia">
+          <div class="icon-container">
+            <img src="/icons/stam-icon.png" alt="Energia" class="icon" />
+          </div>
+          <div class="bar-container segmented">
+            <div
+              v-for="i in maxBarSegments"
+              :key="`energia-${i}`"
+              class="segment"
+              :class="{ filled: i <= filledStaminaSegments }"
+            ></div>
+            <span class="bar-label">
+              {{ Math.floor(playerCharacter.currentStamina) }}/{{ Math.floor(playerCharacter.maxStamina) }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="content-area">
+      <!-- Interactions -->
+      <div v-if="!bossDefeated && !inBattle && !showCutscene" class="interactions">
+        <p>O calor sufocante da caverna queima sua pele.</p>
+        <p><strong>Inimigo Final:</strong> O Dragão de Fogo aguarda nas profundezas.</p>
+        <div class="interaction-buttons">
+          <button @click="confrontBoss">Enfrentar o Dragão de Fogo</button>
+          <button @click="fleeArea">Fugir</button>
+        </div>
+      </div>
+
+      <!-- Post-Battle -->
+      <div v-if="!inBattle && bossDefeated && !showCutscene" class="interactions">
+        <p>O Dragão de Fogo foi derrotado. As chamas se extinguem lentamente.</p>
+        <p v-if="!hasFireKey">Uma Chave Incandescente brilha entre as cinzas.</p>
+        <button v-if="!hasFireKey" @click="collectKey">Pegar Chave Incandescente</button>
+      </div>
+
+      <!-- Battle System -->
+      <div v-if="inBattle && !showCutscene" class="medieval-battle-container">
+        <div class="battle-arena">
+          <div class="game-status-top">
+            <div v-if="!gameOver && !victory">{{ battleStatus }}</div>
+            <div v-if="victory" class="victory-message">✨ Triunfo! Dragão de Fogo caiu! ✨</div>
+            <div v-if="gameOver" class="game-over-message">💀 Derrota! As chamas prevaleceram... 💀</div>
+          </div>
+
+          <!-- Player -->
+          <div
+            class="unit player-character"
+            :class="{ 'is-attacking': playerAttacking, 'is-damaged': damagedPlayer }"
+            :style="{ top: `${playerCharacter.top}px`, left: `${playerCharacter.left}px` }"
+          >
+            <img :src="playerSprite" alt="Player" class="character-sprite" />
+          </div>
+          <<div class="character-info player-info">
+  <span class="character-name">{{ playerCharacter.name }} ({{ playerCharacter.className }})</span>
+</div>
+
+          <!-- Enemy -->
+          <div v-for="(enemy, index) in activeEnemies" :key="`enemy-${index}`">
+            <div class="character-info enemy-info" :style="enemyInfoStyle(index)">
+              <span class="character-name">{{ enemy.name }}</span>
+              <div class="resource-bar-container">
+                <div class="hp-bar-label">Vida:</div>
+                <div class="hp-bar enemy-hp-bar">
+                  <div class="hp enemy-hp" :style="{ width: `${enemy.hpPercent}%` }"></div>
+                </div>
+                <span class="resource-value">{{ enemy.currentHp }}/{{ enemy.maxHp }}</span>
+              </div>
+            </div>
+            <div
+              class="unit enemy-character dragao-fogo"
+              :class="{ 'is-attacking': enemyAttacking === index, 'is-damaged': damagedEnemy === index, fainted: enemy.hpPercent <= 0 }"
+              :style="enemyStyle(index, enemy)"
+            >
+              <img :src="enemySprites[enemy.name]" alt="Enemy" class="character-sprite" />
+            </div>
+          </div>
+
+          <!-- Damage Popup -->
+          <div
+            v-if="damagePopup.active"
+            class="damage-popup"
+            :class="damagePopup.type"
+            :style="{ top: `${damagePopup.top}px`, left: `${damagePopup.left}px` }"
+          >
+            {{ damagePopup.prefix }}{{ damagePopup.value }}
+          </div>
+
+          <!-- Attack Effect -->
+          <div v-if="attackEffect.active" class="attack-effect" :style="attackEffect.style">
+            <img :src="attackEffect.sprite" alt="Attack Effect" class="effect-sprite" />
+          </div>
+        </div>
+
+        <!-- Battle Log and Actions -->
+        <div class="battle-log-container">
+          <div class="battle-log">
+            <p v-for="(message, index) in battleLog" :key="index" v-html="message"></p>
+          </div>
+          <div class="actions" v-if="isPlayerTurn && !isAttacking && !gameOver && !victory">
+            <button class="action-btn attack-btn" @click="attackEnemy" :disabled="activeEnemies.length === 0 || playerCharacter.currentStamina < 10">
+              Atacar
+            </button>
+            <button class="action-btn potion-btn" @click="usePotion" :disabled="!canUsePotion || playerCharacter.currentStamina < 5">
+              Poção ({{ potionCount }})
+            </button>
+          </div>
+          <div class="actions-placeholder" v-else>
+            Dragão de Fogo prepara um ataque...
+          </div>
+        </div>
+      </div>
+
+      <!-- Feedback Box -->
+      <div v-if="showFeedback && !showCutscene" class="dialog-box feedback-box">
+        <p>{{ feedbackMessage }}</p>
+        <button @click="showFeedback = false">Ok</button>
+      </div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <div class="navigation-bar" v-if="!showCutscene">
+      <button
+        v-if="bossDefeated"
+        class="nav-btn"
+        @click="goToNextArea"
+        aria-label="Seguir para próxima área"
+        :disabled="!bossDefeated"
+      >
+        Seguir para Próxima Área
+      </button>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { useGameState } from '@/stores/gameState.js';
-import { playAudio } from '@/utils/audioManager.js';
 
-// Importações de assets com fallback
-let caveImage1, caveImage2, caveBattleImage, dragonFireSprite, playerSprite, attackEffectSprite;
-try {
-  caveImage1 = (await import('@/assets/backviews/caverna-entrada.png')).default;
-  caveImage2 = (await import('@/assets/backviews/caverna-confronto.png')).default;
-  caveBattleImage = (await import('@/assets/backviews/caverna-cenario.png')).default;
-  // dragonFireSprite = (await import('@/assets/sprites/dragon-fire-sprite.png')).default;
-  // playerSprite = (await import('@/assets/sprites/player-sprite.png')).default;
-  // attackEffectSprite = (await import('@/assets/sprites/attack-effect.png')).default;
-} catch (e) {
-  console.error('Erro ao carregar assets:', e);
-}
+// Import background images to ensure Vite processes them
+import caveImage1 from '@/assets/backviews/caverna-entrada.png';
+import caveImage2 from '@/assets/backviews/caverna-confronto.png';
+import caveBattleImage from '@/assets/backviews/caverna-cenario.png';
+// Other assets remain as strings (public/ or adjust as needed)
+const dragonFireSprite = '/assets/sprites/dragao-fogo.png';
+const playerSprite = '/assets/sprites/player/player_idle.png';
+const attackEffectSpritePlayer = '/assets/sprites/ataque-efeito.png';
+const attackEffectSpriteDragon = '/assets/sprites/ataque-dragao.png';
 
-// Inicialização do store
-const gameStore = useGameState();
-const gameState = gameStore.$state;
-const actions = gameStore;
+// Mock game state (replace with actual store if available)
+const gameState = reactive({
+  player: {
+    name: 'Herói',
+    classe: 'Guerreiro',
+    health: 100,
+    maxHealth: 100,
+    stamina: 100,
+    maxStamina: 100,
+    potions: 3,
+    gold: 0,
+    keys: { ancestral: false, ice: false, fire: false },
+    hasViewedCavernaCutscene: false,
+    levelsCompleted: [],
+  },
+});
+const actions = {
+  setCurrentArea(area) {
+    gameState.player.currentArea = area;
+  },
+  collectKey(key) {
+    gameState.player.keys[key] = true;
+  },
+  completeLevel(level) {
+    if (!gameState.player.levelsCompleted.includes(level)) {
+      gameState.player.levelsCompleted.push(level);
+    }
+  },
+  addItemToInventory(item, quantity) {
+    gameState.player[item] = (gameState.player[item] || 0) + quantity;
+  },
+  removeItemFromInventory(item, quantity) {
+    if (gameState.player[item]) {
+      gameState.player[item] = Math.max(0, gameState.player[item] - quantity);
+    }
+  },
+  getItemQuantity(item) {
+    return gameState.player[item] || 0;
+  },
+};
+
 const router = useRouter();
-
-// Log para depuração
-console.log('gameStore:', gameState);
 
 // Cutscene State
 const showCutscene = ref(true);
@@ -69,7 +245,6 @@ const cutsceneLines = [
 const displayedLines = ref([]);
 const cutsceneBackgroundImage = ref(caveImage1);
 const isFading = ref(false);
-const typewriterSpans = ref([]);
 
 // Game State
 const showFeedback = ref(false);
@@ -77,58 +252,64 @@ const feedbackMessage = ref('');
 const bossDefeated = ref(false);
 const inBattle = ref(false);
 const currentEnemyIndex = ref(0);
+const hasFireKey = computed(() => gameState.player.keys.fire);
 
 // Background Styles
 const backgroundStyle = computed(() => {
-  let backgroundImage = caveImage2;
-  if (inBattle.value) {
-    backgroundImage = caveBattleImage;
-  }
-  return {
-    backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'none',
+  const style = {
+    backgroundColor: '#3c2f2f',
+    backgroundImage: `url(${inBattle.value ? caveBattleImage : caveImage2})`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     opacity: isFading.value ? 0 : 1,
     transition: 'opacity 0.5s ease',
-    backgroundColor: backgroundImage ? 'transparent' : '#000', // Fallback
   };
+  console.log('backgroundStyle:', style);
+  return style;
 });
 
-const cutsceneBackgroundStyle = computed(() => ({
-  backgroundImage: cutsceneBackgroundImage.value
-    ? `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url(${cutsceneBackgroundImage.value})`
-    : 'none',
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  opacity: isFading.value ? 0 : 1,
-  transition: 'opacity 0.5s ease',
-  backgroundColor: cutsceneBackgroundImage.value ? 'transparent' : '#000', // Fallback
-}));
+const cutsceneBackgroundStyle = computed(() => {
+  const style = {
+    backgroundColor: '#3c2f2f',
+    backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url(${cutsceneBackgroundImage.value})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    opacity: isFading.value ? 0 : 1,
+    transition: 'opacity 0.5s ease',
+  };
+  console.log('cutsceneBackgroundStyle:', style);
+  return style;
+});
+
+// Watch for cutscene background changes
+watch(cutsceneBackgroundImage, (newVal) => {
+  console.log('cutsceneBackgroundImage changed:', newVal);
+});
 
 // HUD
 const maxBarSegments = 10;
 const filledHealthSegments = computed(() =>
-  Math.round(((gameState.player?.health || 100) / (gameState.player?.maxHealth || 100)) * maxBarSegments)
+  Math.round((playerCharacter.currentHp / playerCharacter.maxHp) * maxBarSegments)
 );
 const filledStaminaSegments = computed(() =>
-  Math.round(((gameState.player?.stamina || 100) / (gameState.player?.maxStamina || 100)) * maxBarSegments)
+  Math.round((playerCharacter.currentStamina / playerCharacter.maxStamina) * maxBarSegments)
 );
 
 // Player Character
 const playerCharacter = reactive({
-  name: gameState.player?.name || 'Herói',
-  classe: gameState.player?.classe || 'Guerreiro',
-  hpPercent: ((gameState.player?.health || 100) / (gameState.player?.maxHealth || 100)) * 100,
-  currentHp: gameState.player?.health || 100,
-  maxHp: gameState.player?.maxHealth || 100,
-  currentStamina: gameState.player?.stamina || 100,
-  maxStamina: gameState.player?.maxStamina || 100,
+  name: gameState.player.name,
+  className: gameState.player.classe,
+  hpPercent: 100,
+  currentHp: gameState.player.health,
+  maxHp: gameState.player.maxHealth,
+  currentStamina: gameState.player.stamina,
+  maxStamina: gameState.player.maxStamina,
   top: 300,
   left: 50,
   attackPower: 20,
 });
 
-// Enemy Configuration (Fire Dragon)
+// Enemy Configuration
 const enemiesConfig = [
   {
     name: 'Dragão de Fogo',
@@ -136,15 +317,16 @@ const enemiesConfig = [
     currentHp: 200,
     maxHp: 200,
     top: 200,
-    left: 1100,
+    left: '80vw',
     attackPower: 25,
   },
 ];
-const initialEnemyPositions = enemiesConfig.map(enemy => ({ top: enemy.top, left: enemy.left }));
+const initialEnemyPositions = enemiesConfig.map(enemy => ({
+  top: enemy.top,
+  left: enemy.left,
+}));
 const enemies = reactive(enemiesConfig.map(enemy => ({ ...enemy })));
-const enemySprites = {
-  'Dragão de Fogo': dragonFireSprite || null,
-};
+const enemySprites = { 'Dragão de Fogo': dragonFireSprite };
 
 // Battle State
 const damagedEnemy = ref(null);
@@ -158,19 +340,21 @@ const battleStatus = ref('Desfira seu golpe!');
 const gameOver = ref(false);
 const victory = ref(false);
 const damagePopup = reactive({ active: false, value: 0, top: 0, left: 0, type: 'enemy-damage', prefix: '-' });
-const attackEffect = reactive({ active: false, style: {} });
+const attackEffect = reactive({ active: false, style: {}, sprite: null });
 
 // Computed Properties
-const potionCount = computed(() => gameStore.getItemQuantity('potion_health') || 0);
+const potionCount = computed(() => actions.getItemQuantity('potions'));
 const canUsePotion = computed(() => potionCount.value > 0 && playerCharacter.currentHp < playerCharacter.maxHp);
 const activeEnemies = computed(() => enemies.filter(enemy => enemy.hpPercent > 0 && enemies.indexOf(enemy) === currentEnemyIndex.value));
 const enemyInfoStyle = index => ({
-  top: `${initialEnemyPositions[index]?.top - 90 || 0}px`,
-  left: `calc(80vw - ${120 + (index || 0) * 50}px)`,
+  top: `${initialEnemyPositions[index].top - 90}px`,
+  left: `calc(${initialEnemyPositions[index].left} - 120px)`,
 });
 const enemyStyle = (index, enemy) => ({
-  top: `${enemy.hpPercent > 0 ? enemy.top : (initialEnemyPositions[index]?.top || 0)}px`,
-  left: `${enemy.hpPercent > 0 ? `calc(80vw - ${(index || 0) * 50}px)` : (initialEnemyPositions[index]?.left || 0)}px`,
+  top: `${(enemy.hpPercent > 0 ? enemy.top : initialEnemyPositions[index].top) + 100}px`,
+  left: enemy.hpPercent > 0 ? enemy.left : initialEnemyPositions[index].left,
+  transform: 'scale(3.5)',
+  transformOrigin: 'center center',
 });
 
 // Utility Functions
@@ -186,50 +370,59 @@ const addLogMessage = message => {
 };
 
 const showPopup = (value, targetElement, type = 'enemy-damage') => {
-  if (!targetElement) return;
-  const rect = targetElement.getBoundingClientRect();
-  const containerRect = document.querySelector('.battle-arena')?.getBoundingClientRect() || { top: 0, left: 0 };
-  Object.assign(damagePopup, {
-    active: true,
-    value,
-    top: rect.top - containerRect.top + rect.height / 2 - 20,
-    left: rect.left - containerRect.left + rect.width / 2,
-    type,
-    prefix: type === 'hp-heal' ? '+' : '-',
-  });
-  setTimeout(() => Object.assign(damagePopup, { active: false }), 800);
+  try {
+    const rect = targetElement.getBoundingClientRect();
+    const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
+    Object.assign(damagePopup, {
+      active: true,
+      value,
+      top: rect.top - containerRect.top + rect.height / 2 - 20,
+      left: rect.left - containerRect.left + rect.width / 2,
+      type,
+      prefix: type === 'hp-heal' ? '+' : '-',
+    });
+    setTimeout(() => Object.assign(damagePopup, { active: false }), 800);
+  } catch (err) {
+    console.warn('Error in showPopup:', err);
+  }
 };
 
-const showAttackEffect = async (attackerElement, targetElement) => {
-  if (!attackerElement || !targetElement) return;
-  const startRect = attackerElement.getBoundingClientRect();
-  const endRect = targetElement.getBoundingClientRect();
-  const containerRect = document.querySelector('.battle-arena')?.getBoundingClientRect() || { top: 0, left: 0 };
-  Object.assign(attackEffect, {
-    active: true,
-    style: {
-      top: `${startRect.top - containerRect.top + startRect.height / 2}px`,
-      left: `${startRect.left - containerRect.left + startRect.width / 2}px`,
-      opacity: 1,
-    },
-  });
-  await sleep(50);
-  Object.assign(attackEffect.style, {
-    top: `${endRect.top - containerRect.top + endRect.height / 2}px`,
-    left: `${endRect.left - containerRect.left + endRect.width / 2}px`,
-    opacity: 0,
-    transition: 'top 0.3s ease-out, left 0.3s ease-out, opacity 0.3s ease-out',
-  });
-  await sleep(300);
-  Object.assign(attackEffect, { active: false, style: {} });
+const showAttackEffect = async (attackerElement, targetElement, isPlayer = true) => {
+  try {
+    const startRect = attackerElement.getBoundingClientRect();
+    const endRect = targetElement.getBoundingClientRect();
+    const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
+    const spriteToUse = isPlayer ? attackEffectSpritePlayer : attackEffectSpriteDragon;
+    Object.assign(attackEffect, {
+      active: true,
+      style: {
+        top: `${startRect.top - containerRect.top + startRect.height / 2}px`,
+        left: `${startRect.left - containerRect.left + startRect.width / 2}px`,
+        opacity: 1,
+      },
+      sprite: spriteToUse,
+    });
+    await sleep(50);
+    Object.assign(attackEffect.style, {
+      top: `${endRect.top - containerRect.top + endRect.height / 2}px`,
+      left: `${endRect.left - containerRect.left + endRect.width / 2}px`,
+      opacity: 0,
+      transition: 'top 0.3s ease-out, left 0.3s ease-out, opacity 0.3s ease-out',
+    });
+    await sleep(300);
+    Object.assign(attackEffect, { active: false, style: {}, sprite: null });
+  } catch (err) {
+    console.warn('Error in showAttackEffect:', err);
+  }
 };
 
 // Cutscene Logic
 const playCutscene = async () => {
+  console.log('Starting cutscene');
   try {
-    playAudio('cave_ambient', { loop: true });
     displayedLines.value = new Array(cutsceneLines.length).fill('');
     for (let i = 0; i < cutsceneLines.length; i++) {
+      console.log(`Processing line ${i + 1}`);
       currentCutsceneLine.value = i + 1;
       const text = cutsceneLines[i];
       if (i === 4) {
@@ -238,11 +431,9 @@ const playCutscene = async () => {
       for (let j = 0; j <= text.length; j++) {
         displayedLines.value[i] = text.slice(0, j);
         displayedLines.value = [...displayedLines.value];
-        if (j > 0) playAudio('typewriter_click');
         await sleep(50);
       }
       if (i === 4) {
-        playAudio('dragon_fire_roar');
         isFading.value = true;
         await sleep(500);
         isFading.value = false;
@@ -251,25 +442,22 @@ const playCutscene = async () => {
         await sleep(1500);
       }
     }
-  } catch (e) {
-    console.error('Erro na cutscene:', e);
-    endCutscene(); // Finaliza a cutscene em caso de erro
+    console.log('Cutscene complete');
+  } catch (err) {
+    console.error('Cutscene error:', err);
   }
 };
 
 const endCutscene = async () => {
+  console.log('Ending cutscene');
   try {
-    playAudio('ui_confirm');
-    playAudio('cave_ambient', { stop: true });
     isFading.value = true;
     await sleep(500);
     isFading.value = false;
-    cutsceneBackgroundImage.value = caveImage2;
     showCutscene.value = false;
     gameState.player.hasViewedCavernaCutscene = true;
-  } catch (e) {
-    console.error('Erro ao finalizar cutscene:', e);
-    showCutscene.value = false;
+  } catch (err) {
+    console.error('Error ending cutscene:', err);
   }
 };
 
@@ -277,17 +465,9 @@ const endCutscene = async () => {
 const confrontBoss = () => {
   inBattle.value = true;
   currentEnemyIndex.value = 0;
-  playAudio('battle_start_dragon_fire');
-  feedbackMessage.value = 'O Dragão de Fogo desperta!';
-  showFeedback.value = true;
-  addLogMessage('🔥 O Dragão de Fogo ruge, lançando chamas!');
   battleLog.value = [`${playerCharacter.name} enfrenta o Dragão de Fogo!`];
-  battleStatus.value = 'Desfira seu golpe!';
-  enemies[0].hpPercent = 100;
-  enemies[0].currentHp = enemies[0].maxHp;
-  gameOver.value = false;
-  victory.value = false;
-  isPlayerTurn.value = true;
+  feedbackMessage.value = 'O Dragão de Fogo surge rugindo das chamas!';
+  showFeedback.value = true;
 };
 
 const attackEnemy = async () => {
@@ -297,99 +477,51 @@ const attackEnemy = async () => {
     }
     return;
   }
-  isAttacking.value = true;
-  playerAttacking.value = true;
-  playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 10);
-  gameState.player.stamina = playerCharacter.currentStamina;
-  addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
-  const enemy = enemies[currentEnemyIndex.value];
-  const playerElement = document.querySelector('.player-character');
-  const enemyElement = document.querySelector('.enemy-character');
-  if (!playerElement || !enemyElement) {
-    console.warn('Elementos de batalha não encontrados');
+  try {
+    isAttacking.value = true;
+    playerAttacking.value = true;
+    playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 10);
+    gameState.player.stamina = playerCharacter.currentStamina;
+    addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
+    const enemyIndex = currentEnemyIndex.value;
+    const enemy = enemies[enemyIndex];
+    const playerElement = document.querySelector('.player-character');
+    const enemyElement = document.querySelectorAll('.enemy-character')[0];
+    battleStatus.value = `${playerCharacter.name} ataca!`;
+    addLogMessage(`⚔️ ${playerCharacter.name} golpeia!`);
+    const originalLeft = playerCharacter.left;
+    playerCharacter.left += 40;
+    await sleep(200);
+    await showAttackEffect(playerElement, enemyElement, true);
+    playerCharacter.left = originalLeft;
+    damagedEnemy.value = enemyIndex;
+    const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 6 + 10);
+    enemy.currentHp = Math.max(0, enemy.currentHp - damageDealt);
+    enemy.hpPercent = (enemy.currentHp / enemy.maxHp) * 100;
+    showPopup(damageDealt, enemyElement, 'enemy-damage');
+    addLogMessage(`<span style="color: #d0a070;">💥 ${damageDealt} de dano!</span>`);
+    await sleep(500);
+    damagedEnemy.value = null;
+    playerAttacking.value = false;
+    if (enemy.hpPercent <= 0) {
+      addLogMessage(`<span style="color: #a09080;">☠️ Dragão de Fogo caiu!</span>`);
+      victory.value = true;
+      battleStatus.value = 'Triunfo!';
+      handleVictory();
+      isAttacking.value = false;
+      return;
+    }
+    isPlayerTurn.value = false;
+    battleStatus.value = `Dragão de Fogo prepara um ataque!`;
+    await sleep(1000);
+    await enemyTurn();
+    if (!gameOver.value && !victory.value) {
+      isPlayerTurn.value = true;
+      battleStatus.value = 'Desfira seu golpe!';
+    }
     isAttacking.value = false;
-    return;
-  }
-  battleStatus.value = `${playerCharacter.name} ataca!`;
-  addLogMessage(`⚔️ ${playerCharacter.name} golpeia!`);
-  playAudio('attack');
-  const originalLeft = playerCharacter.left;
-  playerCharacter.left += 40;
-  await sleep(200);
-  await showAttackEffect(playerElement, enemyElement);
-  playerCharacter.left = originalLeft;
-  damagedEnemy.value = currentEnemyIndex.value;
-  const baseDamage = playerCharacter.attackPower + Math.floor(Math.random() * 6 + 10);
-  const isCritical = Math.random() < 0.2;
-  let damage = baseDamage;
-  if (isCritical) {
-    damage *= 2;
-    addLogMessage(`💥 <strong>Acerto crítico!</strong> ${playerCharacter.name} causou ${damage} de dano!`);
-  } else {
-    addLogMessage(`⚔️ ${playerCharacter.name} causou ${damage} de dano ao Dragão de Fogo!`);
-  }
-  enemy.currentHp = Math.max(0, enemy.currentHp - damage);
-  enemy.hpPercent = (enemy.currentHp / enemy.maxHp) * 100;
-  showPopup(damage, enemyElement, 'enemy-damage');
-  await sleep(500);
-  damagedEnemy.value = null;
-  playerAttacking.value = false;
-  if (enemy.hpPercent <= 0) {
-    addLogMessage(`<span style="color: #a09080;">☠️ Dragão de Fogo caiu!</span>`);
-    victory.value = true;
-    battleStatus.value = 'Triunfo!';
-    await finishBattle();
-    isAttacking.value = false;
-    return;
-  }
-  isPlayerTurn.value = false;
-  battleStatus.value = `Dragão de Fogo prepara um ataque!`;
-  await sleep(1000);
-  await enemyAttack();
-  if (!gameOver.value && !victory.value) {
-    isPlayerTurn.value = true;
-    battleStatus.value = 'Desfira seu golpe!';
-  }
-  isAttacking.value = false;
-};
-
-const enemyAttack = async () => {
-  if (victory.value || gameOver.value) return;
-  const enemy = enemies[currentEnemyIndex.value];
-  const playerElement = document.querySelector('.player-character');
-  const enemyElement = document.querySelector('.enemy-character');
-  if (!playerElement || !enemyElement) {
-    console.warn('Elementos de batalha não encontrados');
-    return;
-  }
-  enemyAttacking.value = currentEnemyIndex.value;
-  const isLavaAttack = Math.random() < 0.3;
-  let damage;
-  if (isLavaAttack) {
-    damage = Math.floor(Math.random() * 10 + 30);
-    addLogMessage(`🔥 <strong>Explosão de Lava!</strong> O Dragão causou ${damage} de dano!`);
-    playAudio('dragon_lava_attack');
-  } else {
-    damage = Math.floor(Math.random() * 6 + enemy.attackPower);
-    addLogMessage(`🔥 O Dragão de Fogo atacou! Causou ${damage} de dano!`);
-    playAudio('hit');
-  }
-  await showAttackEffect(enemyElement, playerElement);
-  playerCharacter.currentHp = Math.max(0, playerCharacter.currentHp - damage);
-  playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
-  gameState.player.health = playerCharacter.currentHp;
-  damagedPlayer.value = true;
-  showPopup(damage, playerElement, 'player-damage');
-  await sleep(500);
-  damagedPlayer.value = false;
-  enemyAttacking.value = null;
-  if (playerCharacter.hpPercent <= 0) {
-    gameOver.value = true;
-    addLogMessage(`💀 <strong>Derrota!</strong> ${playerCharacter.name} foi consumido pelas chamas!`);
-    await handleDefeat();
-  } else {
-    isPlayerTurn.value = true;
-    battleStatus.value = 'Desfira seu golpe!';
+  } catch (err) {
+    console.error('Error in attackEnemy:', err);
   }
 };
 
@@ -400,230 +532,652 @@ const usePotion = async () => {
     }
     return;
   }
-  isAttacking.value = true;
-  playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 5);
-  gameState.player.stamina = playerCharacter.currentStamina;
-  addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
-  const playerElement = document.querySelector('.player-character');
-  if (!playerElement) {
-    console.warn('Elemento do jogador não encontrado');
+  try {
+    isAttacking.value = true;
+    playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 5);
+    gameState.player.stamina = playerCharacter.currentStamina;
+    addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
+    const playerElement = document.querySelector('.player-character');
+    actions.removeItemFromInventory('potions', 1);
+    const healAmount = 30;
+    playerCharacter.currentHp = Math.min(playerCharacter.maxHp, playerCharacter.currentHp + healAmount);
+    playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
+    gameState.player.health = playerCharacter.currentHp;
+    showPopup(healAmount, playerElement, 'hp-heal');
+    addLogMessage(`<span style="color: #90c090;">🧪 +${healAmount} vida!</span>`);
+    await sleep(1000);
+    isPlayerTurn.value = false;
+    battleStatus.value = `Dragão de Fogo prepara um ataque!`;
+    await sleep(1000);
+    await enemyTurn();
+    if (!gameOver.value && !victory.value) {
+      isPlayerTurn.value = true;
+      battleStatus.value = 'Desfira seu golpe!';
+    }
     isAttacking.value = false;
-    return;
+  } catch (err) {
+    console.error('Error in usePotion:', err);
   }
-  actions.removeItemFromInventory('potion_health', 1);
-  const healAmount = 30;
-  playerCharacter.currentHp = Math.min(playerCharacter.maxHp, playerCharacter.currentHp + healAmount);
-  playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
-  gameState.player.health = playerCharacter.currentHp;
-  showPopup(healAmount, playerElement, 'hp-heal');
-  addLogMessage(`🧪 ${playerCharacter.name} usou uma poção! Recuperou ${healAmount} de vida!`);
-  playAudio('potion');
-  await sleep(1000);
-  isPlayerTurn.value = false;
-  battleStatus.value = `Dragão de Fogo prepara um ataque!`;
-  await sleep(1000);
-  await enemyAttack();
-  if (!gameOver.value && !victory.value) {
-    isPlayerTurn.value = true;
-    battleStatus.value = 'Desfira seu golpe!';
+};
+
+const enemyTurn = async () => {
+  if (!activeEnemies.value.length || playerCharacter.hpPercent <= 0) return;
+  try {
+    const enemy = enemies[currentEnemyIndex.value];
+    const playerElement = document.querySelector('.player-character');
+    const enemyElement = document.querySelectorAll('.enemy-character')[0];
+    addLogMessage(`<b>🐉 Dragão de Fogo</b> ataca!`);
+    await sleep(800);
+    enemyAttacking.value = currentEnemyIndex.value;
+    const damageTaken = enemy.attackPower + Math.floor(Math.random() * 6 + 5);
+    playerCharacter.currentHp = Math.max(0, playerCharacter.currentHp - damageTaken);
+    playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
+    gameState.player.health = playerCharacter.currentHp;
+    showPopup(damageTaken, playerElement, 'player-damage');
+    addLogMessage(`<span style="color: #c06060;">💥 ${playerCharacter.name} sofre ${damageTaken} de dano!</span>`);
+    await sleep(500);
+    enemyAttacking.value = null;
+    damagedPlayer.value = true;
+    await sleep(300);
+    damagedPlayer.value = false;
+    if (playerCharacter.hpPercent <= 0) {
+      gameOver.value = true;
+      addLogMessage(`<b>💀 ${playerCharacter.name} foi derrotado!</b>`);
+      handleDefeat();
+      isAttacking.value = false;
+      return;
+    }
+  } catch (err) {
+    console.error('Error in enemyTurn:', err);
   }
-  isAttacking.value = false;
+};
+
+const handleVictory = () => {
+  try {
+    bossDefeated.value = true;
+    actions.completeLevel('caverna_boss');
+    inBattle.value = false;
+    gameState.player.gold += 100;
+    actions.addItemToInventory('fire_shard', 1);
+    addLogMessage(`<span style="color: #d0a070;">💰 +100 ouro!</span>`);
+    addLogMessage(`<span style="color: #d0a070;">🎁 Fragmento de Fogo!</span>`);
+    feedbackMessage.value = 'Dragão de Fogo derrotado!';
+    showFeedback.value = true;
+  } catch (err) {
+    console.error('Error in handleVictory:', err);
+  }
+};
+
+const handleDefeat = () => {
+  try {
+    gameState.player.health = 0;
+    inBattle.value = false;
+    feedbackMessage.value = 'Você foi derrotado!';
+    showFeedback.value = true;
+    setTimeout(() => router.push('/'), 2000);
+  } catch (err) {
+    console.error('Error in handleDefeat:', err);
+  }
 };
 
 const collectKey = () => {
-  if (bossDefeated.value && !gameState.player.keys?.fire) {
-    actions.collectKey('fire');
-    playAudio('collect_key_fire');
-    feedbackMessage.value = 'Chave Incandescente obtida!';
-    showFeedback.value = true;
-  } else {
-    feedbackMessage.value = 'Não há chave aqui ou você já a pegou.';
-    showFeedback.value = true;
+  try {
+    if (bossDefeated.value && !gameState.player.keys.fire) {
+      actions.collectKey('fire');
+      feedbackMessage.value = 'Chave Incandescente obtida!';
+      showFeedback.value = true;
+    } else {
+      feedbackMessage.value = 'Não há chave aqui ou você já a pegou.';
+      showFeedback.value = true;
+    }
+  } catch (err) {
+    console.error('Error in collectKey:', err);
   }
 };
 
 const fleeArea = () => {
-  playAudio('ui_back');
-  router.push({ name: 'Acampamento' });
-};
-
-const finishBattle = async () => {
-  playAudio('victory');
-  actions.completeLevel('caverna_boss');
-  gameState.player.gold += 100;
-  actions.addItemToInventory('fire_shard', 1);
-  addLogMessage(`<span style="color: #d0a070;">💰 +100 ouro!</span>`);
-  addLogMessage(`<span style="color: #d0a070;">🎁 Fragmento de Fogo!</span>`);
-  bossDefeated.value = true;
-  inBattle.value = false;
-  feedbackMessage.value = 'Dragão de Fogo derrotado!';
-  showFeedback.value = true;
-};
-
-const handleDefeat = async () => {
-  gameState.player.health = 0;
-  inBattle.value = false;
-  playAudio('player_defeat');
-  feedbackMessage.value = 'Você foi derrotado!';
-  showFeedback.value = true;
-  await sleep(2000);
-  router.push({ name: 'Home' });
-};
-
-// Watchers
-watch(
-  () => [gameState.player?.health, gameState.player?.stamina],
-  ([newHealth, newStamina]) => {
-    playerCharacter.currentHp = newHealth || 100;
-    playerCharacter.hpPercent = ((newHealth || 100) / playerCharacter.maxHp) * 100;
-    playerCharacter.currentStamina = newStamina || 100;
+  try {
+    router.push('/map');
+  } catch (err) {
+    console.error('Error in fleeArea:', err);
   }
-);
+};
+
+const goToNextArea = () => {
+  try {
+    if (!bossDefeated.value) return;
+    router.push({ name: 'NextArea' });
+  } catch (err) {
+    console.error('Error in goToNextArea:', err);
+  }
+};
 
 // Lifecycle Hooks
 onMounted(() => {
-  console.log('CavernaView mounted');
-  actions.setCurrentArea('Caverna de Fogo');
-  if (!gameState.player.hasViewedCavernaCutscene) {
-    gameState.player.hasViewedCavernaCutscene = false;
-  }
-  playerCharacter.currentHp = gameState.player?.health || 100;
-  playerCharacter.maxHp = gameState.player?.maxHealth || 100;
-  playerCharacter.currentStamina = gameState.player?.stamina || 100;
-  playerCharacter.maxStamina = gameState.player?.maxStamina || 100;
-  bossDefeated.value = gameState.levelsCompleted?.includes('caverna_boss') || false;
-  if (!bossDefeated.value && !gameState.player.hasViewedCavernaCutscene) {
-    showCutscene.value = true;
-    playCutscene();
-  } else {
-    showCutscene.value = false;
+  try {
+    console.log('Mounting Caverna, gameState:', gameState);
+    actions.setCurrentArea('Caverna de Fogo');
+    bossDefeated.value = gameState.player.levelsCompleted.includes('caverna_boss');
+    console.log('bossDefeated:', bossDefeated.value, 'hasViewedCavernaCutscene:', gameState.player.hasViewedCavernaCutscene);
+    if (!bossDefeated.value && !gameState.player.hasViewedCavernaCutscene) {
+      showCutscene.value = true;
+      playCutscene();
+    } else {
+      showCutscene.value = false;
+    }
+  } catch (err) {
+    console.error('Error in onMounted:', err);
   }
 });
 </script>
 
 <style scoped>
-html, body {
-  overflow: hidden;
-  height: 100%;
-  margin: 0;
-}
+@import url('https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap');
 
-.cave-view {
+.caverna-view {
   position: relative;
+  width: 100%;
   height: 100vh;
-  width: 100vw;
-  color: white;
-  font-family: 'Press Start 2P', cursive;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding-top: 30px;
   overflow: hidden;
-  animation: fadeInSmooth 0.6s ease-out;
+  background-color: #3c2f2f;
 }
 
-.bg-image {
+/* Cutscene */
+.cutscene-container {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: -1;
-  filter: brightness(0.85);
-}
-
-.hud {
-  background-color: rgba(0, 0, 0, 0.6);
-  padding: 12px 20px;
-  border-radius: 8px;
-  font-size: 14px;
+  height: 100vh;
   display: flex;
-  gap: 30px;
-  margin-bottom: 20px;
-  box-shadow: 0 0 10px #000;
+  justify-content: center;
+  align-items: flex-end;
+  z-index: 100;
 }
 
-.battle-box {
-  background-color: rgba(0, 0, 0, 0.65);
+.cutscene-content {
+  background: rgba(40, 20, 10, 0.95);
+  border: 4px solid #b64e1a;
+  padding: 20px;
+  max-width: 800px;
+  margin-bottom: 100px;
+  text-align: left;
+  color: #f0d0a0;
+  font-family: 'MedievalSharp', cursive;
+  font-size: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.cutscene-line {
+  line-height: 1.6;
+  margin-bottom: 10px;
+  opacity: 0;
+}
+
+.cutscene-line.visible {
+  opacity: 1;
+}
+
+.typewriter {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.cutscene-arrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+  background-color: #b64e1a;
+  border: 2px solid #8b3e15;
+  color: #f0d0a0;
+  font-size: 24px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.1s;
+  margin: 10px auto 0;
+}
+
+.cutscene-arrow:hover {
+  background-color: #c85d27;
+}
+
+.cutscene-arrow:active {
+  transform: translate(1px, 1px);
+}
+
+/* HUD */
+.main-hud {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 90;
+  font-size: 14px;
+}
+
+.panel-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-container {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.icon {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+}
+
+.bar-container {
+  position: relative;
+  width: 200px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid #8b3e15;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  color: #f0d0a0;
+  text-shadow: 1px 1px 0 #000;
+  font-family: 'MedievalSharp', cursive;
+}
+
+.bar-container.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+}
+
+.segment {
+  flex: 1;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #8b3e15;
+}
+
+.vida .segment.filled {
+  background: linear-gradient(to bottom, #ff3333, #6a0f0f);
+}
+
+.energia .segment.filled {
+  background: linear-gradient(to bottom, #33cc33, #0ff);
+}
+
+/* Content Area */
+.content-area {
+  flex-grow: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.interactions, .feedback-box {
+  background-color: rgba(40, 20, 10, 0.85);
   padding: 20px;
   border: 2px solid #b64e1a;
-  border-radius: 12px;
-  max-width: 500px;
-  width: 90%;
+  border-radius: 8px;
   text-align: center;
-  box-shadow: 0 0 15px #000;
-  animation: fadeIn 0.6s ease;
+  max-width: 400px;
+  color: #f0d0a0;
+  font-family: 'MedievalSharp', serif;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
 }
 
-.enemy.hit {
-  animation: flash 0.3s linear;
+.interactions {
+  position: absolute;
+  bottom: 15%;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
-@keyframes flash {
-  0% { filter: brightness(2) }
-  50% { filter: brightness(0.5) }
-  100% { filter: brightness(1) }
-}
-
-.shake {
-  animation: shake 0.3s;
-}
-
-@keyframes shake {
-  0% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  50% { transform: translateX(5px); }
-  75% { transform: translateX(-3px); }
-  100% { transform: translateX(0); }
-}
-
-.actions {
+.interaction-buttons {
   display: flex;
-  gap: 20px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedback-box {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+}
+
+.feedback-box p {
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.feedback-box button, .interactions button, .action-btn, .nav-btn {
+  background-color: #b64e1a;
+  border: 2px solid #8b3e15;
+  color: #f0d0a0;
+  padding: 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: 'Arial', sans-serif;
+  font-size: 18px;
+  transition: filter 0.2s, transform 0.1s;
+}
+
+.feedback-box button:hover:not(:disabled), .interactions button:hover:not(:disabled), .action-btn:hover:not(:disabled), .nav-btn:hover:not(:disabled) {
+  filter: brightness(1.2);
+}
+
+.feedback-box button:active:not(:disabled), .interactions button:active:not(:disabled), .action-btn:active:not(:disabled), .nav-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+/* Navigation Bar */
+.navigation-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: rgba(40, 20, 10, 0.95);
+  border-top: 4px solid #8b3e15;
+  padding: 10px 20px;
+  display: flex;
   justify-content: center;
-  margin: 20px 0;
+  gap: 20px;
+  z-index: 10;
+}
+
+.nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Battle */
+.medieval-battle-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.battle-arena {
+  position: relative;
+  width: 100%;
+  height: 80vh;
+  overflow: hidden;
+}
+
+.game-status-top {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  color: #f0d0a0;
+  background: rgba(40, 20, 10, 0.9);
+  padding: 10px 20px;
+  border-radius: 5px;
+  z-index: 20;
+  border: 2px solid #b64e1a;
+  font-family: 'MedievalSharp', cursive;
+}
+
+.victory-message, .game-over-message {
+  font-size: 18px;
+  animation: pulseGlow 1.5s infinite;
+}
+
+.victory-message { color: #ffd700; }
+.game-over-message { color: #a04040; }
+
+@keyframes pulseGlow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.3); }
+}
+
+.unit {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  transition: top 0.3s ease, left 0.3s ease;
+}
+
+.character-sprite {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.player-character { z-index: 10; }
+.enemy-character { z-index: 9; }
+.enemy-character.fainted { filter: grayscale(100%) opacity(40%); }
+
+.character-info {
+  position: absolute;
+  background: rgba(40, 20, 10, 0.9);
+  border: 8px solid #b64e1a;
+  border-radius: 8px;
+  padding: 10px;
+  color: #f0d0a0;
+  font-size: 12px;
+  min-width: 180px;
+}
+
+.player-info {
+  bottom: 20px;
+  left: 20px;
+  z-index: 5;
+}
+
+.enemy-info { text-align: right; }
+
+.character-name {
+  font-weight: bold;
+  font-size: 14px;
+  color: #ffd700;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.resource-bar-container {
+  display: flex;
+  align-items: center;
+  height: 18px;
+}
+
+.hp-bar-label {
+  font-size: 12px;
+  font-weight: bold;
+  margin-right: 8px;
+  width: 40px;
+}
+
+.hp-bar {
+  flex-grow: 1;
+  height: 14px;
+  border: 2px solid #8b3e15;
+  border-radius: 5px;
+  background: #1e2a38;
+  overflow: hidden;
+}
+
+.hp {
+  height: 100%;
+  background: linear-gradient(to right, #b64e1a, #ff4500);
+  transition: width 0.5s ease;
+}
+
+.resource-value {
+  font-size: 12px;
+  margin-left: 8px;
+  font-weight: bold;
+}
+
+.battle-log-container {
+  width: 100%;
+  height: 20vh;
+  background: rgba(40, 20, 10, 0.95);
+  border-top: 4px solid #8b3e15;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+}
+
+.battle-log {
+  width: 60%;
+  height: 100%;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px;
+  border: 2px solid #b64e1a;
+  border-radius: 5px;
+  color: #f0d0a0;
+}
+
+.battle-log p { margin: 0 0 6px 0; }
+
+.battle-log::-webkit-scrollbar {
+  width: 6px;
+}
+
+.battle-log::-webkit-scrollbar-track {
+  background: #1e2a38;
+  border-radius: 5px;
+}
+
+.battle-log::-webkit-scrollbar-thumb {
+  background: #b64e1a;
+  border-radius: 5px;
+}
+
+.actions, .actions-placeholder {
+  width: 40%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   flex-wrap: wrap;
 }
 
-button {
-  background-color: #b64e1a;
-  color: white;
-  padding: 10px 16px;
-  border: none;
-  border-radius: 10px;
+.actions-placeholder {
+  color: #f0d0a0;
   font-size: 14px;
-  cursor: pointer;
-  transition: transform 0.2s, background-color 0.2s;
+  font-style: italic;
 }
 
-button:hover {
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.potion-btn {
   background-color: #c85d27;
-  transform: scale(1.05);
 }
 
-.log {
-  font-size: 12px;
-  margin-top: 10px;
-  min-height: 20px;
-  animation: fadeIn 0.3s ease;
+.enemy-character.dragao-fogo {
+  transform: scale(3.5);
+  transform-origin: center bottom;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.enemy-character.dragao-fogo.is-attacking {
+  animation: dragonShake 0.4s ease-in-out;
+  transform: scale(3.5);
 }
 
-@keyframes fadeInSmooth {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.unit.is-attacking { animation: attackShake 0.4s ease-in-out; }
+.unit.is-damaged { animation: damageFlash 0.3s linear 2; }
+
+@keyframes dragonShake {
+  0%, 100% { transform: scale(3.5) translateX(0); }
+  25% { transform: scale(3.5) translateX(-5px); }
+  75% { transform: scale(3.5) translateX(5px); }
 }
 
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.4s ease;
+@keyframes attackShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
 }
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
+
+@keyframes damageFlash {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.5) saturate(1.2); }
+}
+
+.damage-popup {
+  position: absolute;
+  font-size: 18px;
+  font-weight: bold;
+  animation: floatUp 0.8s ease-out forwards;
+  pointer-events: none;
+  transform: translateX(-50%);
+  z-index: 25;
+  text-shadow: 1px 1px 3px black;
+}
+
+.damage-popup.player-damage { color: #c06060; }
+.damage-popup.enemy-damage { color: #d0a070; }
+.damage-popup.hp-heal { color: #90c090; }
+
+@keyframes floatUp {
+  0% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -50px); }
+}
+
+.attack-effect {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.effect-sprite {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.action-btn {
+  font-family: 'MedievalSharp', cursive;
+  background: linear-gradient(to bottom, #b64e1a, #8b3e15);
+  border: 3px solid #5d2f0a;
+  color: #f0d0a0;
+  padding: 10px 20px;
+  font-size: 16px;
+  border-radius: 8px;
+  text-shadow: 1px 1px 2px #000;
+  box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.1), 2px 2px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 0.1s, filter 0.2s;
+}
+
+.action-btn:hover:not(:disabled) {
+  filter: brightness(1.2);
+}
+
+.action-btn:active:not(:disabled) {
+  transform: scale(0.97);
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6);
 }
 </style>
