@@ -1,934 +1,1291 @@
 <template>
-  <div
-    class="igreja-screen"
-    @keydown="startMoving"
-    @keyup="stopMoving"
-    tabindex="0"
-  >
-    <!-- Camada com imagem e zoom centralizado -->
-    <div
-      class="zoom-layer"
-      :style="{
-        backgroundImage: `url(${bgImage})`,
-        transform: `translate(-50%, -50%) scale(${zoomLevel})`
-      }"
-    >
-      <!-- Canvas para o personagem -->
-      <canvas
-        ref="characterCanvas"
-        class="character"
-        :style="{
-          transform: `translate(${characterPosition.x}px, ${characterPosition.y}px)`,
-          width: `${player.size}px`,
-          height: `${player.size}px`
-        }"
-      ></canvas>
+  <div class="montanha-view" :style="showDialogue || showCutscene ? dialogueOrCutsceneBackgroundStyle : backgroundStyle">
+    <!-- Cold Overlay -->
+    <div v-if="showColdEffect" class="cold-overlay"></div>
 
-      <!-- NPC Padre -->
-      <div
-        class="npc padre"
-        :style="{
-          transform: `translate(${padrePosition.x}px, ${padrePosition.y}px)`,
-          backgroundImage: `url(${padreSprite})`
-        }"
-      ></div>
-
-      <!-- Visualização das colisões -->
-      <div
-        v-for="(area, i) in collisionAreas"
-        :key="i"
-        class="collision-box"
-        :style="{
-          transform: `translate(${area.x}px, ${area.y}px)`,
-          width: `${area.width}px`,
-          height: `${area.height}px`
-        }"
-      />
-
-      <!-- Visualização das áreas interativas -->
-      <div
-        v-for="(area, i) in interactionAreas"
-        :key="'interact-' + i"
-        class="interaction-box"
-        :style="{
-          transform: `translate(${area.x}px, ${area.y}px)`,
-          width: `${area.width}px`,
-          height: `${area.height}px`
-        }"
-      />
+    <!-- Dialogue (at mountain base) -->
+    <div v-if="showDialogue" class="dialogue-container" tabindex="0">
+      <div class="dialogue-content">
+        <div v-for="(line, index) in dialogueLines" :key="index" class="dialogue-line" :class="{ visible: index < currentDialogueLine }">
+          <span class="typewriter" ref="typewriterDialogueSpans">{{ displayedDialogueLines[index] || '' }}</span>
+        </div>
+        <div
+          v-if="currentDialogueLine >= dialogueLines.length"
+          class="dialogue-arrow"
+          @click.stop="endDialogue"
+          role="button"
+          aria-label="Avançar para a interação"
+        >
+          ➤
+        </div>
+      </div>
     </div>
 
-    <!-- Caixa de diálogo inicial -->
-    <transition name="fade">
-      <div v-if="showDialog" class="dialog-box dialog-style centered-dialog" key="dialog">
-        <p>{{ displayedText }}</p>
-        <button @click="nextDialog" :disabled="typing" class="dialog-button">Continuar</button>
-      </div>
-    </transition>
-
-    <!-- Caixa de diálogo para sair da igreja -->
-    <transition name="fade">
-      <div v-if="showExitDialog && !showDialog" class="dialog-box dialog-style centered-dialog">
-        <p>{{ exitDialogText }}</p>
-      </div>
-    </transition>
-
-    <!-- Caixa de diálogo para interação com o padre -->
-    <transition name="fade">
-      <div v-if="showBlessingPrompt && !showDialog && !showShop" class="dialog-box dialog-style centered-dialog">
-        <p>Para receber bênçãos do padre, aperte "E"</p>
-      </div>
-    </transition>
-
-    <!-- Menu de compras -->
-    <transition name="shop-fade">
-      <div v-if="showShop" class="shop-box dialog-style" key="shop">
-        <button class="dialog-button exit-button" @click="closeShop">Sair</button>
-        <h3 class="shop-name">SANTUÁRIO DE ALBADIA</h3>
-        <h4 class="shop-title">Escolha sua bênção:</h4>
-        <div class="gold-display">
-          <img :src="goldIcon" alt="Gold Icon" class="gold-icon" />
-          : {{ gameState.player.gold }}
+    <!-- Cutscene (at summit) -->
+    <div v-if="showCutscene" class="cutscene-container" tabindex="0">
+      <div class="cutscene-content">
+        <div v-for="(line, index) in cutsceneLines" :key="index" class="cutscene-line" :class="{ visible: index < currentCutsceneLine }">
+          <span class="typewriter" ref="typewriterSpans">{{ displayedLines[index] || '' }}</span>
         </div>
-        <div class="shop-content">
-          <div class="shop-items-container">
-            <div v-if="blessings.length === 0" class="shop-item no-items">
-              Não há bênçãos disponíveis no momento.
-            </div>
+        <div
+          v-if="currentCutsceneLine >= cutsceneLines.length"
+          class="cutscene-arrow"
+          @click.stop="endCutscene"
+          role="button"
+          aria-label="Avançar para a interação"
+        >
+          ➤
+        </div>
+      </div>
+    </div>
+
+    <!-- HUD (visible during battle) -->
+    <div v-if="inBattle && !showDialogue && !showCutscene" class="main-hud">
+      <div class="panel-frame">
+        <div class="stat vida">
+          <div class="icon-container">
+            <img src="/icons/life-icon.png" alt="Vida" class="icon" />
+          </div>
+          <div class="bar-container segmented">
             <div
-              v-for="item in blessings"
-              :key="item.itemId"
-              class="shop-item"
-              @mouseover="hoverItemDescription(item)"
-              @mouseleave="hideHoverDialog"
-            >
-              <div>
-                <strong>{{ item.name }}</strong>
-                <span>
-                  <img :src="goldIcon" alt="Gold Icon" class="gold-icon small" />
-                  Custo: {{ item.price }} Ouro
-                </span>
-              </div>
-              <p>{{ item.description }}</p>
-              <button @click="buyBlessing(item)" class="dialog-button buy-button">Comprar</button>
-            </div>
+              v-for="i in maxBarSegments"
+              :key="`vida-${i}`"
+              class="segment"
+              :class="{ filled: i <= filledHealthSegments }"
+            ></div>
+            <span class="bar-label">
+              {{ Math.floor(gameState.player.health) }}/{{ Math.floor(gameState.player.maxHealth) }}
+            </span>
+          </div>
+        </div>
+        <div class="stat energia">
+          <div class="icon-container">
+            <img src="/icons/stam-icon.png" alt="Energia" class="icon" />
+          </div>
+          <div class="bar-container segmented">
+            <div
+              v-for="i in maxBarSegments"
+              :key="`energia-${i}`"
+              class="segment"
+              :class="{ filled: i <= filledStaminaSegments }"
+            ></div>
+            <span class="bar-label">
+              {{ Math.floor(gameState.player.stamina) }}/{{ Math.floor(gameState.player.maxStamina) }}
+            </span>
           </div>
         </div>
       </div>
-    </transition>
+    </div>
 
-    <!-- Diálogo da loja -->
-    <transition name="fade">
-      <div v-if="showShopDialog" class="dialog-box dialog-style shop-dialog" key="shopDialog">
-        <p>{{ displayedText }}</p>
+    <!-- Content Area -->
+    <div class="content-area">
+      <!-- Interactions at Mountain Base -->
+      <div v-if="atMountainBase && !showDialogue && !showCutscene && !inBattle" class="interactions">
+        <p>O vento uiva ao redor da base da Montanha de Gelo.</p>
+        <p>Escalar parece perigoso, mas o topo guarda segredos.</p>
+        <div class="interaction-buttons">
+          <button @click="climbMountain" :disabled="gameState.player.stamina < 20">
+            Escalar Montanha
+          </button>
+          <button @click="fleeArea">Fugir</button>
+        </div>
       </div>
-    </transition>
+      <!-- Interactions at Summit -->
+      <div v-if="!atMountainBase && !bossDefeated && !inBattle && !showCutscene && !showDialogue" class="interactions">
+        <p>O ar gélido corta seus pulmões. A montanha é traiçoeira.</p>
+        <p><strong>Inimigo Final:</strong> O Dragão de Gelo aguarda no pico.</p>
+        <div class="interaction-buttons">
+          <button @click="confrontBoss">Enfrentar o Dragão de Gelo</button>
+          <button @click="fleeArea">Fugir</button>
+        </div>
+      </div>
+      <!-- Post-Battle Interactions -->
+      <div v-if="!inBattle && bossDefeated && !showCutscene && !showDialogue" class="interactions">
+        <p>O Dragão de Gelo foi derrotado. A nevasca parece diminuir.</p>
+        <p v-if="!gameState.player.keys.ice">Uma chave congelada repousa onde o dragão caiu.</p>
+        <button v-if="!gameState.player.keys.ice" @click="collectKey">Pegar a Chave de Gelo</button>
+      </div>
 
-    <!-- Diálogo de mensagem -->
-    <transition name="fade">
-      <div v-if="showMessageDialog" class="dialog-box dialog-style message-dialog" key="messageDialog">
-        <p>{{ displayedText }}</p>
-      </div>
-    </transition>
+      <!-- Battle System -->
+      <div v-if="inBattle && !showDialogue && !showCutscene" class="medieval-battle-container">
+        <div class="battle-arena">
+          <div class="game-status-top">
+            <div v-if="!gameOver && !victory">{{ battleStatus }}</div>
+            <div v-if="victory" class="victory-message">✨ Triunfo! Dragão de Gelo caiu! ✨</div>
+            <div v-if="gameOver" class="game-over-message">💀 Derrota! A escuridão prevaleceu... 💀</div>
+          </div>
 
-    <!-- Diálogo de hover -->
-    <transition name="fade">
-      <div v-if="showHoverDialog" class="dialog-box dialog-style hover-dialog" key="hoverDialog">
-        <p>{{ displayedText }}</p>
+          <!-- Player Character -->
+          <div class="character-info player-info">
+            <span class="character-name">{{ playerCharacter.name }} ({{ playerCharacter.classe }})</span>
+            <div class="resource-bar-container">
+              <div class="hp-bar-label">Vida:</div>
+              <div class="hp-bar">
+                <div class="hp" :style="{ width: `${playerCharacter.hpPercent}%` }"></div>
+              </div>
+              <span class="resource-value">{{ playerCharacter.currentHp }}/{{ playerCharacter.maxHp }}</span>
+            </div>
+          </div>
+          <div
+            class="unit player-character"
+            :class="{ 'is-attacking': playerAttacking, 'is-damaged': damagedPlayer }"
+            :style="{ top: `${playerCharacter.top}px`, left: `${playerCharacter.left}px` }"
+          >
+            <img :src="playerSprite" alt="Player" class="character-sprite" />
+          </div>
+
+          <!-- Enemy (Ice Dragon) -->
+          <div v-for="(enemy, index) in activeEnemies" :key="`enemy-${index}`">
+            <div class="character-info enemy-info" :style="enemyInfoStyle(index)">
+              <span class="character-name">{{ enemy.name }}</span>
+              <div class="resource-bar-container">
+                <div class="hp-bar-label">Vida:</div>
+                <div class="hp-bar enemy-hp-bar">
+                  <div class="hp enemy-hp" :style="{ width: `${enemy.hpPercent}%` }"></div>
+                </div>
+                <span class="resource-value">{{ enemy.currentHp }}/{{ enemy.maxHp }}</span>
+              </div>
+            </div>
+            <div
+              class="unit enemy-character"
+              :class="{ 'is-attacking': enemyAttacking === index, 'is-damaged': damagedEnemy === index, fainted: enemy.hpPercent <= 0 }"
+              :style="enemyStyle(index, enemy)"
+            >
+              <img :src="enemySprites[enemy.name]" alt="Enemy" class="character-sprite" />
+            </div>
+          </div>
+
+          <!-- Damage Popup -->
+          <div
+            v-if="damagePopup.active"
+            class="damage-popup"
+            :class="damagePopup.type"
+            :style="{ top: `${damagePopup.top}px`, left: `${damagePopup.left}px` }"
+          >
+            {{ damagePopup.prefix }}{{ damagePopup.value }}
+          </div>
+
+          <!-- Attack Effect -->
+          <div v-if="attackEffect.active" class="attack-effect" :style="attackEffect.style">
+            <img :src="attackEffectSprite" alt="Attack Effect" class="effect-sprite" />
+          </div>
+        </div>
+
+        <!-- Battle Log and Actions -->
+        <div class="battle-log-container">
+          <div class="battle-log">
+            <p v-for="(message, index) in battleLog" :key="index" v-html="message"></p>
+          </div>
+          <div class="actions" v-if="isPlayerTurn && !isAttacking && !gameOver && !victory">
+            <button class="action-btn attack-btn" @click="attackEnemy" :disabled="activeEnemies.length === 0 || playerCharacter.currentStamina < 10">
+              Atacar
+            </button>
+            <button class="action-btn potion-btn" @click="usePotion" :disabled="!canUsePotion || playerCharacter.currentStamina < 5">
+              Poção ({{ potionCount }})
+            </button>
+          </div>
+          <div class="actions-placeholder" v-else>
+            Dragão de Gelo prepara um ataque...
+          </div>
+        </div>
       </div>
-    </transition>
+
+      <!-- Feedback Box -->
+      <div v-if="showFeedback && !showDialogue && !showCutscene" class="dialog-box feedback-box">
+        <p>{{ feedbackMessage }}</p>
+        <button @click="showFeedback = false">Ok</button>
+      </div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <div class="navigation-bar" v-if="!showDialogue && !showCutscene">
+      <button
+        v-if="bossDefeated"
+        class="nav-btn"
+        @click="goToNextArea"
+        aria-label="Seguir para Caverna"
+        :disabled="!bossDefeated"
+      >
+        Seguir para Caverna
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { useGameState, ITEMS } from '@/stores/gamestate.js'
-import bgImage from '@/assets/interior/igreja-bg.png'
-import padreSprite from '@/assets/Padre.png'
+import montanhaBaseImage from '@/assets/backviews/montanha-base.png';
+import montanhaImage from '@/assets/backviews/montanha-base.png';
+import montanhaBattleDragonImage from '@/assets/backviews/montanha-confronto.png';
+import montanhaCenarioImage from '@/assets/backviews/montanha-cenario.png';
+import playerEmergingImage from '@/assets/backviews/player-emerging.png';
+import dragonIceSprite from '@/assets/sprites/dragao-gelo.png'; // Updated to new sprite
+// import playerSprite from '@/assets/sprites/player-sprite.png';
+// import attackEffectSprite from '@/assets/sprites/attack-effect.png';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { useGameState } from '@/stores/gameState.js';
+import { playAudio } from '@/utils/audioManager.js';
 
-// Configurações do jogador e sprite sheet
-const playerSpriteSheet = new Image()
-playerSpriteSheet.src = '/img/sprites/player/player_sprite.png'
+const gameStore = useGameState();
+const gameState = gameStore.$state;
+const actions = gameStore;
+const router = useRouter();
 
-const player = {
-  size: 250,
-  speed: 3
-}
+// Dialogue State
+const showDialogue = ref(true);
+const currentDialogueLine = ref(0);
+const dialogueLines = [
+  'A Montanha de Gelo se ergue diante de você, implacável e gelada.',
+  'O vento corta como lâminas, e a neve cobre qualquer traço de vida.',
+  'Escalar será um desafio, mas o topo guarda algo poderoso.',
+];
+const displayedDialogueLines = ref([]);
+const typewriterDialogueSpans = ref([]);
 
-const frameWidth = 96
-const frameHeight = 96
-const animations = {
-  idle: { row: 3, frames: [7, 1, 2, 3, 4, 5], frameInterval: 150 },
-  walk_down: { row: 6, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 },
-  walk_up: { row: 4, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 },
-  walk_left: { row: 20.1, frames: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], frameInterval: 70 },
-  walk_right: { row: 5, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 }
-}
+// Cutscene State
+const showCutscene = ref(false);
+const currentCutsceneLine = ref(0);
+const cutsceneLines = [
+  'Você alcança o topo, exausto, o ar rarefeito queimando seus pulmões.',
+  'Picos nevados se estendem até onde a vista alcança, cobertos por neve intocada.',
+  'Um rugido ensurdecedor rasga o ar. O Dragão de Gelo desce, suas escamas brilhando.',
+  'Seu destino é enfrentar a fera ou ser congelado por sua ira.',
+];
+const displayedLines = ref([]);
+const cutsceneBackgroundImage = ref(playerEmergingImage);
+const isFading = ref(false);
 
-const currentFrameIndex = ref(0)
-const frameTimer = ref(0)
-const playerDirection = ref('idle')
+// Cold Effect State
+const showColdEffect = ref(false);
 
-// Estado do personagem
-const characterPosition = ref({ x: 0, y: 0 })
-const zoomLevel = ref(0.95)
-const moving = ref({ up: false, down: false, left: false, right: false })
-const lastDirection = ref('up')
+// Game State
+const atMountainBase = ref(true);
+const showFeedback = ref(false);
+const feedbackMessage = ref('');
+const bossDefeated = ref(false);
+const inBattle = ref(false);
+const currentEnemyIndex = ref(0);
 
-// Estado do padre
-const padrePosition = ref({ x: 400, y: 120 })
-
-// Estado do jogo
-const gameState = useGameState()
-const router = useRouter()
-
-// Diálogos e loja
-const showDialog = ref(true)
-const showShop = ref(false)
-const showShopDialog = ref(false)
-const showMessageDialog = ref(false)
-const showHoverDialog = ref(false)
-const showBlessingPrompt = ref(false)
-const showExitDialog = ref(false)
-const dialogIndex = ref(0)
-const displayedText = ref('')
-const typing = ref(false)
-const canMove = ref(false)
-const exitDialogText = "Pressione 'E' para Sair da Igreja"
-const hoverItemDescriptionText = ref('')
-const message = ref('')
-let typingInterval = null
-let currentHoverItem = null
-
-const dialogLines = ref([
-  'Filho, bem-vindo à casa sagrada de Albadia.',
-  'Aqui oferecemos bênçãos para proteger-te nas tuas batalhas.',
-  'Cada bênção carrega consigo um poder divino e um preço justo.',
-  'Escolha com fé...'
-])
-
-const shopDialogLines = ['Escolha uma bênção para sua jornada, filho!']
-
-// Itens disponíveis (bênçãos)
-const blessings = computed(() => {
-  const blessingList = [
-    {
-      itemId: 'blessing_strength',
-      name: 'Bênção da Força',
-      price: 30,
-      description: 'Aumenta sua força em combate.',
-      icon: ITEMS['blessing_strength']?.icon || '/icons/blessing-strength.png',
-      type: 'Bênção'
-    },
-    {
-      itemId: 'blessing_protection',
-      name: 'Bênção da Proteção',
-      price: 50,
-      description: 'Reduz o dano recebido.',
-      icon: ITEMS['blessing_protection']?.icon || '/icons/blessing-protection.png',
-      type: 'Bênção'
-    },
-    {
-      itemId: 'blessing_speed',
-      name: 'Bênção da Velocidade',
-      price: 40,
-      description: 'Aumenta sua velocidade de movimento.',
-      icon: ITEMS['blessing_speed']?.icon || '/icons/blessing-speed.png',
-      type: 'Bênção'
-    }
-  ]
-  console.log('Bênçãos geradas:', blessingList) // Depuração
-  return blessingList.filter(item => ITEMS[item.itemId] || true)
-})
-
-const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png')
-const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png')
-
-// Efeitos sonoros
-const sounds = {
-  dialogClick: new Audio('/sounds/click.wav'),
-  coinClank: new Audio('/sounds/coin_clank.mp3'),
-  typing: new Audio('/sounds/typing.mp3')
-}
-sounds.dialogClick.volume = 0.5
-sounds.coinClank.volume = 0.5
-sounds.typing.volume = 0.5
-
-const playSound = (audio) => {
-  if (!audio) return
-  audio.currentTime = 0
-  audio.play().catch(() => {})
-}
-
-// Configurações do canvas
-const characterCanvas = ref(null)
-let ctx = null
-
-// Tamanho do fundo
-const bgWidth = 1200
-const bgHeight = 1024
-let animationFrameId = null
-let lastUpdateTime = 0
-
-// Áreas de colisão
-const collisionAreas = [
-  { x: 0, y: 200, width: 1024, height: 50 },
-  { x: 0, y: 950, width: 1024, height: 50 },
-  { x: 1020, y: 200, width: 50, height: 1000 },
-  { x: 820, y: 700, width: 130, height: 100 },
-  { x: 430, y: 890, width: 170, height: 50 }
-]
-
-// Áreas interativas
-const interactionAreas = [
-  { x: 430, y: 850, width: 170, height: 80, action: () => router.push('/level/albadia') }
-]
-
-// Verificação de colisão
-const isColliding = (nextX, nextY) => {
-  const charBox = { x: nextX, y: nextY, width: player.size, height: player.size }
-  return collisionAreas.some(
-    area =>
-      charBox.x < area.x + area.width &&
-      charBox.x + charBox.width > area.x &&
-      charBox.y < area.y + area.height &&
-      charBox.y + charBox.height > area.y
-  )
-}
-
-// Verifica se personagem está numa área interativa
-const isInInteractionArea = () => {
-  const charBox = { x: characterPosition.value.x, y: characterPosition.value.y, width: player.size, height: player.size }
-  return interactionAreas.find(
-    area =>
-      charBox.x < area.x + area.width &&
-      charBox.x + charBox.width > area.x &&
-      charBox.y < area.y + area.height &&
-      charBox.y + charBox.height > area.y
-  )
-}
-
-// Verifica se personagem está perto do padre
-const isNearPadre = () => {
-  const charBox = { x: characterPosition.value.x, y: characterPosition.value.y, width: player.size, height: player.size }
-  const padreBox = { x: padrePosition.value.x, y: padrePosition.value.y, width: 120, height: 120 }
-  return (
-    charBox.x < padreBox.x + padreBox.width + 30 &&
-    charBox.x + charBox.width > padreBox.x - 30 &&
-    charBox.y < padreBox.y + padreBox.height + 30 &&
-    charBox.y + charBox.height > padreBox.y - 30
-  )
-}
-
-// Digitação do texto
-const typeLine = (text) => {
-  return new Promise((resolve) => {
-    if (typingInterval) clearInterval(typingInterval)
-    displayedText.value = ''
-    typing.value = true
-
-    const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value
-    let index = 0
-
-    typingInterval = setInterval(() => {
-      if (index < line.length) {
-        displayedText.value += line[index++]
-        if (index % 3 === 0) playSound(sounds.typing)
-      } else {
-        clearInterval(typingInterval)
-        typingInterval = null
-        typing.value = false
-        resolve()
-      }
-    }, 40)
-  })
-}
-
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-
-const resetState = () => {
-  showDialog.value = true
-  dialogIndex.value = 0
-  showHoverDialog.value = false
-  showShopDialog.value = false
-  showMessageDialog.value = false
-  showShop.value = false
-  displayedText.value = ''
-  typing.value = false
-  hoverItemDescriptionText.value = ''
-  message.value = ''
-  if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
-  }
-  currentHoverItem = null
-}
-
-const nextDialog = async () => {
-  if (typing.value) return
-  playSound(sounds.dialogClick)
-  if (dialogIndex.value < dialogLines.value.length - 1) {
-    dialogIndex.value++
-    await typeLine(dialogLines.value[dialogIndex.value])
+// Background Styles
+const backgroundStyle = computed(() => {
+  let backgroundImage;
+  if (inBattle.value) {
+    backgroundImage = montanhaCenarioImage;
+  } else if (!atMountainBase.value && !bossDefeated.value) {
+    backgroundImage = montanhaBattleDragonImage;
   } else {
-    showDialog.value = false
-    canMove.value = true
+    backgroundImage = montanhaImage;
   }
-}
-
-const hideHoverDialog = () => {
-  showHoverDialog.value = false
-  currentHoverItem = null
-  if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
-    typing.value = false
-  }
-}
-
-const hideAllDialogs = () => {
-  showHoverDialog.value = false
-  showShopDialog.value = false
-  showMessageDialog.value = false
-  currentHoverItem = null
-  if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
-    typing.value = false
-  }
-}
-
-const hoverItemDescription = async (item) => {
-  if (!showShop.value) return
-  if (currentHoverItem === item.itemId) return
-  hideAllDialogs()
-  currentHoverItem = item.itemId
-  hoverItemDescriptionText.value = item.description
-  showHoverDialog.value = true
-  await typeLine(item.description)
-}
-
-const buyBlessing = async (item) => {
-  hideAllDialogs()
-  const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === item.itemId)
-  if (existingItem) {
-    message.value = `Você já possui ${item.name}.`
-  } else if (gameState.player.gold >= item.price) {
-    gameState.removeGold(item.price)
-    gameState.addItemToInventory(item.itemId, 1)
-    message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`
-    playSound(sounds.coinClank)
-  } else {
-    message.value = 'Você não tem ouro suficiente.'
-  }
-  showMessageDialog.value = true
-  await typeLine(message.value)
-  await delay(2000)
-  hideAllDialogs()
-  if (showShop.value) {
-    showShopDialog.value = true
-    await typeLine(shopDialogLines[0])
-  }
-}
-
-const closeShop = () => {
-  hideAllDialogs()
-  showShop.value = false
-  canMove.value = !showDialog.value
-}
-
-const getMovementBounds = () => {
-  const bgRenderedWidth = bgWidth * zoomLevel.value
-  const bgRenderedHeight = bgHeight * zoomLevel.value
   return {
-    minX: 0,
-    maxX: bgRenderedWidth - player.size,
-    minY: 0,
-    maxY: bgRenderedHeight - player.size
+    backgroundImage: `url(${backgroundImage})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    opacity: isFading.value ? 0 : 1,
+    transition: 'opacity 0.5s ease',
+  };
+});
+const dialogueOrCutsceneBackgroundStyle = computed(() => ({
+  backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url(${
+    showDialogue.value ? montanhaBaseImage : cutsceneBackgroundImage.value
+  })`,
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  opacity: isFading.value ? 0 : 1,
+  transition: 'opacity 0.5s ease',
+}));
+
+// HUD
+const maxBarSegments = 10;
+const filledHealthSegments = computed(() =>
+  Math.round((gameState.player.health / gameState.player.maxHealth) * maxBarSegments)
+);
+const filledStaminaSegments = computed(() =>
+  Math.round((gameState.player.stamina / gameState.player.maxStamina) * maxBarSegments)
+);
+
+// Player Character
+const playerCharacter = reactive({
+  name: gameState.player.name || 'Herói',
+  classe: gameState.player.classe || 'Guerreiro', // Fixed to 'classe'
+  hpPercent: (gameState.player.health / gameState.player.maxHealth) * 100,
+  currentHp: gameState.player.health || 100,
+  maxHp: gameState.player.maxHealth || 100,
+  currentStamina: gameState.player.stamina || 100,
+  maxStamina: gameState.player.maxStamina || 100,
+  top: 150, // Adjusted to position above health bar
+  left: 50,
+  attackPower: 20,
+});
+
+// Enemy Configuration
+const enemiesConfig = [
+  {
+    name: 'Dragão de Gelo',
+    hpPercent: 100,
+    currentHp: 200,
+    maxHp: 200,
+    top: 300, // Adjusted to position below health bar
+    left: 'calc(100vw - 200px)', // Right side
+    attackPower: 25,
+  },
+];
+const initialEnemyPositions = enemiesConfig.map(enemy => ({ top: enemy.top, left: enemy.left }));
+const enemies = reactive(enemiesConfig.map(enemy => ({ ...enemy })));
+const enemySprites = {
+  'Dragão de Gelo': dragonIceSprite,
+};
+
+// Battle State
+const damagedEnemy = ref(null);
+const damagedPlayer = ref(false);
+const playerAttacking = ref(false);
+const enemyAttacking = ref(null);
+const isPlayerTurn = ref(true);
+const isAttacking = ref(false);
+const battleLog = ref([]);
+const battleStatus = ref('Desfira seu golpe!');
+const gameOver = ref(false);
+const victory = ref(false);
+const damagePopup = reactive({ active: false, value: 0, top: 0, left: 0, type: 'enemy-damage', prefix: '-' });
+const attackEffect = reactive({ active: false, style: {} });
+
+// Computed Properties
+const potionCount = computed(() => gameStore.getItemQuantity('potion_health') || 0);
+const canUsePotion = computed(() => potionCount.value > 0 && playerCharacter.currentHp < playerCharacter.maxHp);
+const activeEnemies = computed(() => enemies.filter(enemy => enemy.hpPercent > 0 && enemies.indexOf(enemy) === currentEnemyIndex.value));
+const enemyInfoStyle = index => ({
+  top: `${initialEnemyPositions[index].top - 100}px`, // Above dragon sprite
+  left: `calc(100vw - 220px)`, // Aligned with dragon
+});
+const enemyStyle = (index, enemy) => ({
+  top: `${enemy.hpPercent > 0 ? enemy.top : initialEnemyPositions[index].top}px`,
+  left: `${enemy.hpPercent > 0 ? initialEnemyPositions[index].left : initialEnemyPositions[index].left}`,
+});
+
+// Utility Functions
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+const addLogMessage = message => {
+  battleLog.value.push(message);
+  if (battleLog.value.length > 5) battleLog.value.shift();
+  requestAnimationFrame(() => {
+    const logContainer = document.querySelector('.battle-log');
+    if (logContainer) logContainer.scrollTop = logContainer.scrollHeight;
+  });
+};
+
+const showPopup = (value, targetElement, type = 'enemy-damage') => {
+  const rect = targetElement.getBoundingClientRect();
+  const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
+  Object.assign(damagePopup, {
+    active: true,
+    value,
+    top: rect.top - containerRect.top + rect.height / 2 - 20,
+    left: rect.left - containerRect.left + rect.width / 2,
+    type,
+    prefix: type === 'hp-heal' ? '+' : '-',
+  });
+  setTimeout(() => Object.assign(damagePopup, { active: false }), 800);
+};
+
+const showAttackEffect = async (attackerElement, targetElement) => {
+  const startRect = attackerElement.getBoundingClientRect();
+  const endRect = targetElement.getBoundingClientRect();
+  const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
+  Object.assign(attackEffect, {
+    active: true,
+    style: {
+      top: `${startRect.top - containerRect.top + startRect.height / 2}px`,
+      left: `${startRect.left - containerRect.left + startRect.width / 2}px`,
+      opacity: 1,
+    },
+  });
+  await sleep(50);
+  Object.assign(attackEffect.style, {
+    top: `${endRect.top - containerRect.top + endRect.height / 2}px`,
+    left: `${endRect.left - containerRect.left + endRect.width / 2}px`,
+    opacity: 0,
+    transition: 'top 0.3s ease-out, left 0.3s ease-out, opacity 0.3s ease-out',
+  });
+  await sleep(300);
+  Object.assign(attackEffect, { active: false, style: {} });
+};
+
+// Dialogue Logic
+const playDialogue = async () => {
+  playAudio('mountain_ambient', { loop: true });
+  playAudio('wind_howl');
+  displayedDialogueLines.value = new Array(dialogueLines.length).fill('');
+  for (let i = 0; i < dialogueLines.length; i++) {
+    currentDialogueLine.value = i + 1;
+    const text = dialogueLines[i];
+    for (let j = 0; j <= text.length; j++) {
+      displayedDialogueLines.value[i] = text.slice(0, j);
+      displayedDialogueLines.value = [...displayedDialogueLines.value];
+      if (j > 0) playAudio('typewriter_click');
+      await sleep(50);
+    }
+    await sleep(1500);
   }
-}
+};
 
-const updateAnimation = (deltaSeconds) => {
-  const anim = animations[playerDirection.value] || animations.idle
-  const interval = anim.frameInterval || 70
-  frameTimer.value += deltaSeconds * 1000
-  if (frameTimer.value > interval) {
-    frameTimer.value = 0
-    currentFrameIndex.value++
-    if (currentFrameIndex.value >= anim.frames.length) currentFrameIndex.value = 0
-  }
-}
+const endDialogue = async () => {
+  playAudio('mountain_ambient', { stop: true });
+  isFading.value = true;
+  await sleep(500);
+  showDialogue.value = false;
+  isFading.value = false;
+  gameState.player.hasViewedMontanhaDialogue = true;
+};
 
-const drawCharacter = () => {
-  if (!ctx || !playerSpriteSheet.complete) return
-  ctx.clearRect(0, 0, characterCanvas.value.width, characterCanvas.value.height)
-  const anim = animations[playerDirection.value] || animations.idle
-  const frame = anim.frames[currentFrameIndex.value]
-  const sx = frame * frameWidth
-  const sy = anim.row * frameHeight
-  ctx.drawImage(
-    playerSpriteSheet,
-    sx, sy, frameWidth, frameHeight,
-    0, 0, player.size, player.size
-  )
-}
-
-const updateMovement = (timestamp) => {
-  if (!canMove.value) {
-    drawCharacter()
-    animationFrameId = requestAnimationFrame(updateMovement)
-    return
-  }
-
-  if (!lastUpdateTime) lastUpdateTime = timestamp
-  const deltaSeconds = (timestamp - lastUpdateTime) / 1000
-  lastUpdateTime = timestamp
-
-  let moved = false
-  const bounds = getMovementBounds()
-
-  if (moving.value.up) {
-    const nextY = characterPosition.value.y - player.speed
-    if (nextY >= bounds.minY && !isColliding(characterPosition.value.x, nextY)) {
-      characterPosition.value.y = nextY
-      playerDirection.value = 'walk_up'
-      lastDirection.value = 'up'
-      moved = true
+// Cutscene Logic
+const playCutscene = async () => {
+  playAudio('mountain_ambient', { loop: true });
+  playAudio('wind_howl');
+  displayedLines.value = new Array(cutsceneLines.length).fill('');
+  cutsceneBackgroundImage.value = playerEmergingImage;
+  for (let i = 0; i < cutsceneLines.length; i++) {
+    currentCutsceneLine.value = i + 1;
+    const text = cutsceneLines[i];
+    for (let j = 0; j <= text.length; j++) {
+      displayedLines.value[i] = text.slice(0, j);
+      displayedLines.value = [...displayedLines.value];
+      if (j > 0) playAudio('typewriter_click');
+      await sleep(50);
+    }
+    if (i === 2) {
+      playAudio('dragon_ice_roar');
+      isFading.value = true;
+      await sleep(500);
+      cutsceneBackgroundImage.value = montanhaBattleDragonImage;
+      isFading.value = false;
+      await sleep(2000);
+    } else {
+      await sleep(1500);
     }
   }
-  if (moving.value.down) {
-    const nextY = characterPosition.value.y + player.speed
-    if (nextY <= bounds.maxY && !isColliding(characterPosition.value.x, nextY)) {
-      characterPosition.value.y = nextY
-      playerDirection.value = 'walk_down'
-      lastDirection.value = 'down'
-      moved = true
+};
+
+const endCutscene = async () => {
+  playAudio('mountain_ambient', { stop: true });
+  isFading.value = true;
+  await sleep(500);
+  cutsceneBackgroundImage.value = montanhaImage;
+  isFading.value = false;
+  showCutscene.value = false;
+  gameState.player.hasViewedMontanhaCutscene = true;
+};
+
+// Game Functions
+const climbMountain = async () => {
+  if (gameState.player.stamina < 20) {
+    feedbackMessage.value = 'Você está exausto para escalar! Recupere energia.';
+    showFeedback.value = true;
+    playAudio('ui_error');
+    return;
+  }
+  playAudio('ui_confirm');
+  playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 20);
+  gameState.player.stamina = playerCharacter.currentStamina;
+  feedbackMessage.value = 'Você escala a montanha, mas o frio intenso castiga seu corpo!';
+  showFeedback.value = true;
+  showColdEffect.value = true;
+  playAudio('cold_shiver');
+  playerCharacter.currentHp = Math.max(1, playerCharacter.currentHp - 5);
+  gameState.player.health = playerCharacter.currentHp;
+  playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
+  isFading.value = true;
+  await sleep(2000);
+  showColdEffect.value = false;
+  isFading.value = false;
+  atMountainBase.value = false;
+  showCutscene.value = true;
+  playCutscene();
+};
+
+const confrontBoss = () => {
+  inBattle.value = true;
+  currentEnemyIndex.value = 0;
+  battleLog.value = [`${playerCharacter.name} enfrenta o Dragão de Gelo!`];
+  playAudio('battle_start_dragon_ice');
+  feedbackMessage.value = 'O Dragão de Gelo surge rugindo da nevasca!';
+  showFeedback.value = true;
+};
+
+const fleeArea = () => {
+  playAudio('ui_back');
+  router.push({ name: 'Acampamento' });
+};
+
+const collectKey = () => {
+  if (bossDefeated.value && !gameState.player.keys.ice) {
+    actions.collectKey('ice');
+    playAudio('collect_key_ice');
+    feedbackMessage.value = 'Você obteve a Chave de Gelo!';
+    showFeedback.value = true;
+  } else {
+    feedbackMessage.value = 'Não há chave aqui ou você já a pegou.';
+    showFeedback.value = true;
+  }
+};
+
+const attackEnemy = async () => {
+  if (!activeEnemies.value.length || !isPlayerTurn.value || isAttacking.value || playerCharacter.currentStamina < 10) {
+    if (playerCharacter.currentStamina < 10) {
+      addLogMessage(`<span style="color: #ff6666;">⚡ Energia insuficiente!</span>`);
     }
+    return;
   }
-  if (moving.value.left) {
-    const nextX = characterPosition.value.x - player.speed
-    if (nextX >= bounds.minX && !isColliding(nextX, characterPosition.value.y)) {
-      characterPosition.value.x = nextX
-      playerDirection.value = 'walk_left'
-      lastDirection.value = 'left'
-      moved = true
+  isAttacking.value = true;
+  playerAttacking.value = true;
+  playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 10);
+  gameState.player.stamina = playerCharacter.currentStamina;
+  addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
+  const enemyIndex = currentEnemyIndex.value;
+  const enemy = enemies[enemyIndex];
+  const playerElement = document.querySelector('.player-character');
+  const enemyElement = document.querySelectorAll('.enemy-character')[0];
+  battleStatus.value = `${playerCharacter.name} ataca!`;
+  addLogMessage(`⚔️ ${playerCharacter.name} golpeia!`);
+  playAudio('attack');
+  const originalLeft = parseInt(playerCharacter.left);
+  playerCharacter.left = originalLeft + 40;
+  await sleep(200);
+  await showAttackEffect(playerElement, enemyElement);
+  playerCharacter.left = originalLeft;
+  damagedEnemy.value = enemyIndex;
+  const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 6 + 10);
+  enemy.currentHp = Math.max(0, enemy.currentHp - damageDealt);
+  enemy.hpPercent = (enemy.currentHp / enemy.maxHp) * 100;
+  showPopup(damageDealt, enemyElement, 'enemy-damage');
+  addLogMessage(`<span style="color: #d0a070;">💥 ${damageDealt} de dano!</span>`);
+  await sleep(500);
+  damagedEnemy.value = null;
+  playerAttacking.value = false;
+  if (enemy.hpPercent <= 0) {
+    addLogMessage(`<span style="color: #a09080;">☠️ Dragão de Gelo caiu!</span>`);
+    victory.value = true;
+    battleStatus.value = 'Triunfo!';
+    handleVictory();
+    isAttacking.value = false;
+    return;
+  }
+  isPlayerTurn.value = false;
+  battleStatus.value = `Dragão de Gelo prepara um ataque!`;
+  await sleep(1000);
+  await enemyTurn();
+  if (!gameOver.value && !victory.value) {
+    isPlayerTurn.value = true;
+    battleStatus.value = 'Desfira seu golpe!';
+  }
+  isAttacking.value = false;
+};
+
+const usePotion = async () => {
+  if (!canUsePotion.value || !isPlayerTurn.value || isAttacking.value || playerCharacter.currentStamina < 5) {
+    if (playerCharacter.currentStamina < 5) {
+      addLogMessage(`<span style="color: #ff6666;">⚡ Energia insuficiente!</span>`);
     }
+    return;
   }
-  if (moving.value.right) {
-    const nextX = characterPosition.value.x + player.speed
-    if (nextX <= bounds.maxX && !isColliding(nextX, characterPosition.value.y)) {
-      characterPosition.value.x = nextX
-      playerDirection.value = 'walk_right'
-      lastDirection.value = 'right'
-      moved = true
-    }
+  isAttacking.value = true;
+  playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 5);
+  gameState.player.stamina = playerCharacter.currentStamina;
+  addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
+  const playerElement = document.querySelector('.player-character');
+  actions.removeItemFromInventory('potion_health', 1);
+  gameState.player.potions = gameStore.getItemQuantity('potion_health');
+  const healAmount = 30;
+  playerCharacter.currentHp = Math.min(playerCharacter.maxHp, playerCharacter.currentHp + healAmount);
+  playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
+  gameState.player.health = playerCharacter.currentHp;
+  showPopup(healAmount, playerElement, 'hp-heal');
+  addLogMessage(`<span style="color: #90c090;">🧪 +${healAmount} vida!</span>`);
+  playAudio('potion');
+  await sleep(1000);
+  isPlayerTurn.value = false;
+  battleStatus.value = `Dragão de Gelo prepara um ataque!`;
+  await sleep(1000);
+  await enemyTurn();
+  if (!gameOver.value && !victory.value) {
+    isPlayerTurn.value = true;
+    battleStatus.value = 'Desfira seu golpe!';
   }
+  isAttacking.value = false;
+};
 
-  if (!moved) {
-    playerDirection.value = 'idle'
+const enemyTurn = async () => {
+  if (!activeEnemies.value.length || playerCharacter.hpPercent <= 0) return;
+  const enemy = enemies[currentEnemyIndex.value];
+  const playerElement = document.querySelector('.player-character');
+  const enemyElement = document.querySelectorAll('.enemy-character')[0];
+  addLogMessage(`<b>🐉 Dragão de Gelo</b> ataca!`);
+  playAudio('hit');
+  await sleep(800);
+  enemyAttacking.value = currentEnemyIndex.value;
+  const damageTaken = enemy.attackPower + Math.floor(Math.random() * 6 + 5);
+  playerCharacter.currentHp = Math.max(0, playerCharacter.currentHp - damageTaken);
+  playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
+  gameState.player.health = playerCharacter.currentHp;
+  showPopup(damageTaken, playerElement, 'player-damage');
+  addLogMessage(`<span style="color: #c06060;">💥 ${playerCharacter.name} sofre ${damageTaken} de dano!</span>`);
+  await sleep(500);
+  enemyAttacking.value = null;
+  damagedPlayer.value = true;
+  await sleep(300);
+  damagedPlayer.value = false;
+  if (playerCharacter.hpPercent <= 0) {
+    gameOver.value = true;
+    addLogMessage(`<b>💀 ${playerCharacter.name} foi derrotado!</b>`);
+    handleDefeat();
+    isAttacking.value = false;
+    return;
   }
+};
 
-  updateAnimation(deltaSeconds)
-  drawCharacter()
+const handleVictory = () => {
+  bossDefeated.value = true;
+  actions.completeLevel('montanha_boss');
+  inBattle.value = false;
+  gameState.player.gold += 100;
+  actions.addItemToInventory('ice_shard', 1);
+  addLogMessage(`<span style="color: #d0a070;">💰 +100 ouro!</span>`);
+  addLogMessage(`<span style="color: #d0a070;">🎁 Fragmento de Gelo!</span>`);
+  playAudio('boss_defeat');
+  feedbackMessage.value = 'Dragão de Gelo derrotado!';
+  showFeedback.value = true;
+};
 
-  const insideArea = isInInteractionArea()
-  showExitDialog.value = !!insideArea
+const handleDefeat = () => {
+  gameState.player.health = 0;
+  inBattle.value = false;
+  playAudio('player_defeat');
+  feedbackMessage.value = 'Você foi derrotado!';
+  showFeedback.value = true;
+  setTimeout(() => router.push('/'), 2000);
+};
 
-  showBlessingPrompt.value = isNearPadre() && !showShop.value
+const goToNextArea = () => {
+  if (!bossDefeated.value) return;
+  playAudio('ui_confirm');
+  router.push({ name: 'Caverna' });
+};
 
-  animationFrameId = requestAnimationFrame(updateMovement)
-}
-
-const startMoving = (event) => {
-  const key = event.key.toLowerCase()
-
-  if (showShop.value) {
-    if (key === 'escape') closeShop()
-    return
-  }
-
-  if (!canMove.value) return
-
-  if (key === 'e') {
-    const area = isInInteractionArea()
-    if (area) {
-      area.action()
-    } else if (isNearPadre()) {
-      showShop.value = true
-      canMove.value = false
-    }
-    return
-  }
-
-  switch (key) {
-    case 'w': moving.value.up = true; break
-    case 's': moving.value.down = true; break
-    case 'a': moving.value.left = true; break
-    case 'd': moving.value.right = true; break
-  }
-}
-
-const stopMoving = (event) => {
-  if (!canMove.value) return
-  switch (event.key.toLowerCase()) {
-    case 'w': moving.value.up = false; break
-    case 's': moving.value.down = false; break
-    case 'a': moving.value.left = false; break
-    case 'd': moving.value.right = false; break
-  }
-}
-
+// Lifecycle Hooks
 onMounted(() => {
-  console.log('ITEMS no onMounted:', ITEMS) // Depuração
-  resetState()
-  typeLine()
-  const screen = document.querySelector('.igreja-screen')
-  screen.focus()
-  screen.addEventListener('click', () => screen.focus())
-
-  const bounds = getMovementBounds()
-  characterPosition.value.x = (bounds.minX + bounds.maxX) / 2
-  characterPosition.value.y = (bounds.minY + bounds.maxY) / 2
-
-  if (characterCanvas.value) {
-    ctx = characterCanvas.value.getContext('2d')
-    characterCanvas.value.width = player.size
-    characterCanvas.value.height = player.size
+  actions.setCurrentArea('Montanha Congelada');
+  if (!gameState.player.keys) {
+    gameState.player.keys = reactive({ ancestral: false, ice: false, fire: false });
   }
-
-  playerSpriteSheet.onload = () => {
-    animationFrameId = requestAnimationFrame(updateMovement)
+  if (!gameState.player.stamina) {
+    gameState.player.stamina = 100;
+    gameState.player.maxStamina = 100;
   }
-})
-
-onUnmounted(() => {
-  if (animationFrameId) cancelAnimationFrame(animationFrameId)
-  if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
+  if (!gameState.player.health) {
+    gameState.player.health = 100;
+    gameState.player.maxHealth = 100;
   }
-})
-
-watch(() => showShop, (newVal) => {
-  if (newVal) {
-    hideAllDialogs()
-    showShopDialog.value = true
-    typeLine(shopDialogLines[0])
+  if (!gameState.player.potions) {
+    gameState.player.potions = 3;
   }
-})
+  if (!gameState.player.gold) {
+    gameState.player.gold = 0;
+  }
+  if (!gameState.player.hasViewedMontanhaCutscene) {
+    gameState.player.hasViewedMontanhaCutscene = false;
+  }
+  if (!gameState.player.hasViewedMontanhaDialogue) {
+    gameState.player.hasViewedMontanhaDialogue = false;
+  }
+  if (!gameState.levelsCompleted) {
+    gameState.levelsCompleted = reactive([]);
+  }
+  playerCharacter.currentStamina = gameState.player.stamina;
+  playerCharacter.currentHp = gameState.player.health;
+  bossDefeated.value = gameState.levelsCompleted.includes('montanha_boss');
+  if (!bossDefeated.value && atMountainBase.value && !gameState.player.hasViewedMontanhaDialogue) {
+    showDialogue.value = true;
+    playDialogue();
+  } else if (!bossDefeated.value && !atMountainBase.value && !gameState.player.hasViewedMontanhaCutscene) {
+    showCutscene.value = true;
+    playCutscene();
+  } else {
+    showDialogue.value = false;
+    showCutscene.value = false;
+  }
+});
+
+// Watch for health and stamina changes
+watch(
+  () => [gameState.player.health, gameState.player.stamina],
+  ([newHealth, newStamina]) => {
+    playerCharacter.currentHp = newHealth;
+    playerCharacter.hpPercent = (newHealth / playerCharacter.maxHp) * 100;
+    playerCharacter.currentStamina = newStamina;
+  }
+);
 </script>
 
 <style scoped>
-.fade-in {
-  animation: fadeIn 1.5s ease-in;
-}
+@import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=UnifrakturMaguntia&display=swap');
 
-@keyframes fadeIn {
-  0% { opacity: 0; transform: scale(1); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-.igreja-screen {
+.montanha-view {
   position: relative;
+  width: 100%;
   height: 100vh;
-  width: 100vw;
-  color: #f0e0c0;
-  font-family: 'Press Start 2P', cursive;
+  overflow: auto;
+  transition: opacity 0.5s ease;
+  background-color: #e0ffff;
+}
+
+/* Cold Overlay */
+.cold-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(70, 130, 180, 0.3);
+  animation: coldPulse 2s ease-in-out;
+  pointer-events: none;
+  z-index: 8;
+}
+
+@keyframes coldPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.5; }
+}
+
+/* Dialogue Style */
+.dialogue-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  z-index: 100;
+  outline: none;
+}
+
+.dialogue-content {
+  position: relative;
+  background: rgba(40, 60, 80, 0.95);
+  border: 4px solid #4682b4;
+  padding: 20px;
+  max-width: 800px;
+  border-radius: 5px;
+  margin: 10px auto 0;
+}
+
+.dialogue-arrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+  background-color: #4682b4;
+  border: 2px solid #2f4f4f;
+  color: #e0f0ff;
+  font-size: 24px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.1s;
+  margin: 10px auto 0;
+}
+
+.dialogue-arrow:hover {
+  background-color: #5f9ea0;
+}
+
+.dialogue-arrow:active {
+  transform: translate(1px, 1px);
+}
+
+/* Cutscene Style */
+.cutscene-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  z-index: 100;
+  outline: none;
+}
+
+.cutscene-content {
+  position: relative;
+  background: rgba(40, 60, 80, 0.95);
+  border: 4px solid #4682b4;
+  padding: 20px;
+  max-width: 800px;
+  margin-bottom: 100px;
+  text-align: left;
+  color: #e0f0ff;
+  font-family: 'MedievalSharp', cursive;
+  font-size: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.cutscene-line {
+  line-height: 1.6;
+  margin-bottom: 10px;
+  display: block;
+  opacity: 0;
+}
+
+.cutscene-line.visible {
+  opacity: 1;
+  display: block;
+}
+
+.typewriter {
+  display: inline-block;
+  white-space: nowrap;
   overflow: hidden;
 }
 
-.zoom-layer {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 1024px;
-  height: 1024px;
-  background-repeat: no-repeat;
-  background-position: center;
-  transform-origin: center center;
-  z-index: 0;
-}
-
-.character {
-  position: absolute;
-  z-index: 3;
-}
-
-.npc.padre {
-  position: absolute;
-  width: 120px;
-  height: 120px;
-  background-size: contain;
-  background-repeat: no-repeat;
-  z-index: 2;
-}
-
-.dialog-style {
-  position: fixed;
-  background-color: rgba(40, 25, 15, 0.9);
-  padding: 25px 35px;
-  border: 4px solid #6c552a;
-  border-radius: 8px;
-  text-align: center;
-  width: 90vw;
-  max-width: 750px;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
-  color: #f0e0c0;
-  font-size: 15px;
-  line-height: 1.7;
-  font-family: 'Press Start 2P', cursive;
-}
-
-.centered-dialog {
-  bottom: 5vh;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-}
-
-.shop-dialog {
-  top: 15vh;
-  left: 1%;
-  transform: translateX(0);
-  z-index: 5;
-}
-
-.hover-dialog {
-  top: 15vh;
-  left: 1%;
-  transform: translateX(0);
-  z-index: 15;
-}
-
-.message-dialog {
-  top: 15vh;
-  left: 1%;
-  transform: translateX(0);
-  z-index: 15;
-}
-
-.shop-box {
-  top: 10vh;
-  bottom: 5vh;
-  left: 65%;
-  transform: translateX(-35%);
-  z-index: 2;
-  max-height: 80vh;
-  overflow-y: auto;
-}
-
-.dialog-style p {
-  margin: 0 0 20px 0;
-}
-
-.dialog-button {
-  display: block;
-  margin-left: auto;
-  margin-right: 0;
-  margin-top: 10px;
-  padding: 10px 20px;
-  background-color: #e0a867;
-  color: #5c2c1d;
-  border: 4px solid #5c2c1d;
-  border-radius: 6px;
-  font-family: 'Press Start 2P', cursive;
-  font-size: 14px;
-  font-weight: bold;
+.cutscene-arrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  height: 40px;
+  background-color: #4682b4;
+  border: 2px solid #2f4f4f;
+  color: #e0f0ff;
+  font-size: 24px;
+  border-radius: 5px;
   cursor: pointer;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
-  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
-  text-transform: uppercase;
+  transition: background-color 0.3s, transform 0.1s;
+  margin: 10px auto 0;
 }
 
-.dialog-button:hover:not(:disabled) {
-  background-color: #f4b76a;
-  color: #3e1e14;
-  box-shadow: inset -6px -6px #c96a32, inset 6px 6px #ffd9a1;
+.cutscene-arrow:hover {
+  background-color: #5f9ea0;
 }
 
-.dialog-button:active:not(:disabled) {
-  transform: translateY(2px);
-  box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8e;
+.cutscene-arrow:active {
+  transform: translate(1px, 1px);
 }
 
-.dialog-button:disabled {
-  opacity: 0.6;
-  cursor: default;
+/* HUD Styles */
+.main-hud {
+  position: fixed;
+  bottom: 10px;
+  left: 10px;
+  z-index: 90;
+  font-size: 14px;
 }
 
-.shop-name {
-  text-align: center;
-  color: #ffe8b2;
-  font-size: 18px;
-  margin-bottom: 5px;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+.panel-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.shop-title {
-  text-align: center;
-  color: #ffe8b2;
-  margin-top: 0;
-  margin-bottom: 10px;
-  animation: pulseGlow 3s ease-in-out infinite;
-}
-
-@keyframes pulseGlow {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
-}
-
-.gold-display {
-  text-align: right;
-  font-size: 13px;
-  margin-bottom: 20px;
-  color: #f0b860;
-  text-shadow: 1px 1px 0 #000;
+.stat {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  gap: 10px;
 }
 
-.gold-icon {
-  width: 24px;
-  height: 24px;
-  margin-right: 8px;
+.icon-container {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.icon {
+  width: 32px;
+  height: 32px;
   image-rendering: pixelated;
 }
 
-.gold-icon.small {
-  width: 16px;
-  height: 16px;
-  margin-right: 4px;
+.bar-container {
+  position: relative;
+  width: 200px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid #2f4f4f;
+  border-radius: 4px;
+  overflow: hidden;
 }
 
-.shop-content {
+.bar-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  color: #e0f0ff;
+  text-shadow: 1px 1px 0 #000;
+  font-family: 'MedievalSharp', cursive;
+}
+
+.bar-container.segmented {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 20px;
+  gap: 2px;
+  padding: 2px;
 }
 
-.shop-items-container {
+.segment {
   flex: 1;
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: 10px;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #2f4f4f;
+}
+
+.vida .segment.filled {
+  background: linear-gradient(to bottom, #ff3333, #6a0f0f);
+}
+
+.energia .segment.filled {
+  background: linear-gradient(to bottom, #33cc33, #0ff);
+}
+
+.content-area {
+  flex-grow: 1;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 15px;
-}
-
-.shop-item {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-rows: auto auto;
-  gap: 5px 15px;
   align-items: center;
-  padding: 15px;
-  border-bottom: 1px solid #6c552a;
-  background-color: rgba(40, 25, 15, 0.9);
-  border-radius: 6px;
-  transition: background-color 0.2s ease;
+  justify-content: center;
 }
 
-.shop-item:hover {
-  background-color: rgba(50, 35, 20, 0.95);
-}
-
-.shop-item.no-items {
+.interactions, .feedback-box {
+  background-color: rgba(70, 130, 180, 0.85);
+  padding: 20px;
+  border: 2px solid #4682b4;
+  border-radius: 8px;
   text-align: center;
-  color: #a09362;
-  font-style: italic;
+  max-width: 400px;
+  color: #e0f0ff;
+  font-family: 'MedievalSharp', serif;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
 }
 
-.shop-item img.blessing-icon {
-  grid-row: 1 / 3;
-  width: 50px;
-  height: 50px;
+.interactions {
+  position: absolute;
+  bottom: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.interaction-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedback-box {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+}
+
+.feedback-box p {
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.feedback-box button, .interactions button, .action-btn, .nav-btn {
+  background-color: #4682b4;
+  border: 2px solid #2f4f4f;
+  color: #e0f0ff;
+  padding: 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: 'Arial', sans-serif;
+  font-size: 18px;
+  transition: filter 0.2s, transform 0.1s;
+}
+
+.feedback-box button:hover:not(:disabled), .interactions button:hover:not(:disabled), .action-btn:hover:not(:disabled), .nav-btn:hover:not(:disabled) {
+  filter: brightness(1.2);
+}
+
+.feedback-box button:active:not(:disabled), .interactions button:active:not(:disabled), .action-btn:active:not(:disabled), .nav-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.navigation-bar {
+  position: fixed;
+  bottom: 0px;
+  left: 0;
+  width: 100%;
+  background-color: rgba(40, 60, 80, 0.95);
+  border-top: 4px solid #2f4f4f;
+  padding: 10px 20px;
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  z-index: 10;
+}
+
+.nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.medieval-battle-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.battle-arena {
+  position: relative;
+  width: 100%;
+  height: 80vh;
+  overflow: hidden;
+}
+
+.game-status-top {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  color: #e0f0ff;
+  background: rgba(40, 60, 80, 0.9);
+  padding: 10px 20px;
+  border-radius: 5px;
+  z-index: 20;
+  border: 2px solid #4682b4;
+  font-family: 'MedievalSharp', cursive;
+}
+
+.victory-message, .game-over-message {
+  font-size: 18px;
+  animation: pulseGlow 1.5s infinite;
+}
+
+.victory-message { color: #b0c4de; }
+.game-over-message { color: #a04040; }
+
+@keyframes pulseGlow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.3); }
+}
+
+.unit {
+  position: absolute;
+  width: 150px; /* Increased for better visibility */
+  height: 150px;
+  transition: left 0.3s ease;
+}
+
+.character-sprite {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   image-rendering: pixelated;
 }
 
-.shop-item div {
-  grid-column: 2 / 3;
-  grid-row: 1 / 2;
+.player-character {
+  z-index: 10;
+  top: 150px; /* Above health bar */
+  left: 50px;
+}
+
+.enemy-character {
+  z-index: 9;
+  top: 300px; /* Below health bar */
+  left: calc(100vw - 200px);
+}
+
+.enemy-character.fainted {
+  filter: grayscale(100%) opacity(40%);
+}
+
+.character-info {
+  position: absolute;
+  background: rgba(40, 60, 80, 0.9);
+  border: 8px solid #4682b4;
+  border-radius: 8px;
+  padding: 10px;
+  color: #e0f0ff;
+  font-size: 12px;
+  min-width: 180px;
+}
+
+.player-info {
+  bottom: 100px; /* Adjusted to make room for sprite above */
+  left: 20px;
+}
+
+.enemy-info {
+  top: 200px; /* Above dragon sprite */
+  left: calc(100vw - 220px);
+  text-align: right;
+}
+
+.character-name {
+  font-weight: bold;
+  font-size: 14px;
+  color: #b0c4de;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.resource-bar-container {
+  display: flex;
+  align-items: center;
+  height: 18px;
+}
+
+.hp-bar-label {
+  font-size: 12px;
+  font-weight: bold;
+  margin-right: 8px;
+  width: 40px;
+}
+
+.hp-bar {
+  flex-grow: 1;
+  height: 14px;
+  border: 2px solid #2f4f4f;
+  border-radius: 5px;
+  background: #1e2a38;
+  overflow: hidden;
+}
+
+.hp {
+  height: 100%;
+  background: linear-gradient(to right, #4682b4, #87ceeb);
+  transition: width 0.5s ease;
+}
+
+.resource-value {
+  font-size: 12px;
+  margin-left: 8px;
+  font-weight: bold;
+}
+
+.battle-log-container {
+  width: 100%;
+  height: 20vh;
+  background: rgba(40, 60, 80, 0.95);
+  border-top: 4px solid #2f4f4f;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  padding: 10px;
 }
 
-.shop-item div strong {
-  font-size: 1.1em;
-  color: #f0e0c0;
-  text-shadow: 1px 1px 0 #000;
+.battle-log {
+  width: 60%;
+  height: 100%;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px;
+  border: 2px solid #4682b4;
+  border-radius: 5px;
+  color: #b0c4de;
 }
 
-.shop-item div span {
-  font-size: 0.9em;
-  color: #f0b860;
-  text-shadow: 1px 1px 0 #000;
+.battle-log p {
+  margin: 0 0 6px 0;
+}
+
+.battle-log::-webkit-scrollbar {
+  width: 6px;
+}
+
+.battle-log::-webkit-scrollbar-track {
+  background: #1e2a38;
+  border-radius: 5px;
+}
+
+.battle-log::-webkit-scrollbar-thumb {
+  background: #4682b4;
+  border-radius: 5px;
+}
+
+.actions, .actions-placeholder {
+  width: 40%;
   display: flex;
+  justify-content: center;
   align-items: center;
+  flex-wrap: wrap;
 }
 
-.shop-item p {
-  grid-column: 2 / 3;
-  grid-row: 2 / 3;
-  font-size: 0.9em;
-  color: #c0b090;
-  margin: 0;
+.actions-placeholder {
+  color: #b0c4de;
+  font-size: 14px;
+  font-style: italic;
 }
 
-.shop-item button.buy-button {
-  grid-column: 3 / 4;
-  grid-row: 1 / 3;
-  margin: 0;
-  align-self: center;
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.exit-button {
+.potion-btn {
+  background-color: #5f9ea0;
+}
+
+.unit.is-attacking {
+  animation: attackShake 0.4s ease-in-out;
+}
+
+.unit.is-damaged {
+  animation: damageFlash 0.3s linear 2;
+}
+
+@keyframes attackShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+@keyframes damageFlash {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.5) saturate(1.2); }
+}
+
+.damage-popup {
   position: absolute;
-  top: 15px;
-  right: 15px;
-  margin: 0;
-  background-color: #5c2c1d;
-  color: #f0e0c0;
-  border-color: #3e1e14;
+  font-size: 18px;
+  font-weight: bold;
+  animation: floatUp 0.8s ease-out forwards;
+  pointer-events: none;
+  transform: translateX(-50%);
+  z-index: 25;
+  text-shadow: 1px 1px 3px black;
 }
 
-.exit-button:hover:not(:disabled) {
-  background-color: #704030;
+.damage-popup.player-damage { color: #c06060; }
+.damage-popup.enemy-damage { color: #d0a070; }
+.damage-popup.hp-heal { color: #90c090; }
+
+@keyframes floatUp {
+  0% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -50px); }
 }
 
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.4s ease, transform 0.4s ease;
-}
-
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-  transform: scale(0.98);
-}
-
-.shop-fade-enter-active, .shop-fade-leave-active {
-  transition: opacity 1s ease, transform 1s ease;
-}
-
-.shop-fade-enter-from, .shop-fade-leave-to {
-  opacity: 0;
-  transform: translateX(50px);
-}
-
-.collision-box {
+.attack-effect {
   position: absolute;
-  background-color: rgba(255, 0, 0, 0);
-  z-index: 1;
+  z-index: 20;
+  pointer-events: none;
 }
 
-.interaction-box {
-  position: absolute;
-  background-color: rgba(0, 255, 0, 0);
-  z-index: 1;
+.effect-sprite {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 </style>
