@@ -196,6 +196,9 @@ battleMusic.loop = true;
 
 const router = useRouter();
 
+// Direct audio handling for cutscene music
+const suspenseMusic = ref(null);
+
 // Game State Store (Mock, replace with actual store)
 const gameState = reactive({
   player: {
@@ -405,7 +408,23 @@ const showAttackEffect = async (attackerElement, targetElement, isPlayer = true)
 
 // Cutscene Logic
 const playCutscene = async () => {
-  playAudio('cave_ambient', { loop: true });
+  try {
+    suspenseMusic.value = new Audio('/audio/musica-sus.mp3');
+    suspenseMusic.value.loop = true;
+    console.log('Attempting to play musica-sus.mp3 directly');
+    await suspenseMusic.value.play();
+    console.log('musica-sus.mp3 started playing');
+  } catch (err) {
+    console.error('Failed to play musica-sus.mp3 directly:', err);
+    feedbackMessage.value = 'Não foi possível tocar a música de suspense. Verifique se há interação do usuário.';
+    showFeedback.value = true;
+  }
+  try {
+    playAudio('cave_ambient', { loop: true });
+    console.log('Playing cave_ambient');
+  } catch (err) {
+    console.error('Failed to play cave_ambient:', err);
+  }
   playAudio('fire_crackle');
   displayedLines.value = new Array(cutsceneLines.length).fill('');
   for (let i = 0; i < cutsceneLines.length; i++) {
@@ -433,7 +452,22 @@ const playCutscene = async () => {
 };
 
 const endCutscene = async () => {
-  playAudio('cave_ambient', { stop: true });
+  try {
+    if (suspenseMusic.value) {
+      suspenseMusic.value.pause();
+      suspenseMusic.value.currentTime = 0;
+      console.log('Stopped musica-sus.mp3 directly');
+      suspenseMusic.value = null;
+    }
+  } catch (err) {
+    console.error('Failed to stop musica-sus.mp3 directly:', err);
+  }
+  try {
+    playAudio('cave_ambient', { stop: true });
+    console.log('Stopped cave_ambient');
+  } catch (err) {
+    console.error('Failed to stop cave_ambient:', err);
+  }
   isFading.value = true;
   await sleep(500);
   isFading.value = false;

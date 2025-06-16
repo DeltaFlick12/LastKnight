@@ -2,7 +2,7 @@
 <template>
   <div class="ruinas-view" :style="showCutscene ? cutsceneBackgroundStyle : backgroundStyle">
     <!-- Cutscene -->
-    <div v-if="showCutscene" class="cutscene-container" tabindex="0">
+    <div v-if="showCutscene" class="cutscene-container" tabindex="0" @click="advanceCutscene">
       <div class="cutscene-content">
         <div v-for="(line, index) in cutsceneLines" :key="index" class="cutscene-line" :class="{ visible: index < currentCutsceneLine }">
           <span class="typewriter" ref="typewriterSpans">{{ displayedLines[index] || '' }}</span>
@@ -15,6 +15,10 @@
           aria-label="Avançar para a interação"
         >
           ➤
+        </div>
+        <div v-if="showAudioPrompt" class="audio-prompt">
+          <p>Áudio não iniciado automaticamente. Clique para iniciar a cutscene com música.</p>
+          <button @click.stop="startCutsceneWithAudio">Iniciar</button>
         </div>
       </div>
     </div>
@@ -92,8 +96,8 @@
             <img :src="playerSprite" alt="Player" class="character-sprite" />
           </div>
           <div class="character-info player-info">
-  <span class="character-name">{{ playerCharacter.name }} ({{ playerCharacter.className }})</span>
-</div>
+            <span class="character-name">{{ playerCharacter.name }} ({{ playerCharacter.className }})</span>
+          </div>
 
           <!-- Enemy (Ancestral Dragon) -->
           <div v-for="(enemy, index) in activeEnemies" :key="`enemy-${index}`">
@@ -211,6 +215,9 @@ const cutsceneLines = [
 const displayedLines = ref([]);
 const cutsceneBackgroundImage = ref(warriorImage);
 const isFading = ref(false);
+const showAudioPrompt = ref(false);
+const isCutscenePlaying = ref(false);
+const cutsceneMusic = ref(null);
 
 // Background Styles
 const backgroundStyle = computed(() => ({
@@ -356,11 +363,29 @@ const showAttackEffect = async (attackerElement, targetElement, isPlayer = true)
 // Cutscene Logic
 const typewriterSpans = ref([]);
 const playCutscene = async () => {
-  playAudio('ruins_ambient', { loop: true });
-  playAudio('cutscene_ruins_intro');
+  isCutscenePlaying.value = true;
+  // Initialize cutscene music
+  cutsceneMusic.value = new Audio('/audio/musica-sus.mp3');
+  cutsceneMusic.value.loop = true;
+  try {
+    await cutsceneMusic.value.play();
+    console.log('Cutscene music started successfully');
+  } catch (err) {
+    console.error('Failed to play cutscene music:', err);
+    showAudioPrompt.value = true;
+    isCutscenePlaying.value = false;
+    return;
+  }
+  try {
+    playAudio('ruins_ambient', { loop: true });
+    playAudio('cutscene_ruins_intro');
+  } catch (err) {
+    console.error('Error playing additional cutscene audio:', err);
+  }
   displayedLines.value = new Array(cutsceneLines.length).fill('');
   cutsceneBackgroundImage.value = warriorImage;
   for (let i = 0; i < cutsceneLines.length; i++) {
+    if (!isCutscenePlaying.value) break; // Allow interruption
     currentCutsceneLine.value = i + 1;
     const text = cutsceneLines[i];
     for (let j = 0; j <= text.length; j++) {
@@ -380,10 +405,39 @@ const playCutscene = async () => {
       await sleep(1500);
     }
   }
+  isCutscenePlaying.value = false;
+};
+
+const startCutsceneWithAudio = async () => {
+  showAudioPrompt.value = false;
+  if (!isCutscenePlaying.value) {
+    await playCutscene();
+  }
+};
+
+const advanceCutscene = () => {
+  if (showAudioPrompt.value) {
+    startCutsceneWithAudio();
+  }
 };
 
 const endCutscene = async () => {
-  playAudio('ruins_ambient', { stop: true });
+  isCutscenePlaying.value = false;
+  if (cutsceneMusic.value) {
+    try {
+      cutsceneMusic.value.pause();
+      cutsceneMusic.value.currentTime = 0;
+      cutsceneMusic.value = null;
+      console.log('Cutscene music stopped successfully');
+    } catch (err) {
+      console.error('Error stopping cutscene music:', err);
+    }
+  }
+  try {
+    playAudio('ruins_ambient', { stop: true });
+  } catch (err) {
+    console.error('Error stopping ruins_ambient audio:', err);
+  }
   isFading.value = true;
   await sleep(500);
   cutsceneBackgroundImage.value = ruinasDragonImage;
@@ -631,6 +685,7 @@ watch(
   align-items: flex-end;
   z-index: 100;
   outline: none;
+  cursor: pointer;
 }
 
 .cutscene-content {
@@ -687,6 +742,39 @@ watch(
 
 .cutscene-arrow:active {
   transform: translate(1px, 1px);
+}
+
+.audio-prompt {
+  background: rgba(244, 228, 188, 0.95);
+  border: 2px solid #D4C4A0;
+  padding: 10px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.audio-prompt p {
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.audio-prompt button {
+  background: linear-gradient(to bottom, #F4E4BC, #D4C4A0);
+  border: 2px solid #D4C4A0;
+  color: #3C2F2F;
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: 'MedievalSharp', cursive;
+  transition: filter 0.2s, transform 0.1s;
+}
+
+.audio-prompt button:hover {
+  filter: brightness(1.2);
+}
+
+.audio-prompt button:active {
+  transform: scale(0.97);
 }
 
 /* HUD Styles */

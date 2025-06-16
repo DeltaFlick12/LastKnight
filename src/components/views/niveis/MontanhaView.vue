@@ -124,8 +124,8 @@
             <img :src="playerSprite" alt="Player" class="character-sprite" />
           </div>
           <div class="character-info player-info">
-  <span class="character-name">{{ playerCharacter.name }} ({{ playerCharacter.className }})</span>
-</div>
+            <span class="character-name">{{ playerCharacter.name }} ({{ playerCharacter.className }})</span>
+          </div>
 
           <!-- Enemy (Ice Dragon) -->
           <div v-for="(enemy, index) in activeEnemies" :key="`enemy-${index}`">
@@ -142,8 +142,8 @@
             <div
                 class="unit enemy-character dragao-gelo"
                 :class="{ 'is-attacking': enemyAttacking === index, 'is-damaged': damagedEnemy === index, fainted: enemy.hpPercent <= 0 }"
-                  :style="enemyStyle(index, enemy)"
-                >
+                :style="enemyStyle(index, enemy)"
+            >
               <img :src="enemySprites[enemy.name]" alt="Enemy" class="character-sprite" />
             </div>
           </div>
@@ -212,24 +212,27 @@ import playerIdleSprite from '@/assets/sprites/player/player_idle.png';
 const playerSprite = playerIdleSprite;
 const battleMusic = new Audio('/audio/musica-combate.mp3');
 battleMusic.loop = true;
+const suspenseMusic = new Audio('/audio/musica-sus.mp3');
 import montanhaBaseImage from '@/assets/backviews/montanha-base.png';
 import montanhaImage from '@/assets/backviews/montanha-base.png';
 import montanhaBattleDragonImage from '@/assets/backviews/montanha-confronto.png';
 import montanhaCenarioImage from '@/assets/backviews/montanha-cenario.png';
 import playerEmergingImage from '@/assets/backviews/player-emerging.png';
 import dragonIceSprite from '@/assets/sprites/dragao-gelo.png';
-// import playerSprite from '@/assets/sprites/player-sprite.png'; // Descomentei
-// import attackEffectSprite from '@/assets/sprites/attack-effect.png'; // Descomentei
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { useGameState } from '@/stores/gameState.js'; // Importação corrigida
+import { useGameState } from '@/stores/gameState.js';
 import { playAudio } from '@/utils/audioManager.js';
 
-const gameStore = useGameState(); // Obtém o store
-const gameState = gameStore.$state; // Acessa o estado reativo
-const actions = gameStore; // Ações estão no objeto do store
-
+const gameStore = useGameState();
+const gameState = gameStore.$state;
+const actions = gameStore;
 const router = useRouter();
+
+// Preload suspense music
+onMounted(() => {
+  suspenseMusic.load();
+});
 
 // Dialogue State (at mountain base)
 const showDialogue = ref(true);
@@ -306,7 +309,7 @@ const filledStaminaSegments = computed(() =>
 // Player Character
 const playerCharacter = reactive({
   name: gameState.player.name || 'Herói',
-  className: gameState.player.classe || 'Guerreiro', // Ajustado para 'classe'
+  className: gameState.player.classe || 'Guerreiro',
   hpPercent: (gameState.player.health / gameState.player.maxHealth) * 100,
   currentHp: gameState.player.health || 100,
   maxHp: gameState.player.maxHealth || 100,
@@ -325,7 +328,7 @@ const enemiesConfig = [
     currentHp: 200,
     maxHp: 200,
     top: 200,
-    left: '80vw', // Position on the right side
+    left: '80vw',
     attackPower: 25,
   },
 ];
@@ -353,17 +356,17 @@ const damagePopup = reactive({ active: false, value: 0, top: 0, left: 0, type: '
 const attackEffect = reactive({ active: false, style: {} });
 
 // Computed Properties
-const potionCount = computed(() => gameStore.getItemQuantity('potion_health') || 0); // Ajustado para usar getter
+const potionCount = computed(() => gameStore.getItemQuantity('potion_health') || 0);
 const canUsePotion = computed(() => potionCount.value > 0 && playerCharacter.currentHp < playerCharacter.maxHp);
 const activeEnemies = computed(() => enemies.filter(enemy => enemy.hpPercent > 0 && enemies.indexOf(enemy) === currentEnemyIndex.value));
 const enemyInfoStyle = index => ({
   top: `${initialEnemyPositions[index].top - 90}px`,
-  left: `calc(${initialEnemyPositions[index].left} - 120px)`, // Align with dragon's left position
+  left: `calc(${initialEnemyPositions[index].left} - 120px)`,
 });
 const enemyStyle = (index, enemy) => ({
-  top: `${(enemy.hpPercent > 0 ? enemy.top : initialEnemyPositions[index].top) + 100}px`, // +50 empurra para baixo
+  top: `${(enemy.hpPercent > 0 ? enemy.top : initialEnemyPositions[index].top) + 100}px`,
   left: enemy.hpPercent > 0 ? enemy.left : initialEnemyPositions[index].left,
-  transform: 'scale(3.5)', // aumenta 50% o tamanho
+  transform: 'scale(3.5)',
   transformOrigin: 'center center',
 });
 
@@ -451,6 +454,8 @@ const endDialogue = async () => {
 
 // Cutscene Logic
 const playCutscene = async () => {
+  suspenseMusic.loop = true;
+  suspenseMusic.play().catch(err => console.error('Erro ao tocar musica-sus.mp3:', err));
   playAudio('mountain_ambient', { loop: true });
   playAudio('wind_howl');
   displayedLines.value = new Array(cutsceneLines.length).fill('');
@@ -478,6 +483,8 @@ const playCutscene = async () => {
 };
 
 const endCutscene = async () => {
+  suspenseMusic.pause();
+  suspenseMusic.currentTime = 0;
   playAudio('mountain_ambient', { stop: true });
   isFading.value = true;
   await sleep(500);
@@ -518,17 +525,12 @@ const confrontBoss = () => {
   inBattle.value = true;
   currentEnemyIndex.value = 0;
   battleLog.value = [`${playerCharacter.name} enfrenta o Dragão de Gelo!`];
-
-  // Para qualquer música ambiente anterior
   playAudio('mountain_ambient', { stop: true });
-
-  // ⚠️ Reinicia música se já estiver tocando, para evitar bugs de "sem som"
   battleMusic.pause();
   battleMusic.currentTime = 0;
   battleMusic.play().catch((err) => {
     console.warn('Erro ao tocar música de batalha:', err);
   });
-
   playAudio('battle_start_dragon_ice');
   feedbackMessage.value = 'O Dragão de Gelo surge rugindo da nevasca!';
   showFeedback.value = true;
@@ -568,9 +570,8 @@ const attackEnemy = async () => {
   const originalLeft = playerCharacter.left;
   playerCharacter.left += 40;
   await sleep(200);
-  await showAttackEffect(playerElement, enemyElement, true); // true → ataque do player
-  await showAttackEffect(enemyElement, playerElement, false); // false → ataque do dragão
-
+  await showAttackEffect(playerElement, enemyElement, true);
+  await showAttackEffect(enemyElement, playerElement, false);
   playerCharacter.left = originalLeft;
   damagedEnemy.value = enemyIndex;
   const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 6 + 10);
@@ -612,8 +613,8 @@ const usePotion = async () => {
   gameState.player.stamina = playerCharacter.currentStamina;
   addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
   const playerElement = document.querySelector('.player-character');
-  actions.removeItemFromInventory('potion_health', 1); // Ajustado para potion_health
-  gameState.player.potions = gameStore.getItemQuantity('potion_health'); // Atualiza potions
+  actions.removeItemFromInventory('potion_health', 1);
+  gameState.player.potions = gameStore.getItemQuantity('potion_health');
   const healAmount = 30;
   playerCharacter.currentHp = Math.min(playerCharacter.maxHp, playerCharacter.currentHp + healAmount);
   playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
@@ -685,7 +686,7 @@ const handleDefeat = () => {
   showFeedback.value = true;
   setTimeout(() => router.push('/'), 2000);
   battleMusic.pause();
-battleMusic.currentTime = 0;
+  battleMusic.currentTime = 0;
 };
 
 const goToNextArea = () => {
@@ -758,7 +759,7 @@ watch(
   height: 100vh;
   overflow: auto;
   transition: opacity 0.5s ease;
-  background-color: #e0ffff; /* Fallback color */
+  background-color: #e0ffff;
 }
 
 /* Cold Overlay */
@@ -1133,9 +1134,9 @@ watch(
 }
 
 .player-info {
-  bottom: 20px; /* menor que a altura do sprite */
+  bottom: 20px;
   left: 20px;
-  z-index: 5; /* garante que fique abaixo do sprite */
+  z-index: 5;
 }
 .enemy-info { text-align: right; }
 
@@ -1248,7 +1249,7 @@ watch(
 }
 
 .enemy-character.dragao-gelo.is-attacking {
-animation: dragonShake 0.4s ease-in-out;
+  animation: dragonShake 0.4s ease-in-out;
   transform: scale(3.5);
 }
 .unit.is-attacking { animation: attackShake 0.4s ease-in-out; }
@@ -1307,7 +1308,7 @@ animation: dragonShake 0.4s ease-in-out;
 .action-btn {
   font-family: 'MedievalSharp', cursive;
   background: linear-gradient(to bottom, #4352d3, #1673ca);
-  border: 3px solid #1851b9; /* dourado medieval */
+  border: 3px solid #1851b9;
   color: #fff8dc;
   padding: 10px 20px;
   font-size: 16px;
@@ -1325,6 +1326,4 @@ animation: dragonShake 0.4s ease-in-out;
   transform: scale(0.97);
   box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6);
 }
-
-
 </style>
