@@ -66,7 +66,7 @@
         <div class="pause-options">
           <button class="pause-option" @click="continuarJogo">Continuar</button>
           <button class="pause-option" @click="irParaOpcoes">Opções</button>
-          <button class="pause-option" @click="voltarAoMenu">Sair</button>
+          <button class="pause-option-sair" @click="voltarAoMenu">Sair</button>
         </div>
       </div>
     </div>
@@ -419,6 +419,30 @@ const filledStaminaSegments = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 15px;
+}
+
+.pause-option-sair {
+  background-color: #e73939;
+  color: #5c1d1d;
+  border: 4px solid #5c1d1d;
+  padding: 15px;
+  font-size: 24px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: inset -6px -6px #d14444, inset 6px 6px #ff8e8e;
+  font-weight: bold;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
+}
+
+.pause-option-sair:hover {
+  background-color: #f04545;
+  color: #3e1414;
+  box-shadow: inset -6px -6px #c93232, inset 6px 6px #ffa1a1;
+}
+
+.pause-option-sair:active {
+  transform: translateY(2px);
+  box-shadow: inset -3px -3px #d14444, inset 3px 3px #ff8e8e;
 }
 
 .pause-option {
