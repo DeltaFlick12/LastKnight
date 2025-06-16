@@ -1,5 +1,4 @@
 <template>
-  <img src="@/assets/menu-bg.jpg" class="background-image" alt="Background" />
   <div class="options-container slide-down">
     <div class="options-box">
       <h1 class="options-title">{{ texts[language].title }}</h1>
@@ -25,7 +24,6 @@
           </select>
         </div>
 
-        <!-- Novo botão toggle para shaders -->
         <div class="option-group">
           <label>✨ {{ texts[language].shaders }}</label>
           <div class="toggle-container" @click="toggleShaders">
@@ -45,7 +43,6 @@
         </div>
       </div>
 
-      <!-- Mensagem de salvamento -->
       <p :class="['saved-msg', { show: saved }]">✔️ {{ texts[language].savedMsg }}</p>
     </div>
   </div>
@@ -55,6 +52,8 @@
 import { ref, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useGameState } from '@/stores/gamestate.js';
+
+const emit = defineEmits(["close"]); // ✅ movido aqui para funcionar em goBack
 
 const router = useRouter();
 const gameState = useGameState();
@@ -70,7 +69,8 @@ const texts = {
     savedMsg: "Configurações salvas!",
     shaders: "Efeitos de Luz",
     on: "Ligado",
-    off: "Desligado"
+    off: "Desligado",
+    confirmReset: "Tem certeza que deseja resetar todo o progresso?"
   },
   en: {
     title: "OPTIONS",
@@ -82,15 +82,8 @@ const texts = {
     savedMsg: "Settings saved!",
     shaders: "Light Effects",
     on: "On",
-    off: "Off"
-  }
-};
-
-const resetProgress = () => {
-  playClick();
-  if (confirm(texts[language.value].confirmReset)) {
-    localStorage.clear();
-    location.reload();
+    off: "Off",
+    confirmReset: "Are you sure you want to reset all progress?"
   }
 };
 
@@ -98,7 +91,6 @@ const musicVolume = ref(50);
 const language = ref("pt");
 const shadersEnabled = ref(true);
 const saved = ref(false);
-
 let clickSound;
 
 onMounted(() => {
@@ -106,13 +98,8 @@ onMounted(() => {
   musicVolume.value = storedMusicVolume !== null ? Number(storedMusicVolume) : 50;
 
   const storedLanguage = localStorage.getItem("language");
-  if (storedLanguage && ['pt', 'en'].includes(storedLanguage)) {
-    language.value = storedLanguage;
-  } else {
-    language.value = "pt";
-  }
+  language.value = storedLanguage && ['pt', 'en'].includes(storedLanguage) ? storedLanguage : "pt";
 
-  // Carrega o estado dos shaders do gameState
   shadersEnabled.value = gameState.shaders !== undefined ? gameState.shaders : true;
 
   clickSound = new Audio("/audio/click.ogg");
@@ -125,17 +112,21 @@ watch(language, (newLang) => {
   localStorage.setItem("language", newLang);
 });
 
+const resetProgress = () => {
+  playClick();
+  if (confirm(texts[language.value].confirmReset)) {
+    localStorage.clear();
+    location.reload();
+  }
+};
+
 const saveSettings = () => {
   playClick();
   localStorage.setItem("musicVolume", musicVolume.value);
   localStorage.setItem("language", language.value);
-
-  // Salva o estado dos shaders no gameState
   gameState.shaders = shadersEnabled.value;
   gameState.saveState();
-
   updateVolume("music");
-
   saved.value = true;
   setTimeout(() => (saved.value = false), 1500);
 };
@@ -147,12 +138,12 @@ const toggleShaders = () => {
 
 const goBack = () => {
   playClick();
-  router.push("/");
+  emit("close"); // ✅ agora realmente fecha o overlay
 };
 
 const updateVolume = (type) => {
   const value = type === "music" ? musicVolume.value : 0;
-  if (window.gameAudio && window.gameAudio.music) {
+  if (window.gameAudio?.music) {
     window.gameAudio.music.volume = value / 100;
   }
 };
@@ -163,13 +154,18 @@ function playClick() {
 </script>
 
 <style scoped>
-.background-image {
+.options-container {
   position: fixed;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: -2;
-  filter: blur(1px);
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3); /* fundo escurecido translúcido */
+  backdrop-filter: blur(2px); /* leve desfoque do que está atrás */
+  z-index: 100;
 }
 
 .slide-down {
@@ -186,33 +182,13 @@ function playClick() {
   }
 }
 
-.options-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.7);
-  z-index: 100;
-}
-
 .options-box {
-  position: relative;
   background: #e0a867;
-  border: 6px solid #5c2c1d;
-  border-radius: 10px;
-  padding: 20px;
-  padding-bottom: 60px;
-  width: 80%;
-  max-width: 600px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
-  image-rendering: pixelated;
+  border: 4px solid #5c2c1d;
+  padding: 30px;
+  border-radius: 12px;
+  min-width: 400px;
+  box-shadow: 0 0 10px #000;
 }
 
 .options-title {
@@ -227,7 +203,7 @@ function playClick() {
   flex: 1;
   overflow-y: auto;
   padding: 10px;
-  color: #5c2c1d;
+  background: #e0a867;
   font-size: 18px;
   text-align: left;
   margin-bottom: 20px;
@@ -251,22 +227,10 @@ input[type="range"] {
   background: #d17844;
   border: 2px solid #5c2c1d;
   border-radius: 5px;
-  -webkit-appearance: none;
   appearance: none;
-  outline: none;
 }
 
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 30px;
-  height: 30px;
-  background: #5c2c1d;
-  border: 2px solid #ffcb8e;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
+input[type="range"]::-webkit-slider-thumb,
 input[type="range"]::-moz-range-thumb {
   width: 30px;
   height: 30px;
@@ -291,12 +255,11 @@ select {
   border-radius: 5px;
   font-size: 16px;
   color: #5c2c1d;
-  cursor: pointer;
-  appearance: none;
   background-image: url('data:image/svg+xml;utf8,<svg fill="%235c2c1d" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5H7z"/></svg>');
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 20px;
+  appearance: none;
 }
 
 select:focus {
@@ -304,7 +267,6 @@ select:focus {
   background-color: #ffcb8e;
 }
 
-/* Estilo para o toggle switch de shaders */
 .toggle-container {
   display: flex;
   align-items: center;
@@ -335,12 +297,10 @@ select:focus {
   background: #ffcb8e;
   border-radius: 50%;
   transition: all 0.3s;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .toggle-switch.active .toggle-button {
   left: 32px;
-  background: #ffcb8e;
 }
 
 .toggle-label {
@@ -364,24 +324,20 @@ select:focus {
   padding: 10px 40px;
   width: 200px;
   height: 50px;
-  line-height: 30px;
   font-size: 24px;
   text-align: center;
   cursor: pointer;
   box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
   font-weight: bold;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
 }
 
 .menu-button:hover {
   background-color: #f4b76a;
   color: #3e1e14;
-  box-shadow: inset -6px -6px #c96a32, inset 6px 6px #ffd9a1;
 }
 
 .menu-button:active {
   transform: translateY(2px);
-  box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8e;
 }
 
 .danger-button {
@@ -389,33 +345,14 @@ select:focus {
   color: #fff2cc;
   border-color: #7e1a1a;
   box-shadow: inset -6px -6px #8b0000, inset 6px 6px #ff4040;
-  position: relative;
-  overflow: hidden;
 }
 
 .danger-button:hover {
   background-color: #9b1d1d;
-  box-shadow: inset -6px -6px #6b1515, inset 6px 6px #ff6666;
-  color: #ffffff;
 }
 
 .danger-button:active {
   transform: translateY(2px);
-  box-shadow: inset -3px -3px #8b0000, inset 3px 3px #ff4040;
-}
-
-.danger-button::before {
-  content: "⚠";
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 20px;
-  opacity: 0.7;
-}
-
-.danger-button:hover::before {
-  opacity: 1;
 }
 
 .saved-msg {
@@ -429,7 +366,6 @@ select:focus {
   color: #5c2c1d;
   font-size: 18px;
   font-weight: bold;
-  text-align: center;
   opacity: 0;
   transition: opacity 0.3s ease-in-out;
   pointer-events: none;
