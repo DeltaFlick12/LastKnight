@@ -1,13 +1,24 @@
 <template>
   <div class="ruinas-view" :style="showCutscene ? cutsceneBackgroundStyle : backgroundStyle">
     <!-- Cutscene -->
-    <div v-if="showCutscene" class="cutscene-container" tabindex="0" @click="advanceCutscene" @keydown="advanceCutscene">
+    <div
+      v-if="isGameStateReady && showCutscene"
+      class="cutscene-container"
+      tabindex="0"
+      @click="advanceCutscene"
+      @keydown="advanceCutscene"
+    >
       <div class="cutscene-content">
-        <div v-for="(line, index) in cutsceneLines" :key="index" class="cutscene-line" :class="{ visible: index < currentCutsceneLine }">
+        <div
+          v-for="(line, index) in cutsceneLines"
+          :key="index"
+          class="cutscene-line"
+          :class="{ visible: index < currentCutsceneLine }"
+        >
           <span class="typewriter">{{ displayedLines[index] || '' }}</span>
         </div>
         <div
-          v-if="currentCutsceneLine >= cutsceneLines.length"
+          v-if="cutsceneLines && currentCutsceneLine >= cutsceneLines.length"
           class="cutscene-arrow"
           @click.stop="endCutscene"
           role="button"
@@ -26,7 +37,13 @@
             <img src="/icons/life-icon.png" alt="" class="icon" />
             <span class="lives-overlay">{{ gameState.player.lives }}</span>
           </div>
-          <div class="bar-container segmented" role="progressbar" :aria-valuenow="gameState.player.health" :aria-valuemax="gameState.player.maxHealth" aria-label="Barra de vida">
+          <div
+            class="bar-container segmented"
+            role="progressbar"
+            :aria-valuenow="gameState.player.health"
+            :aria-valuemax="gameState.player.maxHealth"
+            aria-label="Barra de vida"
+          >
             <div
               v-for="i in maxBarSegments"
               :key="`vida-${i}`"
@@ -42,7 +59,13 @@
           <div class="icon-container" aria-hidden="true">
             <img src="/icons/stam-icon.png" alt="" class="icon" />
           </div>
-          <div class="bar-container segmented" role="progressbar" :aria-valuenow="gameState.player.stamina" :aria-valuemax="gameState.player.maxStamina" aria-label="Barra de energia">
+          <div
+            class="bar-container segmented"
+            role="progressbar"
+            :aria-valuenow="gameState.player.stamina"
+            :aria-valuemax="gameState.player.maxStamina"
+            aria-label="Barra de energia"
+          >
             <div
               v-for="i in maxBarSegments"
               :key="`energia-${i}`"
@@ -87,10 +110,15 @@
           <div
             class="unit player-character"
             :class="{ 'is-attacking': playerAttacking, 'is-damaged': damagedPlayer }"
-            :style="{ top: `${playerCharacter.top}px`, left: `${playerCharacter.left}px` }"
+            :style="{
+              top: `${playerCharacter.top}px`,
+              left: `${playerCharacter.left}px`,
+              backgroundImage: `url(${playerSprite})`,
+              backgroundPosition: `-${animations[currentAnimation].frames[currentFrame] * frameWidth}px -${animations[currentAnimation].row * frameHeight}px`,
+              width: `${frameWidth}px`,
+              height: `${frameHeight}px`
+            }"
           >
-            <img :src="playerSprite" alt="Player" class="character-sprite" />
-            <img v-if="weaponSprite" :src="weaponSprite" alt="Weapon" class="weapon-sprite" />
           </div>
           <div class="character-info player-info">
             <span class="character-name">{{ gameState.player.name || 'Herói' }} ({{ gameState.player.classe }}{{ weaponName ? ', ' + weaponName : '' }})</span>
@@ -132,7 +160,7 @@
             <img :src="attackEffect.sprite" alt="Attack Effect" class="effect-sprite" />
           </div>
 
-          <!-- Projectile Effect (CSS-based) -->
+          <!-- Projectile Effect -->
           <div v-if="projectile.active" class="projectile-effect" :style="projectile.style"></div>
         </div>
 
@@ -142,10 +170,18 @@
             <p v-for="(message, index) in battleLog" :key="index" v-html="message"></p>
           </div>
           <div class="actions" v-if="isPlayerTurn && !isAttacking && !gameOver && !victory">
-            <button class="action-btn attack-btn" @click="attackEnemy" :disabled="activeEnemies.length === 0 || gameState.player.stamina < 10">
+            <button
+              class="action-btn attack-btn"
+              @click="attackEnemy"
+              :disabled="activeEnemies.length === 0 || gameState.player.stamina < 10"
+            >
               Atacar
             </button>
-            <button class="action-btn potion-btn" @click="usePotion" :disabled="!canUsePotion || gameState.player.stamina < 5">
+            <button
+              class="action-btn potion-btn"
+              @click="usePotion"
+              :disabled="!canUsePotion || gameState.player.stamina < 5"
+            >
               Poção ({{ potionCount }})
             </button>
           </div>
@@ -181,7 +217,6 @@
 <script setup>
 import attackEffectSpritePlayer from '@/assets/sprites/ataque-efeito.png';
 import attackEffectSpriteDragon from '@/assets/sprites/ataque-dragao.png';
-import playerIdleSprite from '@/assets/sprites/player/player_idle.png';
 import dragonRuinaSprite from '@/assets/sprites/dragao-ruina.png';
 import ruinasDragonImage from '@/assets/backviews/ruinas-dragon.png';
 import ruinasBattleImage from '@/assets/backviews/ruinas-battle.png';
@@ -194,27 +229,42 @@ import { playAudio } from '@/utils/audioManager.js';
 
 const router = useRouter();
 const gameState = useGameState();
+const isGameStateReady = ref(false);
 const battleMusic = new Audio('/audio/musica-combate.mp3');
 battleMusic.loop = true;
 battleMusic.volume = 0.3;
 
-const playerSprite = playerIdleSprite;
-const enemySprites = {
-  'Dragão Ancestral': dragonRuinaSprite,
+// Sprite Sheet for Player
+const playerSprite = new URL('/img/sprites/player/player_sprite.png', import.meta.url).href;
+
+// Animation Variables
+const currentFrame = ref(0);
+const frameTimer = ref(0);
+const frameWidth = 96;
+const frameHeight = 96;
+const animations = {
+  idle: { row: 2, frames: [0, 1, 2, 3, 4, 5, 6, 7], frameInterval: 150 },
+  attack_right: {
+    row: 14,
+    frames: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11],
+    frameInterval: 100
+  }
 };
+const currentAnimation = computed(() => playerAttacking.value ? 'attack_right' : 'idle');
+let animationFrameId = null;
 
 // Cutscene State
 const showCutscene = ref(false);
 const currentCutsceneLine = ref(0);
-const cutsceneLines = [
+const cutsceneLines = ref([
   'A névoa sufoca as Ruínas Ancestrais, um túmulo de pedra onde o tempo parou.',
   'Sombras dançam entre colunas partidas, sussurrando segredos de um reino perdido.',
   'Cada passo ecoa, como se o chão guardasse memórias de sangue e traição.',
   'Um rugido primal rasga o silêncio, estremecendo a terra sob seus pés.',
   'O Dragão Ancestral desperta, seus olhos de fogo perfurando a escuridão.',
   'Seu destino está selado: enfrentar a fera ou ser consumido por sua ira.',
-];
-const displayedLines = ref(cutsceneLines.map(() => ''));
+]);
+const displayedLines = ref(cutsceneLines.value.map(() => ''));
 const cutsceneBackgroundImage = ref(warriorImage);
 const isFading = ref(false);
 const isCutscenePlaying = ref(false);
@@ -288,6 +338,10 @@ const initialEnemyPositions = enemiesConfig.map(enemy => ({
   left: enemy.left,
 }));
 const enemies = reactive(enemiesConfig.map(enemy => ({ ...enemy })));
+const enemySprites = {
+  'Dragão Ancestral': dragonRuinaSprite,
+};
+const activeEnemies = computed(() => enemies.filter(enemy => enemy.hpPercent > 0));
 
 // Battle State
 const damagedEnemy = ref(null);
@@ -303,21 +357,8 @@ const victory = ref(false);
 const damagePopup = reactive({ active: false, value: 0, top: 0, left: 0, type: 'enemy-damage', prefix: '-' });
 const attackEffect = reactive({ active: false, style: {}, sprite: null });
 const projectile = reactive({ active: false, style: {} });
-
-// Computed Properties
 const potionCount = computed(() => gameState.getItemQuantity('potion_health'));
 const canUsePotion = computed(() => potionCount.value > 0 && gameState.player.health < gameState.player.maxHealth);
-const activeEnemies = computed(() => enemies.filter(enemy => enemy.hpPercent > 0));
-const enemyInfoStyle = index => ({
-  top: `${initialEnemyPositions[index].top - 120}px`,
-  left: `calc(${initialEnemyPositions[index].left} - 120px)`,
-});
-const enemyStyle = (index, enemy) => ({
-  top: `${(enemy.hpPercent > 0 ? enemy.top : initialEnemyPositions[index].top) + 100}px`,
-  left: enemy.hpPercent > 0 ? enemy.left : initialEnemyPositions[index].left,
-  transform: 'scale(5.5)',
-  transformOrigin: 'center center',
-});
 
 // Utility Functions
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -393,6 +434,36 @@ const showProjectile = async (attackerElement, targetElement) => {
   Object.assign(projectile, { active: false, style: {} });
 };
 
+const enemyStyle = (index, enemy) => ({
+  top: `${enemy.top}px`,
+  left: enemy.left,
+  backgroundImage: `url(${enemySprites[enemy.name]})`,
+  width: '96px',
+  height: '96px',
+});
+
+const enemyInfoStyle = (index) => ({
+  top: `${enemies[index].top - 60}px`,
+  right: '20px',
+});
+
+// Animation Loop
+const updateAnimation = (now) => {
+  if (!inBattle.value) return;
+  const anim = animations[currentAnimation.value];
+  if (now - frameTimer.value > anim.frameInterval) {
+    frameTimer.value = now;
+    currentFrame.value++;
+    if (currentFrame.value >= anim.frames.length) {
+      currentFrame.value = 0;
+      if (playerAttacking.value) {
+        playerAttacking.value = false;
+      }
+    }
+  }
+  animationFrameId = requestAnimationFrame(updateAnimation);
+};
+
 // Audio Management
 const initializeAudio = () => {
   cutsceneMusic.value = new Audio('/audio/musica-sus.mp3');
@@ -417,12 +488,12 @@ const stopAllAudio = () => {
 const playCutscene = async () => {
   isCutscenePlaying.value = true;
   currentCutsceneLine.value = 0;
-  displayedLines.value = cutsceneLines.map(() => '');
+  displayedLines.value = cutsceneLines.value.map(() => '');
   cutsceneBackgroundImage.value = warriorImage;
 
-  for (let i = 0; i < cutsceneLines.length && isCutscenePlaying.value; i++) {
+  for (let i = 0; i < cutsceneLines.value.length && isCutscenePlaying.value; i++) {
     currentCutsceneLine.value = i + 1;
-    const text = cutsceneLines[i];
+    const text = cutsceneLines.value[i];
     for (let j = 0; j <= text.length && isCutscenePlaying.value; j++) {
       await new Promise(resolve => setTimeout(() => {
         displayedLines.value[i] = text.slice(0, j);
@@ -454,7 +525,6 @@ const startCutsceneWithAudio = async () => {
     await playCutscene();
   } catch (err) {
     console.warn('Failed to play cutscene music:', err);
-    // Proceed with cutscene even if audio fails
     await playCutscene();
   }
 };
@@ -463,8 +533,8 @@ const advanceCutscene = (event) => {
   if (event.type === 'click' || (event.type === 'keydown' && ['Enter', 'Space'].includes(event.key))) {
     if (isCutscenePlaying.value) {
       const currentIndex = currentCutsceneLine.value - 1;
-      if (currentIndex < cutsceneLines.length) {
-        displayedLines.value[currentIndex] = cutsceneLines[currentIndex];
+      if (currentIndex < cutsceneLines.value.length) {
+        displayedLines.value[currentIndex] = cutsceneLines.value[currentIndex];
         displayedLines.value = [...displayedLines.value];
       }
     }
@@ -492,6 +562,8 @@ const confrontBoss = () => {
   playAudio('battle_start_dragon_ancestral', { volume: 0.3 });
   feedbackMessage.value = 'O Dragão Ancestral desperta!';
   showFeedback.value = true;
+  frameTimer.value = performance.now();
+  animationFrameId = requestAnimationFrame(updateAnimation);
 };
 
 const collectRewards = () => {
@@ -522,10 +594,13 @@ const attackEnemy = async () => {
   }
   isAttacking.value = true;
   playerAttacking.value = true;
+  currentFrame.value = 0;
+  frameTimer.value = performance.now();
 
-  // Regenerate stamina at the start of the player's turn
-  gameState.recoverStamina(5);
+  gameState.recoverStamina(7);
   addLogMessage(`<span style="color: #33cc33;">⚡ +5 energia restaurada!</span>`);
+  gameState.useStamina(10);
+  addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
 
   const attackResult = gameState.playerAttackAction();
   if (!attackResult.success) {
@@ -555,7 +630,6 @@ const attackEnemy = async () => {
   addLogMessage(`<span style="color: #d0a070;">💥 ${damageDealt} de dano!</span>`);
   await sleep(500);
   damagedEnemy.value = null;
-  playerAttacking.value = false;
   if (enemy.hpPercent <= 0) {
     addLogMessage(`<span style="color: #a09080;">☠️ O Dragão Ancestral caiu!</span>`);
     victory.value = true;
@@ -582,10 +656,8 @@ const usePotion = async () => {
   }
   isAttacking.value = true;
 
-  // Regenerate stamina at the start of the player's turn
   gameState.recoverStamina(5);
   addLogMessage(`<span style="color: #33cc33;">⚡ +5 energia restaurada!</span>`);
-
   gameState.useStamina(5);
   addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
   const playerElement = document.querySelector('.player-character');
@@ -628,7 +700,7 @@ const enemyTurn = async () => {
   await sleep(500);
   enemyAttacking.value = null;
   damagedPlayer.value = true;
-  await sleep(300);
+  await sleep(1000);
   damagedPlayer.value = false;
   if (gameState.player.health <= 0) {
     addLogMessage(`<b>💀 ${gameState.player.name || 'Herói'} foi derrotado!</b>`);
@@ -692,6 +764,25 @@ const goToNextArea = () => {
 
 // Lifecycle Hooks
 onMounted(() => {
+  console.log('Component mounted, gameState:', gameState);
+  console.log('cutsceneLines:', cutsceneLines.value);
+  if (!gameState.player) {
+    console.error('gameState.player is undefined, initializing...');
+    gameState.player = reactive({
+      health: 100,
+      maxHealth: 100,
+      stamina: 50,
+      maxStamina: 50,
+      lives: 3,
+      name: 'Herói',
+      classe: 'Guerreiro',
+      keys: { ancestral: false, ice: false, fire: false },
+      equipment: { weapon: null },
+      potions: 0,
+      hasViewedRuinasCutscene: false,
+      levelsCompleted: [],
+    });
+  }
   gameState.setCurrentArea('Ruínas Ancestrais');
   if (!gameState.player.keys) {
     gameState.player.keys = reactive({ ancestral: false, ice: false, fire: false });
@@ -712,6 +803,7 @@ onMounted(() => {
     gameState.player.potions = 0;
   }
   bossDefeated.value = gameState.levelsCompleted.includes('ruinas_boss');
+  isGameStateReady.value = true;
 
   if (!bossDefeated.value && !gameState.player.hasViewedRuinasCutscene) {
     showCutscene.value = true;
@@ -722,7 +814,11 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  console.log('Component unmounted');
   stopAllAudio();
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+  }
 });
 </script>
 
@@ -862,7 +958,7 @@ onUnmounted(() => {
   width: 200px;
   height: 24px;
   background: rgba(0, 0, 0, 0.7);
-  border: 2px solid #4a4e57;
+  border: 2px solid #4aead4;
   border-radius: 4px;
   overflow: hidden;
 }
@@ -1046,16 +1142,30 @@ onUnmounted(() => {
 
 .unit {
   position: absolute;
-  width: 100px;
-  height: 200px;
+  width: 96px;
+  height: 96px;
   transition: top 0.3s ease, left 0.3s ease;
 }
 
-.character-sprite {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+.player-character {
+  z-index: 10;
+  transform: scale(3);
+  transform-origin: center center;
   image-rendering: pixelated;
+}
+
+.player-character.is-damaged {
+  animation: damageBrighten 1s linear forwards;
+}
+
+@keyframes damageBrighten {
+  0% { filter: brightness(1.5); }
+  99% { filter: brightness(1.5); }
+  100% { filter: brightness(1); }
+}
+
+.player-character.is-attacking {
+  animation: attackShake 0.4s ease-in-out;
 }
 
 .weapon-sprite {
@@ -1069,9 +1179,30 @@ onUnmounted(() => {
   image-rendering: pixelated;
 }
 
-.player-character { z-index: 10; }
-.enemy-character { z-index: 9; }
-.enemy-character.fainted { filter: grayscale(100%) opacity(40%); }
+.enemy-character {
+  z-index: 9;
+}
+
+.enemy-character.fainted {
+  filter: grayscale(100%) opacity(40%);
+}
+
+.enemy-character.dragao-ruina {
+  transform: scale(5.5);
+  transform-origin: center center;
+}
+
+.enemy-character.dragao-ruina.is-attacking {
+  animation: dragonShake 0.4s ease-in-out;
+  transform: scale(5.5);
+}
+
+.character-sprite {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
 
 .character-info {
   position: absolute;
@@ -1089,7 +1220,11 @@ onUnmounted(() => {
   left: 20px;
   z-index: 5;
 }
-.enemy-info { text-align: right; margin-top: -5%; }
+
+.enemy-info {
+  text-align: right;
+  margin-top: -5%;
+}
 
 .character-name {
   font-weight: bold;
@@ -1158,7 +1293,9 @@ onUnmounted(() => {
   color: #d3d7e0;
 }
 
-.battle-log p { margin: 0 0 4px 0; }
+.battle-log p {
+  margin: 0 0 4px 0;
+}
 
 .battle-log::-webkit-scrollbar {
   width: 6px;
@@ -1193,19 +1330,6 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
-.enemy-character.dragao-ruina {
-  transform: scale(5.5);
-  transform-origin: center center;
-}
-
-.enemy-character.dragao-ruina.is-attacking {
-  animation: dragonShake 0.4s ease-in-out;
-  transform: scale(5.5);
-}
-
-.unit.is-attacking { animation: attackShake 0.4s ease-in-out; }
-.unit.is-damaged { animation: damageFlash 0.3s linear 2; }
-
 @keyframes dragonShake {
   0%, 100% { transform: scale(5.5) translateX(0); }
   25% { transform: scale(5.5) translateX(-5px); }
@@ -1213,14 +1337,9 @@ onUnmounted(() => {
 }
 
 @keyframes attackShake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
-}
-
-@keyframes damageFlash {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.5) saturate(1.2); }
+  0%, 100% { transform: scale(3) translateX(0); }
+  25% { transform: scale(3) translateX(-5px); }
+  75% { transform: scale(3) translateX(5px); }
 }
 
 .damage-popup {
