@@ -20,7 +20,7 @@
 
     <transition name="shop-fade">
       <div v-if="showShop" class="shop-box dialog-style">
-        <button class="dialog-button exit-button" @click="router.push('/level/albadia')">Sair</button>
+        <button class="dialog-button exit-button" @click="exitShop">Sair</button>
         <h3 class="shop-name">CASA DAS POÇÕES DE MARGARET</h3>
         <h4 class="shop-title">Escolha sua poção:</h4>
         <div class="gold-display">
@@ -75,13 +75,13 @@
 <script setup>
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useGameState, ITEMS } from '@/stores/gamestate.js'; // Correct import
+import { useGameState, ITEMS } from '@/stores/gameState.js';
 import bgImage from '@/assets/interior/bruxa-bg.gif';
-import margaretParada from '/public/img/sprites/margaret/margaret-parada.png';
-import margaretFalando from '/public/img/sprites/margaret/margaret-falando.gif';
+import margaretParada from '/public/img/sprites/margaret/margaret_parada.png';
+import margaretFalando from '/public/img/sprites/margaret/margaret_falando.gif';
 
 const router = useRouter();
-const gameState = useGameState(); // Initialize the Pinia store
+const gameState = useGameState();
 
 const showDialog = ref(true);
 const dialogIndex = ref(0);
@@ -98,15 +98,27 @@ let currentHoverItem = null;
 
 const margaretImage = ref(margaretParada);
 
-const audioClick = new Audio('/sounds/ui/click.wav');
-const audioTyping = new Audio('/sounds/ui/typing.mp3');
-const audioBuy = new Audio('/sounds/ui/buy.wav');
-const audioError = new Audio('/sounds/ui/error.wav');
+// Audio setup
+const sounds = {
+  ambient: new Audio('/audio/bruxa/bruxa_fundo.mp3'),
+  dialogClick: new Audio('/sounds/click.wav'),
+  coinClank: new Audio('/sounds/compra.wav'),
+  doorCreak: new Audio('/sounds/porta_abrindo.mp3'),
+  margaretSpeak: new Audio('/audio/bruxa/margaret_voz.mp3'),
+};
+sounds.ambient.loop = true;
+sounds.ambient.volume = 0.3;
+sounds.dialogClick.volume = 0.5;
+sounds.coinClank.volume = 0.5;
+sounds.doorCreak.volume = 0.5;
+sounds.margaretSpeak.volume = 0.5;
 
 const playSound = (audio) => {
   if (!audio) return;
   audio.currentTime = 0;
-  audio.play().catch(() => {});
+  audio.play().catch((error) => {
+    console.error(`Erro ao tocar som ${audio.src}:`, error);
+  });
 };
 
 const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png');
@@ -145,11 +157,12 @@ const typeLine = (text) => {
     const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value;
     let index = 0;
 
+    // Play Margaret's speaking sound
+    playSound(sounds.margaretSpeak);
+
     typingInterval = setInterval(() => {
       if (index < line.length) {
-        displayedText.value += line[index];
-        index++;
-        if (index % 3 === 0) playSound(audioTyping);
+        displayedText.value += line[index++];
       } else {
         clearInterval(typingInterval);
         typingInterval = null;
@@ -183,7 +196,7 @@ const resetState = () => {
 
 const nextDialog = async () => {
   if (typing.value) return;
-  playSound(audioClick);
+  playSound(sounds.dialogClick);
   if (dialogIndex.value < dialogLines.value.length - 1) {
     dialogIndex.value++;
     await typeLine(dialogLines.value[dialogIndex.value]);
@@ -225,7 +238,7 @@ const hoverItemDescription = async (item) => {
   if (currentHoverItem === (item.id || item.name)) return;
   try {
     hideAllDialogs();
-    currentHoverItem = item.id || item;
+    currentHoverItem = item.id || item.name;
     hoverItemDescriptionText.value = item.description;
     dialogLines.value = [item.description];
     dialogIndex.value = 0;
@@ -242,7 +255,7 @@ const buyItem = async (item) => {
     const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === (item.id || item.name));
     if (existingItem) {
       message.value = `Você já possui ${item.name}.`;
-      playSound(audioError);
+      // No error sound for consistency with ferreiro
     } else if (gameState.player.gold >= item.price) {
       gameState.removeGold(item.price);
       gameState.addItemToInventory(item.id || item.name, 1);
@@ -254,10 +267,10 @@ const buyItem = async (item) => {
         }
       }
       message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`;
-      playSound(audioBuy);
+      playSound(sounds.coinClank);
     } else {
       message.value = 'Você não tem ouro suficiente.';
-      playSound(audioError);
+      // No error sound for consistency with ferreiro
     }
     showMessageDialog.value = true;
     await typeLine(message.value);
@@ -271,12 +284,19 @@ const buyItem = async (item) => {
   } catch (error) {
     console.error('Error buying item:', error);
     message.value = 'Erro ao comprar o item.';
-    playSound(audioError);
     showMessageDialog.value = true;
     await typeLine(message.value);
     await delay(2000);
     hideAllDialogs();
   }
+};
+
+const exitShop = async () => {
+  hideAllDialogs();
+  showShop.value = false;
+  playSound(sounds.doorCreak);
+  await delay(500);
+  router.push('/level/albadia');
 };
 
 onMounted(() => {
@@ -287,6 +307,8 @@ onMounted(() => {
     localStorage.setItem('visitedWitchShop', 'true');
     dialogIndex.value = 0;
     typeLine(dialogLines.value[dialogIndex.value]);
+    playSound(sounds.doorCreak);
+    playSound(sounds.ambient);
   } catch (error) {
     console.error('Error in onMounted:', error);
   }
@@ -297,6 +319,10 @@ onUnmounted(() => {
     clearInterval(typingInterval);
     typingInterval = null;
   }
+  sounds.ambient.pause();
+  sounds.ambient.currentTime = 0;
+  sounds.margaretSpeak.pause();
+  sounds.margaretSpeak.currentTime = 0;
 });
 
 watch(() => showShop, (newVal) => {
@@ -304,6 +330,13 @@ watch(() => showShop, (newVal) => {
     hideAllDialogs();
     showShopDialog.value = true;
     typeLine(shopDialogLines[0]);
+  }
+});
+
+watch(typing, (newTyping) => {
+  if (!newTyping) {
+    sounds.margaretSpeak.pause();
+    sounds.margaretSpeak.currentTime = 0;
   }
 });
 </script>
@@ -332,10 +365,9 @@ watch(() => showShop, (newVal) => {
 .margaret-image {
   position: fixed;
   bottom: 0;
-  left: 5%;
-  width: auto;
-  height: 85vh;
-  max-height: 700px;
+  left: 1;
+  width: 200%;
+  height: 90%;
   z-index: 1;
   object-fit: contain;
   object-position: bottom left;
@@ -668,7 +700,7 @@ watch(() => showShop, (newVal) => {
 
 .exit-button:hover:not(:disabled) {
   background-color: #4a3a5a;
-  box-shadow: inset -6px -6px 4px #2a4a, inset 6px 6px #9a7aba;
+  box-shadow: inset -6px -6px #2a1a3a, inset 6px 6px #9a7aba;
 }
 
 .fade-enter-active,
@@ -691,23 +723,5 @@ watch(() => showShop, (newVal) => {
 .shop-fade-leave-to {
   opacity: 0;
   transform: translateX(50px);
-}
-
-.farewell-fade-enter-active,
-.farewell-fade-leave-active {
-  transition: opacity 1s ease, transform 1s ease;
-}
-
-.farewell-fade-enter-from,
-.farewell-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.95);
-}
-
-.farewell p {
-  text-align: center;
-  font-weight: 1.1em;
-  margin-bottom: 0;
-  text-shadow: 1px 1px 0 #000;
 }
 </style>

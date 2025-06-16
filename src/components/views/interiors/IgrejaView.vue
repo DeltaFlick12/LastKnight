@@ -1,3 +1,4 @@
+```vue
 <template>
   <div
     class="igreja-screen"
@@ -60,7 +61,7 @@
 
     <!-- Caixa de diálogo inicial -->
     <transition name="fade">
-      <div v-if="showDialog" class="dialog-box dialog-style centered-dialog" key="dialog">
+      <div v-if="showDialog && !showShop" class="dialog-box dialog-style centered-dialog" key="dialog">
         <p>{{ displayedText }}</p>
         <button @click="nextDialog" :disabled="typing" class="dialog-button">Continuar</button>
       </div>
@@ -68,7 +69,7 @@
 
     <!-- Caixa de diálogo para sair da igreja -->
     <transition name="fade">
-      <div v-if="showExitDialog && !showDialog" class="dialog-box dialog-style centered-dialog">
+      <div v-if="showExitDialog && !showDialog && !showShop" class="dialog-box dialog-style centered-dialog">
         <p>{{ exitDialogText }}</p>
       </div>
     </transition>
@@ -99,8 +100,6 @@
               v-for="item in blessings"
               :key="item.itemId"
               class="shop-item"
-              @mouseover="hoverItemDescription(item)"
-              @mouseleave="hideHoverDialog"
             >
               <div>
                 <strong>{{ item.name }}</strong>
@@ -109,7 +108,6 @@
                   Custo: {{ item.price }} Ouro
                 </span>
               </div>
-              <p>{{ item.description }}</p>
               <button @click="buyBlessing(item)" class="dialog-button buy-button">Comprar</button>
             </div>
           </div>
@@ -117,23 +115,9 @@
       </div>
     </transition>
 
-    <!-- Diálogo da loja -->
-    <transition name="fade">
-      <div v-if="showShopDialog" class="dialog-box dialog-style shop-dialog" key="shopDialog">
-        <p>{{ displayedText }}</p>
-      </div>
-    </transition>
-
     <!-- Diálogo de mensagem -->
     <transition name="fade">
-      <div v-if="showMessageDialog" class="dialog-box dialog-style message-dialog" key="messageDialog">
-        <p>{{ displayedText }}</p>
-      </div>
-    </transition>
-
-    <!-- Diálogo de hover -->
-    <transition name="fade">
-      <div v-if="showHoverDialog" class="dialog-box dialog-style hover-dialog" key="hoverDialog">
+      <div v-if="showMessageDialog && showShop" class="dialog-box dialog-style shop-message-dialog" key="messageDialog">
         <p>{{ displayedText }}</p>
       </div>
     </transition>
@@ -143,7 +127,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useGameState, ITEMS } from '@/stores/gamestate.js'
+import { useGameState } from '@/stores/gameState.js'
 import bgImage from '@/assets/interior/igreja-bg.png'
 import padreSprite from '@/assets/Padre.png'
 
@@ -162,7 +146,7 @@ const animations = {
   idle: { row: 3, frames: [7, 1, 2, 3, 4, 5], frameInterval: 150 },
   walk_down: { row: 6, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 },
   walk_up: { row: 4, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 },
-  walk_left: { row: 20.1, frames: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], frameInterval: 70 },
+  walk_left: { row: 20, frames: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], frameInterval: 70 },
   walk_right: { row: 5, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 }
 }
 
@@ -184,11 +168,9 @@ const gameState = useGameState()
 const router = useRouter()
 
 // Diálogos e loja
-const showDialog = ref(true)
+const showDialog = ref(false)
 const showShop = ref(false)
-const showShopDialog = ref(false)
 const showMessageDialog = ref(false)
-const showHoverDialog = ref(false)
 const showBlessingPrompt = ref(false)
 const showExitDialog = ref(false)
 const dialogIndex = ref(0)
@@ -196,69 +178,211 @@ const displayedText = ref('')
 const typing = ref(false)
 const canMove = ref(false)
 const exitDialogText = "Pressione 'E' para Sair da Igreja"
-const hoverItemDescriptionText = ref('')
 const message = ref('')
 let typingInterval = null
-let currentHoverItem = null
 
 const dialogLines = ref([
   'Filho, bem-vindo à casa sagrada de Albadia.',
-  'Aqui oferecemos bênçãos para proteger-te nas tuas batalhas.',
-  'Cada bênção carrega consigo um poder divino e um preço justo.',
-  'Escolha com fé...'
+  'Aqui oferecemos a Bênção do Rio para proteger-te nas tuas batalhas.'
 ])
-
-const shopDialogLines = ['Escolha uma bênção para sua jornada, filho!']
 
 // Itens disponíveis (bênçãos)
 const blessings = computed(() => {
   const blessingList = [
     {
-      itemId: 'blessing_strength',
-      name: 'Bênção da Força',
-      price: 30,
-      description: 'Aumenta sua força em combate.',
-      icon: ITEMS['blessing_strength']?.icon || '/icons/blessing-strength.png',
-      type: 'Bênção'
-    },
-    {
-      itemId: 'blessing_protection',
-      name: 'Bênção da Proteção',
-      price: 50,
-      description: 'Reduz o dano recebido.',
-      icon: ITEMS['blessing_protection']?.icon || '/icons/blessing-protection.png',
-      type: 'Bênção'
-    },
-    {
-      itemId: 'blessing_speed',
-      name: 'Bênção da Velocidade',
-      price: 40,
-      description: 'Aumenta sua velocidade de movimento.',
-      icon: ITEMS['blessing_speed']?.icon || '/icons/blessing-speed.png',
+      itemId: 'blessing_river',
+      name: 'Bênção do Rio',
+      price: 75,
+      icon: '/icons/blessing-river.png',
       type: 'Bênção'
     }
   ]
-  console.log('Bênçãos geradas:', blessingList) // Depuração
-  return blessingList.filter(item => ITEMS[item.itemId] || true)
+  console.log('Bênçãos geradas:', blessingList)
+  return blessingList.filter(item => !gameState.player.hasRiverBlessing)
 })
 
-const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png')
-const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png')
+const goldIcon = computed(() => '/icons/gold-icon.png')
 
 // Efeitos sonoros
 const sounds = {
   dialogClick: new Audio('/sounds/click.wav'),
-  coinClank: new Audio('/sounds/coin_clank.mp3'),
-  typing: new Audio('/sounds/typing.mp3')
+  coinClank: new Audio('/sounds/compra.wav'),
+  background: new Audio('/audio/church_ambience.mp3'),
+  stepUp: new Audio('/sounds/wood_step_l.mp3'),
+  stepDown: new Audio('/sounds/wood_step_r.mp3'),
+  stepLeft: new Audio('/sounds/wood_step_l.mp3'),
+  stepRight: new Audio('/sounds/wood_step_r.mp3'),
+  doorOpen: new Audio('/sounds/porta_abrindo.mp3')
 }
 sounds.dialogClick.volume = 0.5
 sounds.coinClank.volume = 0.5
-sounds.typing.volume = 0.5
+sounds.background.volume = 0.3 // Aumentado para maior audibilidade
+sounds.stepUp.volume = 0.8
+sounds.stepDown.volume = 0.8
+sounds.stepLeft.volume = 0.8
+sounds.stepRight.volume = 0.8
+sounds.doorOpen.volume = 0.5
+sounds.background.loop = true
 
+// Flag para controlar a primeira reprodução da música
+const backgroundPlayed = ref(false)
+
+// Função para tocar som com depuração
 const playSound = (audio) => {
-  if (!audio) return
+  if (!audio) {
+    console.warn('Áudio inválido:', audio)
+    return
+  }
   audio.currentTime = 0
-  audio.play().catch(() => {})
+  audio.play().catch((error) => {
+    console.error('Erro ao tocar áudio:', audio.src, error)
+  })
+}
+
+// Função para exibir texto com efeito typewriter
+const typeLine = (text) => {
+  return new Promise((resolve) => {
+    if (typingInterval) clearInterval(typingInterval)
+    displayedText.value = ''
+    typing.value = true
+
+    const line = text || dialogLines.value[dialogIndex.value] || message.value
+    console.log('Exibindo linha:', line)
+    let index = 0
+
+    typingInterval = setInterval(() => {
+      if (index < line.length) {
+        displayedText.value += line[index++]
+      } else {
+        clearInterval(typingInterval)
+        typingInterval = null
+        typing.value = false
+        console.log('Linha concluída:', displayedText.value)
+        resolve()
+      }
+    }, 50)
+  })
+}
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+const resetState = () => {
+  console.log('resetState: visitedChurch =', gameState.visitedChurch, 'showDialog =', showDialog.value)
+  playSound(sounds.doorOpen)
+  showShop.value = false // Garantir que loja não interfira
+  if (!gameState.visitedChurch) {
+    showDialog.value = true
+    dialogIndex.value = 0
+    gameState.visitedChurch = true
+    typeLine(dialogLines.value[0]).then(() => {
+      console.log('Dialogo inicial concluído:', displayedText.value)
+    }).catch((error) => {
+      console.error('Erro no diálogo inicial:', error)
+    })
+  } else {
+    canMove.value = true
+  }
+  showMessageDialog.value = false
+  displayedText.value = ''
+  typing.value = false
+  message.value = ''
+  if (typingInterval) {
+    clearInterval(typingInterval)
+    typingInterval = null
+  }
+}
+
+const nextDialog = async () => {
+  if (typing.value) return
+  playSound(sounds.dialogClick)
+  if (dialogIndex.value < dialogLines.value.length - 1) {
+    dialogIndex.value++
+    await typeLine(dialogLines.value[dialogIndex.value])
+  } else {
+    showDialog.value = false
+    canMove.value = true
+  }
+}
+
+const buyBlessing = async (item) => {
+  if (gameState.player.hasRiverBlessing) {
+    message.value = `Você já possui a ${item.name}.`
+  } else if (gameState.player.gold >= item.price) {
+    gameState.removeGold(item.price)
+    gameState.grantRiverBlessing()
+    message.value = `Você recebeu a ${item.name}! Você agora tem a proteção do rio.`
+    playSound(sounds.coinClank)
+  } else {
+    message.value = 'Você não tem ouro suficiente para comprar esta bênção.'
+  }
+  showMessageDialog.value = true
+  await typeLine(message.value)
+  await delay(2000)
+  showMessageDialog.value = false
+  showShop.value = false
+  canMove.value = true
+  const screen = document.querySelector('.igreja-screen')
+  if (screen) screen.focus()
+}
+
+const closeShop = () => {
+  showShop.value = false
+  showMessageDialog.value = false
+  displayedText.value = ''
+  message.value = ''
+  typing.value = false
+  if (typingInterval) {
+    clearInterval(typingInterval)
+    typingInterval = null
+  }
+  canMove.value = true
+  console.log('closeShop: canMove =', canMove.value)
+  const screen = document.querySelector('.igreja-screen')
+  if (screen) screen.focus()
+}
+
+const getMovementBounds = () => {
+  const bgRenderedWidth = bgWidth * zoomLevel.value
+  const bgRenderedHeight = bgHeight * zoomLevel.value
+  return {
+    minX: 0,
+    maxX: bgRenderedWidth - player.size,
+    minY: 0,
+    maxY: bgRenderedHeight - player.size
+  }
+}
+
+const updateAnimation = (deltaSeconds) => {
+  const anim = animations[playerDirection.value] || animations.idle
+  const interval = anim.frameInterval || 70
+  frameTimer.value += deltaSeconds * 1000
+  if (frameTimer.value > interval) {
+    frameTimer.value = 0
+    currentFrameIndex.value++
+    if (currentFrameIndex.value >= anim.frames.length) currentFrameIndex.value = 0
+  }
+}
+
+const drawCharacter = () => {
+  if (!ctx || !playerSpriteSheet.complete) {
+    console.warn('Não foi possível desenhar personagem:', { ctx: !!ctx, spriteLoaded: playerSpriteSheet.complete })
+    return
+  }
+  console.log('Desenhando personagem em:', characterPosition.value)
+  ctx.clearRect(0, 0, characterCanvas.value.width, characterCanvas.value.height)
+  const anim = animations[playerDirection.value] || animations.idle
+  const frame = anim.frames[currentFrameIndex.value]
+  const sx = frame * frameWidth
+  const sy = anim.row * frameHeight
+  try {
+    ctx.drawImage(
+      playerSpriteSheet,
+      sx, sy, frameWidth, frameHeight,
+      0, 0, player.size, player.size
+    )
+  } catch (error) {
+    console.error('Erro ao desenhar personagem:', error)
+  }
 }
 
 // Configurações do canvas
@@ -270,6 +394,8 @@ const bgWidth = 1200
 const bgHeight = 1024
 let animationFrameId = null
 let lastUpdateTime = 0
+const lastStepTime = ref(0)
+const stepInterval = 300
 
 // Áreas de colisão
 const collisionAreas = [
@@ -282,7 +408,7 @@ const collisionAreas = [
 
 // Áreas interativas
 const interactionAreas = [
-  { x: 430, y: 850, width: 170, height: 80, action: () => router.push('/level/albadia') }
+  { x: 430, y: 850, width: 170, height: 80, action: () => { playSound(sounds.doorOpen); router.push('/level/albadia'); } }
 ]
 
 // Verificação de colisão
@@ -321,159 +447,6 @@ const isNearPadre = () => {
   )
 }
 
-// Digitação do texto
-const typeLine = (text) => {
-  return new Promise((resolve) => {
-    if (typingInterval) clearInterval(typingInterval)
-    displayedText.value = ''
-    typing.value = true
-
-    const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value
-    let index = 0
-
-    typingInterval = setInterval(() => {
-      if (index < line.length) {
-        displayedText.value += line[index++]
-        if (index % 3 === 0) playSound(sounds.typing)
-      } else {
-        clearInterval(typingInterval)
-        typingInterval = null
-        typing.value = false
-        resolve()
-      }
-    }, 40)
-  })
-}
-
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-
-const resetState = () => {
-  showDialog.value = true
-  dialogIndex.value = 0
-  showHoverDialog.value = false
-  showShopDialog.value = false
-  showMessageDialog.value = false
-  showShop.value = false
-  displayedText.value = ''
-  typing.value = false
-  hoverItemDescriptionText.value = ''
-  message.value = ''
-  if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
-  }
-  currentHoverItem = null
-}
-
-const nextDialog = async () => {
-  if (typing.value) return
-  playSound(sounds.dialogClick)
-  if (dialogIndex.value < dialogLines.value.length - 1) {
-    dialogIndex.value++
-    await typeLine(dialogLines.value[dialogIndex.value])
-  } else {
-    showDialog.value = false
-    canMove.value = true
-  }
-}
-
-const hideHoverDialog = () => {
-  showHoverDialog.value = false
-  currentHoverItem = null
-  if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
-    typing.value = false
-  }
-}
-
-const hideAllDialogs = () => {
-  showHoverDialog.value = false
-  showShopDialog.value = false
-  showMessageDialog.value = false
-  currentHoverItem = null
-  if (typingInterval) {
-    clearInterval(typingInterval)
-    typingInterval = null
-    typing.value = false
-  }
-}
-
-const hoverItemDescription = async (item) => {
-  if (!showShop.value) return
-  if (currentHoverItem === item.itemId) return
-  hideAllDialogs()
-  currentHoverItem = item.itemId
-  hoverItemDescriptionText.value = item.description
-  showHoverDialog.value = true
-  await typeLine(item.description)
-}
-
-const buyBlessing = async (item) => {
-  hideAllDialogs()
-  const existingItem = gameState.player.inventory.find((invItem) => invItem.itemId === item.itemId)
-  if (existingItem) {
-    message.value = `Você já possui ${item.name}.`
-  } else if (gameState.player.gold >= item.price) {
-    gameState.removeGold(item.price)
-    gameState.addItemToInventory(item.itemId, 1)
-    message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`
-    playSound(sounds.coinClank)
-  } else {
-    message.value = 'Você não tem ouro suficiente.'
-  }
-  showMessageDialog.value = true
-  await typeLine(message.value)
-  await delay(2000)
-  hideAllDialogs()
-  if (showShop.value) {
-    showShopDialog.value = true
-    await typeLine(shopDialogLines[0])
-  }
-}
-
-const closeShop = () => {
-  hideAllDialogs()
-  showShop.value = false
-  canMove.value = !showDialog.value
-}
-
-const getMovementBounds = () => {
-  const bgRenderedWidth = bgWidth * zoomLevel.value
-  const bgRenderedHeight = bgHeight * zoomLevel.value
-  return {
-    minX: 0,
-    maxX: bgRenderedWidth - player.size,
-    minY: 0,
-    maxY: bgRenderedHeight - player.size
-  }
-}
-
-const updateAnimation = (deltaSeconds) => {
-  const anim = animations[playerDirection.value] || animations.idle
-  const interval = anim.frameInterval || 70
-  frameTimer.value += deltaSeconds * 1000
-  if (frameTimer.value > interval) {
-    frameTimer.value = 0
-    currentFrameIndex.value++
-    if (currentFrameIndex.value >= anim.frames.length) currentFrameIndex.value = 0
-  }
-}
-
-const drawCharacter = () => {
-  if (!ctx || !playerSpriteSheet.complete) return
-  ctx.clearRect(0, 0, characterCanvas.value.width, characterCanvas.value.height)
-  const anim = animations[playerDirection.value] || animations.idle
-  const frame = anim.frames[currentFrameIndex.value]
-  const sx = frame * frameWidth
-  const sy = anim.row * frameHeight
-  ctx.drawImage(
-    playerSpriteSheet,
-    sx, sy, frameWidth, frameHeight,
-    0, 0, player.size, player.size
-  )
-}
-
 const updateMovement = (timestamp) => {
   if (!canMove.value) {
     drawCharacter()
@@ -487,6 +460,18 @@ const updateMovement = (timestamp) => {
 
   let moved = false
   const bounds = getMovementBounds()
+  const currentTime = timestamp
+
+  // Validar posição do personagem
+  if (
+    isNaN(characterPosition.value.x) || isNaN(characterPosition.value.y) ||
+    characterPosition.value.x < bounds.minX || characterPosition.value.x > bounds.maxX ||
+    characterPosition.value.y < bounds.minY || characterPosition.value.y > bounds.maxY
+  ) {
+    console.warn('Posição inválida detectada, redefinindo:', characterPosition.value)
+    characterPosition.value.x = (bounds.minX + bounds.maxX) / 2
+    characterPosition.value.y = (bounds.minY + bounds.maxY) / 2
+  }
 
   if (moving.value.up) {
     const nextY = characterPosition.value.y - player.speed
@@ -495,6 +480,10 @@ const updateMovement = (timestamp) => {
       playerDirection.value = 'walk_up'
       lastDirection.value = 'up'
       moved = true
+      if (currentTime - lastStepTime.value > stepInterval) {
+        playSound(sounds.stepUp)
+        lastStepTime.value = currentTime
+      }
     }
   }
   if (moving.value.down) {
@@ -504,6 +493,10 @@ const updateMovement = (timestamp) => {
       playerDirection.value = 'walk_down'
       lastDirection.value = 'down'
       moved = true
+      if (currentTime - lastStepTime.value > stepInterval) {
+        playSound(sounds.stepDown)
+        lastStepTime.value = currentTime
+      }
     }
   }
   if (moving.value.left) {
@@ -513,6 +506,10 @@ const updateMovement = (timestamp) => {
       playerDirection.value = 'walk_left'
       lastDirection.value = 'left'
       moved = true
+      if (currentTime - lastStepTime.value > stepInterval) {
+        playSound(sounds.stepLeft)
+        lastStepTime.value = currentTime
+      }
     }
   }
   if (moving.value.right) {
@@ -522,6 +519,10 @@ const updateMovement = (timestamp) => {
       playerDirection.value = 'walk_right'
       lastDirection.value = 'right'
       moved = true
+      if (currentTime - lastStepTime.value > stepInterval) {
+        playSound(sounds.stepRight)
+        lastStepTime.value = currentTime
+      }
     }
   }
 
@@ -542,6 +543,7 @@ const updateMovement = (timestamp) => {
 
 const startMoving = (event) => {
   const key = event.key.toLowerCase()
+  console.log('startMoving: canMove =', canMove.value, 'key =', key)
 
   if (showShop.value) {
     if (key === 'escape') closeShop()
@@ -580,24 +582,40 @@ const stopMoving = (event) => {
 }
 
 onMounted(() => {
-  console.log('ITEMS no onMounted:', ITEMS) // Depuração
   resetState()
-  typeLine()
   const screen = document.querySelector('.igreja-screen')
   screen.focus()
   screen.addEventListener('click', () => screen.focus())
 
+  // Preload e tocar música ao entrar
+  sounds.background.load()
+  if (!backgroundPlayed.value) {
+    playSound(sounds.background)
+    backgroundPlayed.value = true
+  }
+
   const bounds = getMovementBounds()
   characterPosition.value.x = (bounds.minX + bounds.maxX) / 2
   characterPosition.value.y = (bounds.minY + bounds.maxY) / 2
+  console.log('Posição inicial do personagem:', characterPosition.value)
 
   if (characterCanvas.value) {
     ctx = characterCanvas.value.getContext('2d')
-    characterCanvas.value.width = player.size
-    characterCanvas.value.height = player.size
+    if (!ctx) {
+      console.error('Falha ao obter contexto 2D do canvas')
+    } else {
+      characterCanvas.value.width = player.size
+      characterCanvas.value.height = player.size
+    }
+  } else {
+    console.error('Canvas não encontrado')
   }
 
+  playerSpriteSheet.onerror = () => {
+    console.error('Erro ao carregar sprite sheet:', playerSpriteSheet.src)
+  }
   playerSpriteSheet.onload = () => {
+    console.log('Sprite sheet carregado:', playerSpriteSheet.src)
     animationFrameId = requestAnimationFrame(updateMovement)
   }
 })
@@ -608,13 +626,16 @@ onUnmounted(() => {
     clearInterval(typingInterval)
     typingInterval = null
   }
+  sounds.background.pause()
 })
 
 watch(() => showShop, (newVal) => {
   if (newVal) {
-    hideAllDialogs()
-    showShopDialog.value = true
-    typeLine(shopDialogLines[0])
+    canMove.value = false
+  } else {
+    canMove.value = true
+    const screen = document.querySelector('.igreja-screen')
+    if (screen) screen.focus()
   }
 })
 </script>
@@ -653,6 +674,7 @@ watch(() => showShop, (newVal) => {
 .character {
   position: absolute;
   z-index: 3;
+  display: block;
 }
 
 .npc.padre {
@@ -678,6 +700,7 @@ watch(() => showShop, (newVal) => {
   font-size: 15px;
   line-height: 1.7;
   font-family: 'Press Start 2P', cursive;
+  z-index: 10; /* Garantir visibilidade */
 }
 
 .centered-dialog {
@@ -687,39 +710,27 @@ watch(() => showShop, (newVal) => {
   z-index: 10;
 }
 
-.shop-dialog {
-  top: 15vh;
-  left: 1%;
-  transform: translateX(0);
-  z-index: 5;
-}
-
-.hover-dialog {
-  top: 15vh;
-  left: 1%;
-  transform: translateX(0);
-  z-index: 15;
-}
-
-.message-dialog {
-  top: 15vh;
-  left: 1%;
-  transform: translateX(0);
-  z-index: 15;
+.shop-message-dialog {
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
 }
 
 .shop-box {
-  top: 10vh;
-  bottom: 5vh;
-  left: 65%;
-  transform: translateX(-35%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 2;
   max-height: 80vh;
   overflow-y: auto;
+  width: 60vw;
+  max-width: 600px;
 }
 
 .dialog-style p {
   margin: 0 0 20px 0;
+  display: inline-block;
 }
 
 .dialog-button {
@@ -823,7 +834,7 @@ watch(() => showShop, (newVal) => {
 .shop-item {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto;
   gap: 5px 15px;
   align-items: center;
   padding: 15px;
@@ -844,7 +855,7 @@ watch(() => showShop, (newVal) => {
 }
 
 .shop-item img.blessing-icon {
-  grid-row: 1 / 3;
+  grid-row: 1 / 2;
   width: 50px;
   height: 50px;
   object-fit: contain;
@@ -873,17 +884,9 @@ watch(() => showShop, (newVal) => {
   align-items: center;
 }
 
-.shop-item p {
-  grid-column: 2 / 3;
-  grid-row: 2 / 3;
-  font-size: 0.9em;
-  color: #c0b090;
-  margin: 0;
-}
-
 .shop-item button.buy-button {
   grid-column: 3 / 4;
-  grid-row: 1 / 3;
+  grid-row: 1 / 2;
   margin: 0;
   align-self: center;
 }
@@ -932,3 +935,4 @@ watch(() => showShop, (newVal) => {
   z-index: 1;
 }
 </style>
+```

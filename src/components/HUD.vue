@@ -42,7 +42,7 @@
 
     <!-- Botões no lado direito central -->
     <div class="hud-buttons">
-      <!-- Botão MENU (alterado para CSS puro) -->
+      <!-- Botão MENU -->
       <button class="menu-button" @click="togglePauseMenu" :class="{ active: pauseMenuOpen }">
         <span></span>
         <span></span>
@@ -60,78 +60,185 @@
       </button>
     </div>
 
-    <!-- Inventário: renderiza somente se aberto -->
+    <!-- Inventário -->
     <Inventory v-if="inventoryOpen" />
     
-    <!-- Menu de Pausa: renderiza somente se aberto -->
+    <!-- Menu de Pausa -->
     <div v-if="pauseMenuOpen" class="pause-menu-overlay">
       <div class="pause-menu">
         <h2 class="pause-title">Menu</h2>
         <div class="pause-options">
           <button class="pause-option" @click="continuarJogo">Continuar</button>
-          <button class="pause-option" @click="irParaOpcoes">Opções</button>
           <button class="pause-option" @click="voltarAoMenu">Sair</button>
         </div>
       </div>
+    </div>
+
+    <!-- Mensagem de recompensa -->
+    <div v-if="tossRewardMessage" class="reward-message">
+      {{ tossRewardMessage }}
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
-import { useRouter } from "vue-router";
-import Inventory from "@/components/Inventory.vue";
-import { useGameState } from "@/stores/gameState";
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import Inventory from '@/components/Inventory.vue'
+import { useGameState } from '@/stores/gameState'
 
-const gameState = useGameState();
+// Global audio manager to persist audio across navigation
+const audioManager = {
+  mapOpenSound: new Audio('/sounds/map.mp3'),
+  bagOpenSound: new Audio('/sounds/zipper.mp3'),
+  menuToggleSound: new Audio('/sounds/click.wav'),
+  buttonClickSound: new Audio('/sounds/click.wav'),
+}
+audioManager.mapOpenSound.volume = 0.5
+audioManager.bagOpenSound.volume = 0.5
+audioManager.menuToggleSound.volume = 0.5
+audioManager.buttonClickSound.volume = 0.5
 
-const router = useRouter();
-const inventoryOpen = ref(false);
-const pauseMenuOpen = ref(false);
+defineProps(['potions', 'coins', 'tossRewardMessage'])
+const gameState = useGameState()
+const router = useRouter()
+
+const inventoryOpen = ref(false)
+const pauseMenuOpen = ref(false)
+
+const startAudioOnInteraction = () => {
+  try {
+    // Preload sounds
+    [
+      audioManager.bagOpenSound,
+      audioManager.mapOpenSound,
+      audioManager.menuToggleSound,
+      audioManager.buttonClickSound
+    ].forEach((sound) => {
+      sound.play().then(() => sound.pause()).catch((error) => {
+        console.error(`Erro ao pré-carregar som ${sound.src}:`, error)
+      })
+    })
+  } catch (error) {
+    console.error('Erro em startAudioOnInteraction:', error)
+  }
+  document.removeEventListener('click', startAudioOnInteraction)
+  document.removeEventListener('keydown', startAudioOnInteraction)
+}
+
+onMounted(() => {
+  try {
+    document.addEventListener('click', startAudioOnInteraction)
+    document.addEventListener('keydown', startAudioOnInteraction)
+  } catch (error) {
+    console.error('Erro em onMounted:', error)
+  }
+})
+
+onUnmounted(() => {
+  try {
+    document.removeEventListener('click', startAudioOnInteraction)
+    document.removeEventListener('keydown', startAudioOnInteraction)
+    audioManager.bagOpenSound.pause()
+    audioManager.mapOpenSound.pause()
+    audioManager.menuToggleSound.pause()
+    audioManager.buttonClickSound.pause()
+  } catch (error) {
+    console.error('Erro em onUnmounted:', error)
+  }
+})
+
+watch(inventoryOpen, (newValue) => {
+  try {
+    if (newValue) {
+      audioManager.bagOpenSound.currentTime = 0
+      audioManager.bagOpenSound.play().catch((error) => {
+        console.error('Erro ao tocar som de mochila:', error)
+      })
+    }
+  } catch (error) {
+    console.error('Erro em watch inventoryOpen:', error)
+  }
+})
 
 const toggleBag = () => {
-  if (pauseMenuOpen.value) return; // Não abre a mochila se o menu de pausa estiver aberto
-  inventoryOpen.value = !inventoryOpen.value;
-};
+  try {
+    if (pauseMenuOpen.value) return
+    inventoryOpen.value = !inventoryOpen.value
+  } catch (error) {
+    console.error('Erro em toggleBag:', error)
+  }
+}
 
 const togglePauseMenu = () => {
-  pauseMenuOpen.value = !pauseMenuOpen.value;
-  if (pauseMenuOpen.value) {
-    inventoryOpen.value = false; // Fecha o inventário se o menu de pausa for aberto
+  try {
+    pauseMenuOpen.value = !pauseMenuOpen.value
+    if (pauseMenuOpen.value) {
+      inventoryOpen.value = false
+    }
+    audioManager.menuToggleSound.currentTime = 0
+    audioManager.menuToggleSound.play().catch((error) => {
+      console.error('Erro ao tocar som de menu:', error)
+    })
+  } catch (error) {
+    console.error('Erro em togglePauseMenu:', error)
   }
-};
+}
 
 const continuarJogo = () => {
-  pauseMenuOpen.value = false;
-};
-
-const irParaOpcoes = () => {
-  router.push("/options");
-};
+  try {
+    audioManager.buttonClickSound.currentTime = 0
+    audioManager.buttonClickSound.play().catch((error) => {
+      console.error('Erro ao tocar som de botão:', error)
+    })
+    pauseMenuOpen.value = false
+  } catch (error) {
+    console.error('Erro em continuarJogo:', error)
+  }
+}
 
 const voltarAoMenu = () => {
-  router.push("/");
-};
+  try {
+    audioManager.buttonClickSound.currentTime = 0
+    audioManager.buttonClickSound.play().catch((error) => {
+      console.error('Erro ao tocar som de botão:', error)
+    })
+    router.push('/')
+  } catch (error) {
+    console.error('Erro em voltarAoMenu:', error)
+  }
+}
 
-const handleMapClick = () => {
-  if (pauseMenuOpen.value) return; // Não abre o mapa se o menu de pausa estiver aberto
-    router.push("/map");
-  
-};
+const handleMapClick = async () => {
+  try {
+    if (pauseMenuOpen.value) return
+    audioManager.mapOpenSound.currentTime = 0
+    await audioManager.mapOpenSound.play().catch((error) => {
+      console.error('Erro ao tocar som de mapa:', error)
+    })
+    // Delay navigation to ensure sound starts
+    setTimeout(() => {
+      router.push('/map')
+    }, 150)
+  } catch (error) {
+    console.error('Erro em handleMapClick:', error)
+    router.push('/map') // Fallback navigation
+  }
+}
 
-const maxBarSegments = 10;
+const maxBarSegments = 10
 
 const filledHealthSegments = computed(() => {
   return Math.round(
     (gameState.player.health / gameState.player.maxHealth) * maxBarSegments
-  );
-});
+  )
+})
 
 const filledStaminaSegments = computed(() => {
   return Math.round(
     (gameState.player.stamina / gameState.player.maxStamina) * maxBarSegments
-  );
-});
+  )
+})
 </script>
 
 <style scoped>
@@ -144,7 +251,6 @@ const filledStaminaSegments = computed(() => {
   letter-spacing: 0.5px;
 }
 
-/* Painel de vida e energia */
 .panel-frame {
   display: flex;
   flex-direction: column;
@@ -196,10 +302,6 @@ const filledStaminaSegments = computed(() => {
   box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
 }
 
-.bar {
-  height: 100%;
-}
-
 .bar-label {
   position: absolute;
   top: 0;
@@ -238,7 +340,13 @@ const filledStaminaSegments = computed(() => {
   background: linear-gradient(to bottom, #33cc33, rgb(11, 112, 11));
 }
 
-/* Botões no lado direito */
+.moedas .bar-label {
+  position: static;
+  transform: none;
+  font-size: 18px;
+  margin-left: 10px;
+}
+
 .hud-buttons {
   position: fixed;
   right: 10px;
@@ -249,20 +357,7 @@ const filledStaminaSegments = computed(() => {
   gap: 10px;
 }
 
-.menu-button {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  width: 122px;
-  height: 122px;
-  display: flex;
-
-  justify-content: center;
-  align-items: center;
-  z-index: 100000;
-}
-
+.menu-button,
 .map-button,
 .bag-button {
   background: transparent;
@@ -297,7 +392,6 @@ const filledStaminaSegments = computed(() => {
   z-index: 10000;
 }
 
-/* Estilo do botão de menu (ícone hambúrguer) */
 .menu-button {
   flex-direction: column;
   gap: 10px;
@@ -313,7 +407,7 @@ const filledStaminaSegments = computed(() => {
   background-color: #fff9d6;
   border-radius: 4px;
   transition: all 0.3s ease;
-} 
+}
 
 .menu-button.active span:nth-child(1) {
   transform: rotate(45deg) translate(12px, 12px);
@@ -327,16 +421,6 @@ const filledStaminaSegments = computed(() => {
   transform: rotate(-45deg) translate(14px, -14px);
 }
 
-/* Cores das barras */
-.vida .bar {
-  background: linear-gradient(to bottom, #ff3333, #cc0000);
-}
-
-.energia .bar {
-  background: linear-gradient(to bottom, #33cc33, #009900);
-}
-
-/* Estilo do Menu de Pausa */
 .pause-menu-overlay {
   position: fixed;
   top: 0;
@@ -408,5 +492,17 @@ const filledStaminaSegments = computed(() => {
 .pause-option:active {
   transform: translateY(2px);
   box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8e;
+}
+
+.reward-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.7);
+  padding: 10px;
+  border-radius: 5px;
+  color: #aaffaa;
+  font-size: 18px;
 }
 </style>
