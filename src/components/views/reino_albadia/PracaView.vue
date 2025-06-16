@@ -454,10 +454,10 @@ function draw() {
 
     ctx.save()
     switch (backgroundIndex) {
-      case 0: ctx.filter = 'brightness(1)'; break
-      case 1: ctx.filter = 'brightness(0.7)'; break
-      case 2: ctx.filter = 'brightness(0.4)'; break
-      case 3: ctx.filter = 'brightness(0.8)'; break
+      case 0: ctx.filter = 'brightness(0.8)'; break
+      case 1: ctx.filter = 'brightness(0.9)'; break
+      case 2: ctx.filter = 'brightness(0.7)'; break
+      case 3: ctx.filter = 'brightness(0.4)'; break
       default: ctx.filter = 'none'
     }
     ctx.shadowColor = 'rgba(0, 0, 0, 0.4)'
