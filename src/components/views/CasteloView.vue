@@ -174,7 +174,10 @@ const spriteSheet = new URL(
   '/img/sprites/player/player_sprite.png',
   import.meta.url
 ).href
-const bossSpriteSheet = spriteSheet // Usar o mesmo spritesheet do jogador
+const bossSpriteSheet = new URL(
+  '/img/sprites/boss/magnus_sprite.png',
+  import.meta.url
+).href // Usar o mesmo spritesheet do jogador
 
 // Player Position and State
 const characterPosition = ref({ x: 850, y: 1100 })

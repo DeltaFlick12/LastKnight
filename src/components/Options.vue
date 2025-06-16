@@ -102,7 +102,7 @@ onMounted(() => {
 
   shadersEnabled.value = gameState.shaders !== undefined ? gameState.shaders : true;
 
-  clickSound = new Audio("/audio/click.ogg");
+  clickSound = new Audio("/sounds/click.wav");
   clickSound.volume = 0.4;
 
   updateVolume("music");
