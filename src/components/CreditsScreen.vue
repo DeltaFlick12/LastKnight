@@ -34,7 +34,7 @@ const router = useRouter()
 
 let clickSound
 onMounted(() => {
-  clickSound = new Audio('/audio/click.ogg')
+  clickSound = new Audio('/sounds/click.wav')
   clickSound.volume = 0.4
 })
 

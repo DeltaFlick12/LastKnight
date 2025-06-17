@@ -26,7 +26,7 @@
 import bgImage from '@/assets/backviews/rio-bg.gif';
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import { useGameState } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
+import { useGameState } from '@/stores/gameState.js'; // Import useGameState instead of gameState and actions
 
 const router = useRouter();
 const gameState = useGameState(); // Initialize the Pinia store

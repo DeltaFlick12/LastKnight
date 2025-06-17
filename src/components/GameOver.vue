@@ -2,20 +2,26 @@
   <div class="game-over-screen">
     <h1 class="title">GAME OVER</h1>
     <p class="message">A jornada terminou... mas todo herói pode recomeçar.</p>
-    <button @click="restartGame">Voltar ao Menu</button>
+    <button @click="restartGame()">Voltar ao Menu</button>
   </div>
 </template>
 
 <script setup>
 import { useRouter } from 'vue-router';
-import { useGameState } from '@/stores/gamestate.js'; // Correct import
+import { useGameState } from '@/stores/gameState.js';
 
 const router = useRouter();
-const gameState = useGameState(); // Initialize the Pinia store
+const gameState = useGameState();
 
-const restartGame = () => {
-  gameState.resetGame(); // Use store action
-  router.push('/');
+const restartGame = async () => {
+  try {
+    console.log('Botão clicado, iniciando redirecionamento...');
+    router.push('/'); // Redireciona para a rota raiz (Menu.vue dentro de App.vue)
+    gameState.resetGame(); // Reseta o estado do jogo
+    console.log('Redirecionamento concluído');
+  } catch (error) {
+    console.error('Erro ao redirecionar:', error);
+  }
 };
 </script>
 

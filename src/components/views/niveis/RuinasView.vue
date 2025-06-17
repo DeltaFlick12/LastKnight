@@ -1,14 +1,24 @@
-```vue
 <template>
   <div class="ruinas-view" :style="showCutscene ? cutsceneBackgroundStyle : backgroundStyle">
     <!-- Cutscene -->
-    <div v-if="showCutscene" class="cutscene-container" tabindex="0">
+    <div
+      v-if="isGameStateReady && showCutscene"
+      class="cutscene-container"
+      tabindex="0"
+      @click="advanceCutscene"
+      @keydown="advanceCutscene"
+    >
       <div class="cutscene-content">
-        <div v-for="(line, index) in cutsceneLines" :key="index" class="cutscene-line" :class="{ visible: index < currentCutsceneLine }">
-          <span class="typewriter" ref="typewriterSpans">{{ displayedLines[index] || '' }}</span>
+        <div
+          v-for="(line, index) in cutsceneLines"
+          :key="index"
+          class="cutscene-line"
+          :class="{ visible: index < currentCutsceneLine }"
+        >
+          <span class="typewriter">{{ displayedLines[index] || '' }}</span>
         </div>
         <div
-          v-if="currentCutsceneLine >= cutsceneLines.length"
+          v-if="cutsceneLines && currentCutsceneLine >= cutsceneLines.length"
           class="cutscene-arrow"
           @click.stop="endCutscene"
           role="button"
@@ -22,11 +32,18 @@
     <!-- HUD (visible during battle) -->
     <div v-if="inBattle && !showCutscene" class="main-hud">
       <div class="panel-frame">
-        <div class="stat vida">
-          <div class="icon-container">
-            <img src="/icons/life-icon.png" alt="Vida" class="icon" />
+        <div class="stat vida" aria-label="Vida do jogador">
+          <div class="icon-container" aria-hidden="true">
+            <img src="/icons/life-icon.png" alt="" class="icon" />
+            <span class="lives-overlay">{{ gameState.player.lives }}</span>
           </div>
-          <div class="bar-container segmented">
+          <div
+            class="bar-container segmented"
+            role="progressbar"
+            :aria-valuenow="gameState.player.health"
+            :aria-valuemax="gameState.player.maxHealth"
+            aria-label="Barra de vida"
+          >
             <div
               v-for="i in maxBarSegments"
               :key="`vida-${i}`"
@@ -38,11 +55,17 @@
             </span>
           </div>
         </div>
-        <div class="stat energia">
-          <div class="icon-container">
-            <img src="/icons/stam-icon.png" alt="Energia" class="icon" />
+        <div class="stat energia" aria-label="Energia do jogador">
+          <div class="icon-container" aria-hidden="true">
+            <img src="/icons/stam-icon.png" alt="" class="icon" />
           </div>
-          <div class="bar-container segmented">
+          <div
+            class="bar-container segmented"
+            role="progressbar"
+            :aria-valuenow="gameState.player.stamina"
+            :aria-valuemax="gameState.player.maxStamina"
+            aria-label="Barra de energia"
+          >
             <div
               v-for="i in maxBarSegments"
               :key="`energia-${i}`"
@@ -61,13 +84,17 @@
     <div class="content-area">
       <!-- Interactions -->
       <div v-if="!bossDefeated && !inBattle && !showCutscene" class="interactions">
-        <button @click="confrontBoss">Enfrentar o Dragão Ancestral</button>
-        <button @click="fleeArea">Fugir</button>
+        <p>As ruínas ecoam com um rugido ancestral.</p>
+        <p><strong>Inimigo Final:</strong> O Dragão Ancestral aguarda.</p>
+        <div class="interaction-buttons">
+          <button @click="confrontBoss">Enfrentar o Dragão Ancestral</button>
+          <button @click="fleeArea">Fugir</button>
+        </div>
       </div>
       <div v-if="!inBattle && bossDefeated && !showCutscene" class="interactions">
         <p>O Dragão Ancestral foi derrotado.</p>
-        <p v-if="!gameState.player.keys.ancestral">Uma chave repousa nas cinzas.</p>
-        <button v-if="!gameState.player.keys.ancestral" @click="collectKey">Pegar Chave Ancestral</button>
+        <p v-if="!gameState.player.keys.ancestral">Uma chave e um punhado de ouro repousam nas cinzas.</p>
+        <button v-if="!gameState.player.keys.ancestral" @click="collectRewards">Coletar Recompensas</button>
       </div>
 
       <!-- Battle System -->
@@ -80,22 +107,21 @@
           </div>
 
           <!-- Player Character -->
-          <div class="character-info player-info">
-            <span class="character-name">{{ playerCharacter.name }} ({{ playerCharacter.className }})</span>
-            <div class="resource-bar-container">
-              <div class="hp-bar-label">Vida:</div>
-              <div class="hp-bar">
-                <div class="hp" :style="{ width: `${playerCharacter.hpPercent}%` }"></div>
-              </div>
-              <span class="resource-value">{{ playerCharacter.currentHp }}/{{ playerCharacter.maxHp }}</span>
-            </div>
-          </div>
           <div
             class="unit player-character"
             :class="{ 'is-attacking': playerAttacking, 'is-damaged': damagedPlayer }"
-            :style="{ top: `${playerCharacter.top}px`, left: `${playerCharacter.left}px` }"
+            :style="{
+              top: `${playerCharacter.top}px`,
+              left: `${playerCharacter.left}px`,
+              backgroundImage: `url(${playerSprite})`,
+              backgroundPosition: `-${animations[currentAnimation].frames[currentFrame] * frameWidth}px -${animations[currentAnimation].row * frameHeight}px`,
+              width: `${frameWidth}px`,
+              height: `${frameHeight}px`
+            }"
           >
-            <img :src="playerSprite" alt="Player" class="character-sprite" />
+          </div>
+          <div class="character-info player-info">
+            <span class="character-name">{{ gameState.player.name || 'Herói' }} ({{ weaponName ? '' + weaponName : '' }})</span>
           </div>
 
           <!-- Enemy (Ancestral Dragon) -->
@@ -111,11 +137,11 @@
               </div>
             </div>
             <div
-              class="unit enemy-character"
+              class="unit enemy-character dragao-ruina"
               :class="{ 'is-attacking': enemyAttacking === index, 'is-damaged': damagedEnemy === index, fainted: enemy.hpPercent <= 0 }"
               :style="enemyStyle(index, enemy)"
             >
-              <img :src="enemySprite" alt="Enemy" class="character-sprite" />
+              <img :src="enemySprites[enemy.name]" alt="Enemy" class="character-sprite" />
             </div>
           </div>
 
@@ -131,8 +157,11 @@
 
           <!-- Attack Effect -->
           <div v-if="attackEffect.active" class="attack-effect" :style="attackEffect.style">
-            <img :src="attackEffectSprite" alt="Attack Effect" class="effect-sprite" />
+            <img :src="attackEffect.sprite" alt="Attack Effect" class="effect-sprite" />
           </div>
+
+          <!-- Projectile Effect -->
+          <div v-if="projectile.active" class="projectile-effect" :style="projectile.style"></div>
         </div>
 
         <!-- Battle Log and Actions -->
@@ -141,15 +170,23 @@
             <p v-for="(message, index) in battleLog" :key="index" v-html="message"></p>
           </div>
           <div class="actions" v-if="isPlayerTurn && !isAttacking && !gameOver && !victory">
-            <button class="action-btn attack-btn" @click="attackEnemy" :disabled="activeEnemies.length === 0 || playerCharacter.currentStamina < 10">
+            <button
+              class="action-btn attack-btn"
+              @click="attackEnemy"
+              :disabled="activeEnemies.length === 0 || gameState.player.stamina < 10"
+            >
               Atacar
             </button>
-            <button class="action-btn potion-btn" @click="usePotion" :disabled="!canUsePotion || playerCharacter.currentStamina < 5">
+            <button
+              class="action-btn potion-btn"
+              @click="usePotion"
+              :disabled="!canUsePotion || gameState.player.stamina < 5"
+            >
               Poção ({{ potionCount }})
             </button>
           </div>
           <div class="actions-placeholder" v-else>
-            Aguarde sua vez...
+            Dragão Ancestral prepara um ataque...
           </div>
         </div>
       </div>
@@ -158,6 +195,7 @@
       <div v-if="showFeedback && !showCutscene" class="dialog-box feedback-box">
         <p>{{ feedbackMessage }}</p>
         <button @click="showFeedback = false">Ok</button>
+        <button v-if="gameOver" @click="returnToMenu">Voltar ao Menu</button>
       </div>
     </div>
 
@@ -167,50 +205,74 @@
         v-if="bossDefeated"
         class="nav-btn"
         @click="goToNextArea"
-        aria-label="Seguir para a próxima área (Acampamento)"
+        aria-label="Voltar Para Albadia"
         :disabled="!bossDefeated"
       >
-        Seguir para Acampamento
+        Voltar Para Albadia
       </button>
     </div>
   </div>
 </template>
 
 <script setup>
+import attackEffectSpritePlayer from '@/assets/sprites/ataque-efeito.png';
+import attackEffectSpriteDragon from '@/assets/sprites/ataque-dragao.png';
+import dragonRuinaSprite from '@/assets/sprites/dragao-ruina.png';
 import ruinasDragonImage from '@/assets/backviews/ruinas-dragon.png';
 import ruinasBattleImage from '@/assets/backviews/ruinas-battle.png';
 import warriorImage from '@/assets/backviews/warrior.png';
 import warriorScaredImage from '@/assets/backviews/warrior-scared.png';
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useGameState } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
+import { useGameState, ITEMS } from '@/stores/gameState.js';
 import { playAudio } from '@/utils/audioManager.js';
 
 const router = useRouter();
-const gameState = useGameState(); // Initialize the Pinia store
+const gameState = useGameState();
+const isGameStateReady = ref(false);
+const battleMusic = new Audio('/audio/musica-combate.mp3');
+battleMusic.loop = true;
+battleMusic.volume = 0.3;
+
+// Sprite Sheet for Player
+const playerSprite = new URL('/img/sprites/player/player_sprite.png', import.meta.url).href;
+
+// Animation Variables
+const currentFrame = ref(0);
+const frameTimer = ref(0);
+const frameWidth = 96;
+const frameHeight = 96;
+const animations = {
+  idle: { row: 2, frames: [0, 1, 2, 3, 4, 5, 6, 7], frameInterval: 150 },
+  attack_right: {
+    row: 14,
+    frames: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11],
+    frameInterval: 100
+  }
+};
+const currentAnimation = computed(() => playerAttacking.value ? 'attack_right' : 'idle');
+let animationFrameId = null;
 
 // Cutscene State
 const showCutscene = ref(false);
 const currentCutsceneLine = ref(0);
-const cutsceneLines = [
+const cutsceneLines = ref([
   'A névoa sufoca as Ruínas Ancestrais, um túmulo de pedra onde o tempo parou.',
   'Sombras dançam entre colunas partidas, sussurrando segredos de um reino perdido.',
   'Cada passo ecoa, como se o chão guardasse memórias de sangue e traição.',
   'Um rugido primal rasga o silêncio, estremecendo a terra sob seus pés.',
   'O Dragão Ancestral desperta, seus olhos de fogo perfurando a escuridão.',
   'Seu destino está selado: enfrentar a fera ou ser consumido por sua ira.',
-];
-const displayedLines = ref([]);
+]);
+const displayedLines = ref(cutsceneLines.value.map(() => ''));
 const cutsceneBackgroundImage = ref(warriorImage);
 const isFading = ref(false);
+const isCutscenePlaying = ref(false);
+const cutsceneMusic = ref(null);
 
 // Background Styles
 const backgroundStyle = computed(() => ({
-  backgroundImage: `url(${
-    inBattle.value && !showCutscene.value
-      ? ruinasBattleImage
-      : ruinasDragonImage // Default to dragon background
-  })`,
+  backgroundImage: `url(${inBattle.value ? ruinasBattleImage : ruinasDragonImage})`,
   backgroundSize: 'cover',
   backgroundPosition: 'center',
   opacity: isFading.value ? 0 : 1,
@@ -241,30 +303,45 @@ const filledStaminaSegments = computed(() =>
 
 // Player Character
 const playerCharacter = reactive({
-  name: gameState.player.name || 'Herói',
-  className: gameState.player.className || 'Guerreiro',
-  hpPercent: (gameState.player.health / gameState.player.maxHealth) * 100,
-  currentHp: gameState.player.health || 100,
-  maxHp: gameState.player.maxHealth || 100,
-  currentStamina: gameState.player.stamina || 100,
-  maxStamina: gameState.player.maxStamina || 100,
+  name: computed(() => gameState.player.name || 'Herói'),
+  className: computed(() => gameState.player.classe || 'Guerreiro'),
   top: 300,
   left: 50,
-  attackPower: 15,
+});
+
+// Weapon Properties
+const weaponName = computed(() => {
+  const weaponId = gameState.player.equipment.weapon;
+  return weaponId && ITEMS[weaponId] ? ITEMS[weaponId].name : 'Punhos';
+});
+const weaponDamage = computed(() => {
+  const weaponId = gameState.player.equipment.weapon;
+  return weaponId && ITEMS[weaponId]?.stats?.attack ? ITEMS[weaponId].stats.attack : 5;
+});
+const weaponSprite = computed(() => {
+  const weaponId = gameState.player.equipment.weapon;
+  return weaponId && ITEMS[weaponId]?.icon ? ITEMS[weaponId].icon : null;
 });
 
 // Enemy Configuration
 const enemiesConfig = [{
   name: 'Dragão Ancestral',
   hpPercent: 100,
-  currentHp: 200,
-  maxHp: 200,
-  top: 200,
-  left: 1100,
+  currentHp: 150,
+  maxHp: 150,
+  top: 300,
+  left: 'calc(100% - 200px)',
   attackPower: 20,
 }];
-const initialEnemyPositions = enemiesConfig.map(enemy => ({ top: enemy.top, left: enemy.left }));
-const enemies = reactive(enemiesConfig.map(enemy => ({ ...enemy, hpPercent: 100 })));
+const initialEnemyPositions = enemiesConfig.map(enemy => ({
+  top: enemy.top,
+  left: enemy.left,
+}));
+const enemies = reactive(enemiesConfig.map(enemy => ({ ...enemy })));
+const enemySprites = {
+  'Dragão Ancestral': dragonRuinaSprite,
+};
+const activeEnemies = computed(() => enemies.filter(enemy => enemy.hpPercent > 0));
 
 // Battle State
 const damagedEnemy = ref(null);
@@ -278,20 +355,10 @@ const battleStatus = ref('Desfira seu golpe!');
 const gameOver = ref(false);
 const victory = ref(false);
 const damagePopup = reactive({ active: false, value: 0, top: 0, left: 0, type: 'enemy-damage', prefix: '-' });
-const attackEffect = reactive({ active: false, style: {} });
-
-// Computed Properties
-const potionCount = computed(() => gameState.player.potions || 0);
-const canUsePotion = computed(() => potionCount.value > 0 && playerCharacter.currentHp < playerCharacter.maxHp);
-const activeEnemies = computed(() => enemies.filter(enemy => enemy.hpPercent > 0));
-const enemyInfoStyle = index => ({
-  top: `${initialEnemyPositions[index].top - 90}px`,
-  left: `calc(80vw - ${120 + index * 50}px)`,
-});
-const enemyStyle = (index, enemy) => ({
-  top: `${enemy.hpPercent > 0 ? enemy.top : initialEnemyPositions[index].top}px`,
-  left: `${enemy.hpPercent > 0 ? `calc(80vw - ${index * 50}px)` : initialEnemyPositions[index].left}px`,
-});
+const attackEffect = reactive({ active: false, style: {}, sprite: null });
+const projectile = reactive({ active: false, style: {} });
+const potionCount = computed(() => gameState.getItemQuantity('potion_health'));
+const canUsePotion = computed(() => potionCount.value > 0 && gameState.player.health < gameState.player.maxHealth);
 
 // Utility Functions
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -319,10 +386,11 @@ const showPopup = (value, targetElement, type = 'enemy-damage') => {
   setTimeout(() => Object.assign(damagePopup, { active: false }), 800);
 };
 
-const showAttackEffect = async (attackerElement, targetElement) => {
+const showAttackEffect = async (attackerElement, targetElement, isPlayer = true) => {
   const startRect = attackerElement.getBoundingClientRect();
   const endRect = targetElement.getBoundingClientRect();
   const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
+  const spriteToUse = isPlayer ? attackEffectSpritePlayer : attackEffectSpriteDragon;
   Object.assign(attackEffect, {
     active: true,
     style: {
@@ -330,6 +398,7 @@ const showAttackEffect = async (attackerElement, targetElement) => {
       left: `${startRect.left - containerRect.left + startRect.width / 2}px`,
       opacity: 1,
     },
+    sprite: spriteToUse,
   });
   await sleep(50);
   Object.assign(attackEffect.style, {
@@ -339,105 +408,228 @@ const showAttackEffect = async (attackerElement, targetElement) => {
     transition: 'top 0.3s ease-out, left 0.3s ease-out, opacity 0.3s ease-out',
   });
   await sleep(300);
-  Object.assign(attackEffect, { active: false, style: {} });
+  Object.assign(attackEffect, { active: false, style: {}, sprite: null });
 };
 
-// Cutscene Logic with Background Transitions and Audio
-const typewriterSpans = ref([]);
-const playCutscene = async () => {
-  playAudio('ruins_ambient', { loop: true });
-  playAudio('cutscene_ruins_intro');
-  displayedLines.value = new Array(cutsceneLines.length).fill('');
-  cutsceneBackgroundImage.value = warriorImage;
-  for (let i = 0; i < cutsceneLines.length; i++) {
-    currentCutsceneLine.value = i + 1;
-    const text = cutsceneLines[i];
-    for (let j = 0; j <= text.length; j++) {
-      displayedLines.value[i] = text.slice(0, j);
-      displayedLines.value = [...displayedLines.value];
-      if (j > 0) playAudio('typewriter_click');
-      await sleep(50);
+const showProjectile = async (attackerElement, targetElement) => {
+  const startRect = attackerElement.getBoundingClientRect();
+  const endRect = targetElement.getBoundingClientRect();
+  const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
+  Object.assign(projectile, {
+    active: true,
+    style: {
+      top: `${startRect.top - containerRect.top + startRect.height / 2}px`,
+      left: `${startRect.left - containerRect.left + startRect.width / 2}px`,
+      opacity: 1,
+    },
+  });
+  await sleep(50);
+  Object.assign(projectile.style, {
+    top: `${endRect.top - containerRect.top + endRect.height / 2}px`,
+    left: `${endRect.left - containerRect.left + endRect.width / 2}px`,
+    opacity: 0,
+    transition: 'top 0.5s ease-out, left 0.5s ease-out, opacity 0.5s ease-out',
+  });
+  await sleep(500);
+  Object.assign(projectile, { active: false, style: {} });
+};
+
+const enemyStyle = (index, enemy) => ({
+  top: `${enemy.top}px`,
+  left: enemy.left,
+  backgroundImage: `url(${enemySprites[enemy.name]})`,
+  width: '96px',
+  height: '96px',
+});
+
+const enemyInfoStyle = (index) => ({
+  top: `${enemies[index].top - 60}px`,
+  right: '20px',
+});
+
+// Animation Loop
+const updateAnimation = (now) => {
+  if (!inBattle.value) return;
+  const anim = animations[currentAnimation.value];
+  if (now - frameTimer.value > anim.frameInterval) {
+    frameTimer.value = now;
+    currentFrame.value++;
+    if (currentFrame.value >= anim.frames.length) {
+      currentFrame.value = 0;
+      if (playerAttacking.value) {
+        playerAttacking.value = false;
+      }
     }
-    if (i === 3) {
-      playAudio('dragon_roar');
+  }
+  animationFrameId = requestAnimationFrame(updateAnimation);
+};
+
+// Audio Management
+const initializeAudio = () => {
+  cutsceneMusic.value = new Audio('/audio/musica-sus.mp3');
+  cutsceneMusic.value.loop = true;
+  cutsceneMusic.value.volume = 0.3;
+  cutsceneMusic.value.preload = 'auto';
+};
+
+const stopAllAudio = () => {
+  if (cutsceneMusic.value) {
+    cutsceneMusic.value.pause();
+    cutsceneMusic.value.currentTime = 0;
+  }
+  if (battleMusic) {
+    battleMusic.pause();
+    battleMusic.currentTime = 0;
+  }
+  playAudio('ruins_ambient', { stop: true, volume: 0.3 });
+};
+
+// Cutscene Logic
+const playCutscene = async () => {
+  isCutscenePlaying.value = true;
+  currentCutsceneLine.value = 0;
+  displayedLines.value = cutsceneLines.value.map(() => '');
+  cutsceneBackgroundImage.value = warriorImage;
+
+  for (let i = 0; i < cutsceneLines.value.length && isCutscenePlaying.value; i++) {
+    currentCutsceneLine.value = i + 1;
+    const text = cutsceneLines.value[i];
+    for (let j = 0; j <= text.length && isCutscenePlaying.value; j++) {
+      await new Promise(resolve => setTimeout(() => {
+        displayedLines.value[i] = text.slice(0, j);
+        displayedLines.value = [...displayedLines.value];
+        if (j > 0) playAudio('typewriter_click', { volume: 0.3 });
+        resolve();
+      }, 50));
+    }
+    if (i === 3 && isCutscenePlaying.value) {
+      playAudio('dragon_roar', { volume: 0.3 });
       isFading.value = true;
       await sleep(500);
       cutsceneBackgroundImage.value = warriorScaredImage;
+      playAudio('warrior_fear', { volume: 0.3 });
       isFading.value = false;
       await sleep(2000);
     } else {
       await sleep(1500);
     }
   }
+  isCutscenePlaying.value = false;
+};
+
+const startCutsceneWithAudio = async () => {
+  stopAllAudio();
+  initializeAudio();
+  try {
+    await cutsceneMusic.value.play();
+    await playCutscene();
+  } catch (err) {
+    console.warn('Failed to play cutscene music:', err);
+    await playCutscene();
+  }
+};
+
+const advanceCutscene = (event) => {
+  if (event.type === 'click' || (event.type === 'keydown' && ['Enter', 'Space'].includes(event.key))) {
+    if (isCutscenePlaying.value) {
+      const currentIndex = currentCutsceneLine.value - 1;
+      if (currentIndex < cutsceneLines.value.length) {
+        displayedLines.value[currentIndex] = cutsceneLines.value[currentIndex];
+        displayedLines.value = [...displayedLines.value];
+      }
+    }
+  }
 };
 
 const endCutscene = async () => {
-  playAudio('ruins_ambient', { stop: true });
+  isCutscenePlaying.value = false;
+  stopAllAudio();
   isFading.value = true;
   await sleep(500);
   cutsceneBackgroundImage.value = ruinasDragonImage;
   isFading.value = false;
   showCutscene.value = false;
   gameState.player.hasViewedRuinasCutscene = true;
+  gameState.saveState();
 };
 
 // Game Functions
 const confrontBoss = () => {
   inBattle.value = true;
-  playAudio('battle_start_dragon_ancestral');
+  battleLog.value = [`${gameState.player.name || 'Herói'} enfrenta o Dragão Ancestral!`];
+  stopAllAudio();
+  battleMusic.play().catch(err => console.warn('Erro ao tocar música de batalha:', err));
+  playAudio('battle_start_dragon_ancestral', { volume: 0.3 });
   feedbackMessage.value = 'O Dragão Ancestral desperta!';
   showFeedback.value = true;
+  frameTimer.value = performance.now();
+  animationFrameId = requestAnimationFrame(updateAnimation);
 };
 
-const collectKey = () => {
+const collectRewards = () => {
   if (bossDefeated.value && !gameState.player.keys.ancestral) {
-    gameState.collectKey('ancestral'); // Use gameState instead of actions
-    playAudio('collect_key_ancient');
-    feedbackMessage.value = 'Chave Ancestral obtida!';
+    gameState.collectKey('ancestral');
+    gameState.addGold(50);
+    playAudio('collect_key_ancient', { volume: 0.3 });
+    feedbackMessage.value = 'Chave Ancestral e 50 de ouro obtidos!';
     showFeedback.value = true;
   } else {
-    feedbackMessage.value = 'Nenhuma chave disponível.';
+    feedbackMessage.value = 'Nenhuma recompensa disponível.';
     showFeedback.value = true;
   }
 };
 
 const fleeArea = () => {
-  playAudio('ui_back');
-  router.push({ name: 'Acampamento' });
+  playAudio('ui_back', { volume: 0.3 });
+  stopAllAudio();
+  router.push({ name: 'Map' });
 };
 
 const attackEnemy = async () => {
-  if (!activeEnemies.value.length || !isPlayerTurn.value || isAttacking.value || playerCharacter.currentStamina < 10) {
-    if (playerCharacter.currentStamina < 10) {
+  if (!activeEnemies.value.length || !isPlayerTurn.value || isAttacking.value || gameState.player.stamina < 10) {
+    if (gameState.player.stamina < 10) {
       addLogMessage(`<span style="color: #ff6666;">⚡ Energia insuficiente!</span>`);
     }
     return;
   }
   isAttacking.value = true;
   playerAttacking.value = true;
-  playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 10);
-  gameState.player.stamina = playerCharacter.currentStamina;
-  addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
+  currentFrame.value = 0;
+  frameTimer.value = performance.now();
+
+  gameState.recoverStamina(10);
+  addLogMessage(`<span style="color: #33cc33;">⚡ +10 energia restaurada!</span>`);
+  gameState.useStamina(5);
+  addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
+
+  const attackResult = gameState.playerAttackAction();
+  if (!attackResult.success) {
+    addLogMessage(`<span style="color: #ff6666;">${attackResult.message}</span>`);
+    playerAttacking.value = false;
+    isAttacking.value = false;
+    return;
+  }
+
   const enemyIndex = 0;
   const enemy = enemies[enemyIndex];
   const playerElement = document.querySelector('.player-character');
-  const enemyElement = document.querySelectorAll('.enemy-character')[enemyIndex];
-  battleStatus.value = `${playerCharacter.name} ataca!`;
-  addLogMessage(`⚔️ ${playerCharacter.name} golpeia!`);
+  const enemyElement = document.querySelectorAll('.enemy-character')[0];
+  battleStatus.value = `${gameState.player.name || 'Herói'} ataca!`;
+  addLogMessage(`⚔️ ${attackResult.message}`);
+  playAudio('attack', { volume: 0.3 });
   const originalLeft = playerCharacter.left;
   playerCharacter.left += 40;
   await sleep(200);
-  await showAttackEffect(playerElement, enemyElement);
+  await showAttackEffect(playerElement, enemyElement, true);
   playerCharacter.left = originalLeft;
   damagedEnemy.value = enemyIndex;
-  const damageDealt = playerCharacter.attackPower + Math.floor(Math.random() * 5);
+  const damageDealt = attackResult.damage;
   enemy.currentHp = Math.max(0, enemy.currentHp - damageDealt);
   enemy.hpPercent = (enemy.currentHp / enemy.maxHp) * 100;
   showPopup(damageDealt, enemyElement, 'enemy-damage');
   addLogMessage(`<span style="color: #d0a070;">💥 ${damageDealt} de dano!</span>`);
   await sleep(500);
   damagedEnemy.value = null;
-  playerAttacking.value = false;
   if (enemy.hpPercent <= 0) {
     addLogMessage(`<span style="color: #a09080;">☠️ O Dragão Ancestral caiu!</span>`);
     victory.value = true;
@@ -447,103 +639,187 @@ const attackEnemy = async () => {
     return;
   }
   isPlayerTurn.value = false;
-  battleStatus.value = 'O dragão ruge!';
-  await sleep(1000);
-  isPlayerTurn.value = true;
+  await enemyTurn();
+  if (!gameOver.value && !victory.value) {
+    isPlayerTurn.value = true;
+    battleStatus.value = 'Desfira seu golpe!';
+  }
   isAttacking.value = false;
 };
 
 const usePotion = async () => {
-  if (!canUsePotion.value || !isPlayerTurn.value || isAttacking.value || playerCharacter.currentStamina < 5) {
-    if (playerCharacter.currentStamina < 5) {
+  if (!canUsePotion.value || !isPlayerTurn.value || isAttacking.value || gameState.player.stamina < 5) {
+    if (gameState.player.stamina < 5) {
       addLogMessage(`<span style="color: #ff6666;">⚡ Energia insuficiente!</span>`);
     }
     return;
   }
   isAttacking.value = true;
-  playerCharacter.currentStamina = Math.max(0, playerCharacter.currentStamina - 5);
-  gameState.player.stamina = playerCharacter.currentStamina;
+
+  gameState.recoverStamina(5);
+  addLogMessage(`<span style="color: #33cc33;">⚡ +5 energia restaurada!</span>`);
+  gameState.useStamina(5);
   addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
   const playerElement = document.querySelector('.player-character');
-  gameState.removeItemFromInventory('potion', 1); // Use gameState instead of actions
-  gameState.player.potions -= 1;
-  const healAmount = 30;
-  playerCharacter.currentHp = Math.min(playerCharacter.maxHp, playerCharacter.currentHp + healAmount);
-  playerCharacter.hpPercent = (playerCharacter.currentHp / playerCharacter.maxHp) * 100;
-  gameState.player.health = playerCharacter.currentHp;
-  showPopup(healAmount, playerElement, 'hp-heal');
-  addLogMessage(`<span style="color: #90c090;">🧪 +${healAmount} vida!</span>`);
+  if (gameState.getItemQuantity('potion_health') > 0) {
+    gameState.useItem('potion_health');
+    const healAmount = ITEMS['potion_health'].effect.heal;
+    showPopup(healAmount, playerElement, 'hp-heal');
+    addLogMessage(`<span style="color: #90c090;">🧪 +${healAmount} vida!</span>`);
+    playAudio('potion', { volume: 0.3 });
+  } else {
+    addLogMessage(`<span style="color: #ff6666;">🧪 Sem poções!</span>`);
+  }
   await sleep(1000);
   isPlayerTurn.value = false;
-  battleStatus.value = 'O dragão ruge!';
+  battleStatus.value = 'Dragão Ancestral prepara um ataque!';
   await sleep(1000);
-  isPlayerTurn.value = true;
+  await enemyTurn();
+  if (!gameOver.value && !victory.value) {
+    isPlayerTurn.value = true;
+    battleStatus.value = 'Desfira seu golpe!';
+  }
   isAttacking.value = false;
+};
+
+const enemyTurn = async () => {
+  if (!activeEnemies.value.length || gameState.player.health <= 0) return;
+  const enemy = enemies[0];
+  const playerElement = document.querySelector('.player-character');
+  const enemyElement = document.querySelectorAll('.enemy-character')[0];
+  battleStatus.value = 'Dragão Ancestral ataca!';
+  addLogMessage(`<b>🐉 Dragão Ancestral</b> lança um projétil flamejante!`);
+  playAudio('hit', { volume: 0.3 });
+  await sleep(800);
+  enemyAttacking.value = 0;
+  await showProjectile(enemyElement, playerElement);
+  const damageTaken = 20;
+  gameState.takeDamage(damageTaken);
+  showPopup(damageTaken, playerElement, 'player-damage');
+  addLogMessage(`<span style="color: #c06060;">💥 ${gameState.player.name || 'Herói'} sofre ${damageTaken} de dano!</span>`);
+  await sleep(500);
+  enemyAttacking.value = null;
+  damagedPlayer.value = true;
+  await sleep(1000);
+  damagedPlayer.value = false;
+  if (gameState.player.health <= 0) {
+    addLogMessage(`<b>💀 ${gameState.player.name || 'Herói'} foi derrotado!</b>`);
+    handleDefeat();
+    return;
+  }
+  await sleep(1000);
+  if (!gameOver.value && !victory.value) {
+    isPlayerTurn.value = true;
+    battleStatus.value = 'Desfira seu golpe!';
+  }
 };
 
 const handleVictory = () => {
   bossDefeated.value = true;
-  gameState.completeLevel('ruinas_boss'); // Use gameState instead of actions
+  gameState.completeLevel('ruinas_boss');
   inBattle.value = false;
-  gameState.player.gold += 100;
-  gameState.addItemToInventory('dragon_scale', 1); // Use gameState instead of actions
-  addLogMessage(`<span style="color: #d0a070;">💰 +100 ouro!</span>`);
+  gameState.addItemToInventory('dragon_scale', 1);
+  gameState.addGold(100);
   addLogMessage(`<span style="color: #d0a070;">🎁 Escama de Dragão!</span>`);
+  playAudio('boss_defeat', { volume: 0.3 });
   feedbackMessage.value = 'Dragão Ancestral derrotado!';
   showFeedback.value = true;
+  stopAllAudio();
 };
 
-const handleDefeat = () => {
-  gameState.player.health = 0;
-  inBattle.value = false;
-  playAudio('player_defeat');
-  feedbackMessage.value = 'Você foi derrotado!';
-  showFeedback.value = true;
-  setTimeout(() => router.push('/'), 2000);
+const handleDefeat = async () => {
+  playAudio('player_defeat', { volume: 0.3 });
+  gameState.handleDeath();
+  if (gameState.player.lives > 0) {
+    feedbackMessage.value = `Você foi derrotado! Vidas restantes: ${gameState.player.lives}`;
+    showFeedback.value = true;
+    enemies.forEach((enemy, index) => {
+      enemy.currentHp = enemiesConfig[index].maxHp;
+      enemy.hpPercent = 100;
+    });
+    inBattle.value = true;
+    isPlayerTurn.value = true;
+    gameOver.value = false;
+    battleStatus.value = 'Desfira seu golpe!';
+    battleLog.value = [`${gameState.player.name || 'Herói'} retorna para enfrentar o Dragão Ancestral!`];
+    battleMusic.play().catch(err => console.warn('Erro ao tocar música de batalha:', err));
+  } else {
+    gameOver.value = true;
+    stopAllAudio();
+    router.push('/gameOver'); // Redireciona para a tela de Game Over
+  }
+};
+
+const returnToMenu = () => {
+  stopAllAudio();
+  router.push('/');
 };
 
 const goToNextArea = () => {
   if (!bossDefeated.value) return;
-  playAudio('ui_confirm');
-  router.push({ name: 'Acampamento' });
+  playAudio('ui_confirm', { volume: 0.3 });
+  stopAllAudio();
+  router.push('/level/albadia');
 };
 
 // Lifecycle Hooks
 onMounted(() => {
-  gameState.setCurrentArea('Ruínas Ancestrais'); // Use gameState instead of actions
+  console.log('Component mounted, gameState:', gameState);
+  console.log('cutsceneLines:', cutsceneLines.value);
+  if (!gameState.player) {
+    console.error('gameState.player is undefined, initializing...');
+    gameState.player = reactive({
+      health: 100,
+      maxHealth: 100,
+      stamina: 50,
+      maxStamina: 50,
+      lives: 3,
+      name: 'Herói',
+      classe: 'Guerreiro',
+      keys: { ancestral: false, ice: false, fire: false },
+      equipment: { weapon: null },
+      potions: 0,
+      hasViewedRuinasCutscene: false,
+      levelsCompleted: [],
+    });
+  }
+  gameState.setCurrentArea('Ruínas Ancestrais');
   if (!gameState.player.keys) {
     gameState.player.keys = reactive({ ancestral: false, ice: false, fire: false });
   }
-  if (!gameState.player.stamina) {
-    gameState.player.stamina = 100;
-    gameState.player.maxStamina = 100;
+  if (!gameState.player.lives) {
+    gameState.player.lives = 3;
   }
   if (!gameState.player.hasViewedRuinasCutscene) {
     gameState.player.hasViewedRuinasCutscene = false;
   }
-  if (!gameState.levelsCompleted) {
-    gameState.levelsCompleted = reactive([]);
+  if (!gameState.player.levelsCompleted) {
+    gameState.player.levelsCompleted = reactive([]);
   }
-  playerCharacter.currentStamina = gameState.player.stamina;
-  playerCharacter.currentHp = gameState.player.health;
+  if (!gameState.player.equipment) {
+    gameState.player.equipment = { weapon: null };
+  }
+  if (!gameState.player.potions) {
+    gameState.player.potions = 0;
+  }
   bossDefeated.value = gameState.levelsCompleted.includes('ruinas_boss');
+  isGameStateReady.value = true;
+
   if (!bossDefeated.value && !gameState.player.hasViewedRuinasCutscene) {
     showCutscene.value = true;
-    playCutscene();
+    startCutsceneWithAudio();
   } else {
     showCutscene.value = false;
   }
 });
 
-// Watch for health and stamina changes
-watch(
-  () => [gameState.player.health, gameState.player.stamina],
-  ([newHealth, newStamina]) => {
-    playerCharacter.currentHp = newHealth;
-    playerCharacter.hpPercent = (newHealth / playerCharacter.maxHp) * 100;
-    playerCharacter.currentStamina = newStamina;
+onUnmounted(() => {
+  console.log('Component unmounted');
+  stopAllAudio();
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
   }
-);
+});
 </script>
 
 <style scoped>
@@ -553,8 +829,8 @@ watch(
   position: relative;
   width: 100%;
   height: 100vh;
-  overflow: auto;
-  transition: opacity 0.5s ease;
+  overflow-y: hidden;
+  background-color: #1c2526;
 }
 
 /* Cutscene Style */
@@ -569,38 +845,40 @@ watch(
   align-items: flex-end;
   z-index: 100;
   outline: none;
+  cursor: pointer;
 }
 
 .cutscene-content {
   position: relative;
-  background: rgba(40, 20, 10, 0.95);
-  border: 4px solid #a07c50;
-  padding: 20px;
-  max-width: 800px;
-  margin-bottom: 100px;
+  background: rgba(40, 44, 52, 0.95);
+  border: 4px solid #4a4e57;
+  padding: 15px;
+  max-width: 600px;
+  max-height: 60vh;
+  margin-bottom: 10px;
   text-align: left;
-  color: #f0f0e0;
+  color: #d3d7e0;
   font-family: 'MedievalSharp', cursive;
   font-size: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+  overflow-y: auto;
 }
 
 .cutscene-line {
   line-height: 1.6;
   margin-bottom: 10px;
-  display: block;
   opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .cutscene-line.visible {
   opacity: 1;
-  display: block;
 }
 
 .typewriter {
   display: inline-block;
-  white-space: nowrap;
-  overflow: hidden;
+  white-space: pre-wrap;
+  color: #d3d7e0;
 }
 
 .cutscene-arrow {
@@ -609,9 +887,9 @@ watch(
   align-items: center;
   width: 40px;
   height: 40px;
-  background-color: #704d3a;
-  border: 2px solid #5c4033;
-  color: #d0b090;
+  background: linear-gradient(to bottom, #4a4e57, #2e323a);
+  border: 2px solid #4a4e57;
+  color: #d3d7e0;
   font-size: 24px;
   border-radius: 5px;
   cursor: pointer;
@@ -620,32 +898,17 @@ watch(
 }
 
 .cutscene-arrow:hover {
-  background-color: #8b6a47;
+  background: linear-gradient(to bottom, #5a5e67, #3e424a);
 }
 
 .cutscene-arrow:active {
   transform: translate(1px, 1px);
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-
-/* Dialog Transition */
-.feedback-box {
-  transition: opacity 0.5s ease, transform 0.5s ease;
-}
-
-.feedback-box.fade-enter, .feedback-box.fade-leave-to {
-  opacity: 0;
-  transform: translate(-50%, -60%);
-}
-
 /* HUD Styles */
 .main-hud {
   position: fixed;
-  bottom: 10px;
+  top: 10px;
   left: 10px;
   z-index: 90;
   font-size: 14px;
@@ -664,6 +927,7 @@ watch(
 }
 
 .icon-container {
+  position: relative;
   width: 32px;
   height: 32px;
   display: flex;
@@ -677,12 +941,24 @@ watch(
   image-rendering: pixelated;
 }
 
+.lives-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  color: #d3d7e0;
+  font-family: 'MedievalSharp', cursive;
+  text-shadow: 1px 1px 2px #000;
+  font-weight: bold;
+}
+
 .bar-container {
   position: relative;
   width: 200px;
   height: 24px;
   background: rgba(0, 0, 0, 0.7);
-  border: 2px solid #333;
+  border: 2px solid #4aead4;
   border-radius: 4px;
   overflow: hidden;
 }
@@ -693,7 +969,7 @@ watch(
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 12px;
-  color: #fff9d6;
+  color: #d3d7e0;
   text-shadow: 1px 1px 0 #000;
   font-family: 'MedievalSharp', cursive;
 }
@@ -708,7 +984,7 @@ watch(
   flex: 1;
   height: 20px;
   background: rgba(0, 0, 0, 0.3);
-  border: 1px solid #222;
+  border: 1px solid #4a4e57;
 }
 
 .vida .segment.filled {
@@ -716,39 +992,44 @@ watch(
 }
 
 .energia .segment.filled {
-  background: linear-gradient(to bottom, #33cc33, #0b700b);
+  background: linear-gradient(to bottom, #33cc33, #0ff);
 }
 
 /* Content Area */
 .content-area {
   flex-grow: 1;
-  padding: 20px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  height: calc(100vh - 60px);
+  box-sizing: border-box;
 }
 
 .interactions, .feedback-box {
-  background-color: rgba(10, 5, 15, 0.85);
-  padding: 20px;
-  border: 2px solid #a07c4f;
+  background-color: rgba(40, 44, 52, 0.85);
+  padding: 15px;
+  border: 2px solid #4a4e57;
   border-radius: 8px;
   text-align: center;
   max-width: 400px;
-  color: #e0d8c0;
+  color: #d3d7e0;
   font-family: 'MedievalSharp', cursive;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
 }
 
 .interactions {
   position: absolute;
-  bottom: 15%;
+  bottom: 70px;
   left: 50%;
   transform: translateX(-50%);
+}
+
+.interaction-buttons {
   display: flex;
   flex-direction: column;
-  gap: 10px; /* Add spacing between buttons */
+  gap: 10px;
 }
 
 .feedback-box {
@@ -760,27 +1041,35 @@ watch(
 }
 
 .feedback-box p {
-  margin-bottom: 15px;
+  margin-bottom: 10px;
   font-size: 16px;
 }
 
 .feedback-box button, .interactions button, .action-btn, .nav-btn {
-  background-color: #704d3a;
-  border: 2px solid #5c4033;
-  color: #d0b090;
-  padding: 8px 20px;
-  border-radius: 5px;
+  background: linear-gradient(to bottom, #4a4e57, #2e323a);
+  border: 3px solid #4a4e57;
+  color: #d3d7e0;
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 8px;
   cursor: pointer;
-  font-family: 'UnifrakturMaguntia', cursive;
+  font-family: 'MedievalSharp', cursive;
+  text-shadow: 1px 1px 2px #000;
+  box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.1), 2px 2px 6px rgba(0, 0, 0, 0.7);
   transition: filter 0.2s, transform 0.1s;
 }
 
-.feedback-box button:hover, .interactions button:hover, .action-btn:hover:not(:disabled), .nav-btn:hover:not(:disabled) {
+.feedback-box button:hover:not(:disabled), .interactions button:hover:not(:disabled), .action-btn:hover:not(:disabled), .nav-btn:hover:not(:disabled) {
   filter: brightness(1.2);
 }
 
-.feedback-box button:active, .interactions button:active, .action-btn:active:not(:disabled), .nav-btn:active:not(:disabled) {
-  transform: translate(1px, 1px);
+.feedback-box button:active:not(:disabled), .interactions button:active:not(:disabled), .action-btn:active:not(:disabled), .nav-btn:active:not(:disabled) {
+  transform: scale(0.97);
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.potion-btn {
+  background: linear-gradient(to bottom, #5a5e67, #3e424a);
 }
 
 /* Navigation Bar */
@@ -789,13 +1078,15 @@ watch(
   bottom: 0;
   left: 0;
   width: 100%;
-  background: rgba(40, 25, 15, 0.9);
-  border-top: 4px solid #5c4033;
-  padding: 10px 20px;
+  background: rgba(40, 44, 52, 0.95);
+  border-top: 4px solid #4a4e57;
+  padding: 5px 10px;
   display: flex;
   justify-content: center;
-  gap: 20px;
+  gap: 10px;
   z-index: 10;
+  height: 50px;
+  box-sizing: border-box;
 }
 
 .nav-btn:disabled {
@@ -809,39 +1100,39 @@ watch(
   top: 0;
   left: 0;
   width: 100%;
-  height: 100%;
-  background: linear-gradient(rgba(20, 10, 5, 0.9), rgba(20, 10, 5, 0.9));
+  height: calc(100vh - 50px);
+  display: flex;
+  flex-direction: column;
 }
 
 .battle-arena {
   position: relative;
   width: 100%;
-  height: 80vh;
-  background: rgba(20, 10, 5, 0.95);
+  height: calc(80vh - 40px);
   overflow: hidden;
 }
 
 .game-status-top {
   position: absolute;
-  top: 20px;
+  top: 10px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 16px;
-  color: #d0b090;
-  background: rgba(40, 25, 15, 0.9);
-  padding: 10px 20px;
+  font-size: 14px;
+  color: #d3d7e0;
+  background: rgba(40, 44, 52, 0.9);
+  padding: 8px 16px;
   border-radius: 5px;
   z-index: 20;
-  border: 2px solid #8b6a47;
+  border: 2px solid #4a4e57;
   font-family: 'MedievalSharp', cursive;
 }
 
 .victory-message, .game-over-message {
-  font-size: 18px;
+  font-size: 16px;
   animation: pulseGlow 1.5s infinite;
 }
 
-.victory-message { color: #b09050; }
+.victory-message { color: #b0c4de; }
 .game-over-message { color: #a04040; }
 
 @keyframes pulseGlow {
@@ -851,48 +1142,106 @@ watch(
 
 .unit {
   position: absolute;
-  width: 100px;
-  height: 100px;
+  width: 96px;
+  height: 96px;
   transition: top 0.3s ease, left 0.3s ease;
 }
 
-.character-sprite {
-  width: 100%;
-  height: 100%;
+.player-character {
+  z-index: 10;
+  transform: scale(5);
+  transform-origin: center center;
+  image-rendering: pixelated;
+  margin-top: 7%;
+}
+
+.player-character.is-damaged {
+  animation: damageBrighten 1s linear forwards;
+}
+
+@keyframes damageBrighten {
+  0% { filter: brightness(1); }
+  30% { filter: brightness(1.2); }
+  50% { filter: brightness(1.5); }
+  90% { filter: brightness(1.2); }
+  100% { filter: brightness(1); }
+}
+
+.player-character.is-attacking {
+  scale: 1.01;
+}
+
+.weapon-sprite {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  top: 50%;
+  left: 80%;
+  transform: translate(-50%, -50%);
   object-fit: contain;
   image-rendering: pixelated;
 }
 
-.player-character { z-index: 10; }
-.enemy-character { z-index: 9; }
-.enemy-character.fainted { filter: grayscale(100%) opacity(40%); }
+.enemy-character {
+  z-index: 9;
+}
+
+.enemy-character.fainted {
+  filter: grayscale(100%) opacity(40%);
+}
+
+.enemy-character.dragao-ruina {
+  transform: scale(5.5);
+  transform-origin: center center;
+}
+
+.enemy-character.dragao-ruina.is-attacking {
+  animation: dragonShake 0.4s ease-in-out;
+  transform: scale(5.5);
+}
+
+.character-sprite {
+  width: 130%;
+  height: 150%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  margin-left: -50%;
+}
 
 .character-info {
   position: absolute;
-  background: rgba(40, 25, 15, 0.9);
-  border: 2px solid #8b6a47;
+  background: rgba(40, 44, 52, 0.9);
+  border: 2px solid #4a4e57;
   border-radius: 8px;
-  padding: 10px;
-  color: #d0b090;
+  padding: 8px;
+  color: #d3d7e0;
   font-size: 12px;
   min-width: 180px;
 }
 
-.player-info { bottom: 50px; left: 20px; }
-.enemy-info { text-align: right; }
+.player-info {
+  bottom: 60px;
+  left: 20px;
+  z-index: 5;
+}
+
+.enemy-info {
+  text-align: center;
+  margin-top: -5%;
+}
 
 .character-name {
   font-weight: bold;
   font-size: 14px;
-  color: #e0c0a0;
-  margin-bottom: 8px;
+  color: #d3d7e0;
+  margin-bottom: 6px;
   display: block;
 }
 
 .resource-bar-container {
   display: flex;
   align-items: center;
-  height: 18px;
+  height: 16px;
 }
 
 .hp-bar-label {
@@ -900,37 +1249,40 @@ watch(
   font-weight: bold;
   margin-right: 8px;
   width: 40px;
+  color: #d3d7e0;
 }
 
 .hp-bar {
   flex-grow: 1;
-  height: 14px;
-  border: 2px solid #5c4033;
+  height: 12px;
+  border: 2px solid #4a4e57;
   border-radius: 5px;
-  background: #3c2a1d;
+  background: #2e323a;
   overflow: hidden;
 }
 
 .hp {
   height: 100%;
-  background: linear-gradient(to right, #804040, #a06060);
-  transition: width 0.5s ease-out;
+  background: linear-gradient(to right, #4682b4, #87ceeb);
+  transition: width 0.5s ease;
 }
 
 .resource-value {
   font-size: 12px;
   margin-left: 8px;
   font-weight: bold;
+  color: #d3d7e0;
 }
 
 .battle-log-container {
   width: 100%;
   height: 20vh;
-  background: rgba(40, 25, 15, 0.95);
-  border-top: 4px solid #5c4033;
+  background: rgba(40, 44, 52, 0.95);
+  border-top: 4px solid #4a4e57;
   display: flex;
   justify-content: space-between;
-  padding: 10px;
+  padding: 5px;
+  box-sizing: border-box;
 }
 
 .battle-log {
@@ -939,25 +1291,27 @@ watch(
   overflow-y: auto;
   font-size: 12px;
   line-height: 1.5;
-  padding: 10px;
-  border: 2px solid #8b6a47;
+  padding: 8px;
+  border: 2px solid #4a4e57;
   border-radius: 5px;
-  color: #c0a080;
+  color: #d3d7e0;
 }
 
-.battle-log p { margin: 0 0 6px 0; }
+.battle-log p {
+  margin: 0 0 4px 0;
+}
 
 .battle-log::-webkit-scrollbar {
   width: 6px;
 }
 
 .battle-log::-webkit-scrollbar-track {
-  background: #3c2a1d;
+  background: #2e323a;
   border-radius: 5px;
 }
 
 .battle-log::-webkit-scrollbar-thumb {
-  background: #8b6a47;
+  background: #4a4e57;
   border-radius: 5px;
 }
 
@@ -970,8 +1324,8 @@ watch(
 }
 
 .actions-placeholder {
-  color: #a09070;
-  font-size: 14px;
+  color: #d3d7e0;
+  font-size: 12px;
   font-style: italic;
 }
 
@@ -980,27 +1334,21 @@ watch(
   cursor: not-allowed;
 }
 
-.potion-btn {
-  background-color: #5a704d;
+@keyframes dragonShake {
+  0%, 100% { transform: scale(5.5) translateX(0); }
+  25% { transform: scale(7.5) translateX(-5px); }
+  75% { transform: scale(7.5) translateX(5px); }
 }
-
-.unit.is-attacking { animation: attackShake 0.4s ease-in-out; }
-.unit.is-damaged { animation: damageFlash 0.3s linear 2; }
 
 @keyframes attackShake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
-}
-
-@keyframes damageFlash {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.5) saturate(1.2); }
+  0%, 100% { transform: scale(3) translateX(0); }
+  25% { transform: scale(4) translateX(-5px); }
+  75% { transform: scale(4) translateX(5px); }
 }
 
 .damage-popup {
   position: absolute;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: bold;
   animation: floatUp 0.8s ease-out forwards;
   pointer-events: none;
@@ -1029,5 +1377,22 @@ watch(
   height: 50px;
   object-fit: contain;
   image-rendering: pixelated;
+}
+
+.projectile-effect {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  width: 20px;
+  height: 20px;
+  background: radial-gradient(circle, #ff4500 30%, #ff8c00 60%, transparent 80%);
+  border-radius: 50%;
+  box-shadow: 0 0 15px #ff4500, 0 0 25px #ff8c00;
+  animation: pulseProjectile 0.5s infinite alternate;
+}
+
+@keyframes pulseProjectile {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.2); opacity: 0.8; }
 }
 </style>

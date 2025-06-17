@@ -1,20 +1,19 @@
+```vue
 <template>
   <div class="medieval-battle-container">
     <!-- Bartolomeu's Dialog -->
-    <img
-      src="@/assets/bartolomeu.png"
-      alt="Bartolomeu"
-      class="bartolomeu-image"
-      v-if="showDialog"
-    />
+    <img src="@/assets/bartolomeu.png" alt="Bartolomeu" class="bartolomeu-image" v-if="showDialog" />
     <div v-if="showDialog" class="skip-button menu-button" @click="skipTutorial">Pular Tutorial</div>
     <div v-if="showDialog" class="dialog-box">
       <p>{{ displayedText }}</p>
-      <button class="menu-button" @click="nextDialog">Continuar</button>
+      <button @click="nextDialog" class="menu-button"
+        style="height: 50px; display: inline-flex; justify-content: center; align-items: center;">
+        Continuar
+      </button>
     </div>
 
     <!-- Battle Arena -->
-    <div class="battle-arena">
+    <div class="battle-arena" :style="battleArenaStyle">
       <!-- Status Superior -->
       <div class="game-status-top" v-if="combatStarted">
         <div v-if="!gameOver && !victory">{{ battleStatus }}</div>
@@ -33,22 +32,22 @@
           <span class="resource-value">{{ playerCharacter.currentHp }}/{{ playerCharacter.maxHp }}</span>
         </div>
       </div>
-      <div
-        v-if="combatStarted"
-        class="unit player-character"
-        verbs="none"
+      <div v-if="combatStarted" class="unit player-character" verbs="none"
         :class="{ 'is-attacking': playerAttacking, 'is-damaged': damagedPlayer }"
-        :style="{ top: playerCharacter.top + 'px', left: playerCharacter.left + 'px' }"
-      >
-        <img src="@/assets/sprites/player/player_idle.png" alt="Player" class="character-sprite" />
+        :style="{
+          top: playerCharacter.top + 'px',
+          left: playerCharacter.left + 'px',
+          backgroundImage: `url(${playerSprite})`,
+          backgroundPosition: `-${animations[currentAnimation].frames[currentFrame] * frameWidth}px -${animations[currentAnimation].row * frameHeight}px`,
+          width: frameWidth + 'px',
+          height: frameHeight + 'px'
+        }">
       </div>
 
       <!-- Enemy (Dummy de Treino) -->
       <div v-if="combatStarted && enemies[0].hpPercent > 0">
-        <div
-          class="character-info enemy-info"
-          :style="{ top: (enemies[0].top - 90) + 'px', left: `calc(80vw - 120px)` }"
-        >
+        <div class="character-info enemy-info"
+          :style="{ top: (enemies[0].top - 90) + 'px', left: `calc(80vw - 120px)` }">
           <span class="character-name">{{ enemies[0].name }}</span>
           <div class="resource-bar-container">
             <div class="hp-bar-label">Vida:</div>
@@ -58,37 +57,26 @@
             <span class="resource-value">{{ enemies[0].currentHp }}/{{ enemies[0].maxHp }}</span>
           </div>
         </div>
-        <div
-          class="unit enemy-character"
-          verbs="none"
+        <div class="unit enemy-character" verbs="none"
           :class="{ 'is-attacking': enemyAttacking === 0, 'is-damaged': damagedEnemy === 0 }"
-          :style="{ top: enemies[0].top + 'px', left: enemies[0].left + 'px' }"
-        >
+          :style="{ top: enemies[0].top + 'px', left: enemies[0].left + 'px' }">
           <!-- <img src="@/assets/sprites/enemies/dummy.png" alt="Enemy" class="character-sprite" /> -->
         </div>
       </div>
-      <div
-        v-if="combatStarted && enemies[0].hpPercent <= 0"
-        class="unit enemy-character fainted"
-        verbs="none"
-        :style="{ top: initialEnemyPositions[0].top + 'px', left: initialEnemyPositions[0].left + 'px' }"
-      >
+      <div v-if="combatStarted && enemies[0].hpPercent <= 0" class="unit enemy-character fainted" verbs="none"
+        :style="{ top: initialEnemyPositions[0].top + 'px', left: initialEnemyPositions[0].left + 'px' }">
         <!-- <img src="@/assets/sprites/enemies/dummy.png" alt="Enemy" class="character-sprite" /> -->
       </div>
 
       <!-- Damage Popup -->
-      <div
-        v-if="damagePopup.active"
-        class="damage-popup"
-        :class="damagePopup.type"
-        :style="{ top: damagePopup.top + 'px', left: damagePopup.left + 'px' }"
-      >
+      <div v-if="damagePopup.active" class="damage-popup" :class="damagePopup.type"
+        :style="{ top: damagePopup.top + 'px', left: damagePopup.left + 'px' }">
         {{ damagePopup.prefix }}{{ damagePopup.value }}
       </div>
 
       <!-- Attack Effect -->
       <div v-if="attackEffect.active" class="attack-effect" :style="attackEffect.style">
-        <!-- <img src="@/assets/effects/slash-effect.png" alt="Attack Effect" class="effect-sprite" /> -->
+        <img :src="attackEffect.sprite" alt="Attack Effect" class="effect-sprite" />
       </div>
     </div>
 
@@ -98,18 +86,10 @@
         <p v-for="(message, index) in battleLog" :key="index" v-html="message"></p>
       </div>
       <div class="actions" v-if="isPlayerTurn && !isAttacking && !gameOver && !victory">
-        <button
-          class="action-btn attack-btn"
-          @click="attackEnemy"
-          :disabled="activeEnemies.length === 0"
-        >
+        <button class="action-btn attack-btn" @click="attackEnemy">
           Atacar
         </button>
-        <button
-          class="action-btn potion-btn"
-          @click="usePotion"
-          :disabled="!canUsePotion"
-        >
+        <button class="action-btn potion-btn" @click="usePotion" :disabled="!canUsePotion">
           Usar Poção ({{ potionCount }})
         </button>
       </div>
@@ -123,8 +103,16 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { playAudio } from '@/utils/audioManager.js';
 
-// Audio files (replace with your actual file paths)
+// Sprite sheet for player
+import playerSprite from '/img/sprites/player/player_sprite.png';
+
+// Audio files
+import attackEffectSpritePlayer from '@/assets/sprites/ataque-efeito.png';
+import attackEffectSpriteDummy from '@/assets/sprites/ataque-dragao.png';
+import playerAttackSound from '/sounds/hit_sound.mp3';
+import dummyAttackSound from '/sounds/hit_dummy.mp3';
 const clickSound = new Audio('/public/sounds/click.wav');
 const dialogSounds = [
   new Audio('public/sounds/bartolomeu/b1.mp3'),
@@ -136,11 +124,10 @@ const dialogSounds = [
 ];
 const tutorialBgMusic = new Audio('@/assets/sounds/tutorial-bg.mp3');
 const battleBgMusic = new Audio('@/assets/sounds/battle-bg.mp3');
-const attackSound = new Audio('@/assets/sounds/attack-sound.mp3');
 const potionSound = new Audio('@/assets/sounds/potion-sound.mp3');
 
 const isMuted = ref(localStorage.getItem('isMuted') === 'true');
-[clickSound, ...dialogSounds, tutorialBgMusic, battleBgMusic, attackSound, potionSound].forEach(audio => {
+[clickSound, ...dialogSounds, tutorialBgMusic, battleBgMusic, potionSound].forEach(audio => {
   audio.volume = isMuted.value ? 0 : 1;
 });
 
@@ -152,6 +139,18 @@ const playClick = () => {
 };
 
 const router = useRouter();
+
+// Animation Variables
+const currentFrame = ref(0);
+const frameTimer = ref(0);
+const frameWidth = 96;
+const frameHeight = 96;
+const animations = {
+  idle: { row: 2, frames: [0, 1, 2, 3, 4, 5, 6, 7], frameInterval: 150 },
+  attack_right: { row: 14, frames: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11], frameInterval: 100 }
+};
+const currentAnimation = computed(() => playerAttacking.value ? 'attack_right' : 'idle');
+let animationFrameId = null;
 
 // Dialog
 const showDialog = ref(true);
@@ -190,7 +189,7 @@ const typeLine = async () => {
       dialogSounds[dialogIndex.value].pause();
       dialogSounds[dialogIndex.value].currentTime = 0;
       await dialogSounds[dialogIndex.value].play();
-    } catch {}
+    } catch { }
   }
 
   typingInterval.value = setInterval(() => {
@@ -225,6 +224,8 @@ const nextDialog = () => {
       battleBgMusic.loop = true;
       battleBgMusic.play();
     }
+    frameTimer.value = performance.now();
+    animationFrameId = requestAnimationFrame(updateAnimation);
   }
 };
 
@@ -251,6 +252,8 @@ const playerCharacter = ref({
   top: 300,
   left: 50,
   attackPower: 15,
+  stamina: 50,
+  maxStamina: 50,
 });
 
 const enemies = ref([
@@ -287,6 +290,7 @@ const damagePopup = ref({
 const attackEffect = ref({
   active: false,
   style: {},
+  sprite: null,
 });
 const potionCount = ref(3);
 const canUsePotion = computed(() =>
@@ -294,26 +298,44 @@ const canUsePotion = computed(() =>
 );
 const activeEnemies = computed(() => enemies.value.filter(enemy => enemy.hpPercent > 0));
 
-const tooltip = {
-  mounted(el, binding) {
-    el.setAttribute('data-tooltip', binding.value);
-    el.style.position = 'relative';
-    el.addEventListener('mouseenter', () => {
-      const tooltipEl = document.createElement('div');
-      tooltipEl.className = 'tooltip-text';
-      tooltipEl.textContent = el.getAttribute('data-tooltip');
-      el.appendChild(tooltipEl);
-    });
-    el.addEventListener('mouseleave', () => {
-      const tooltipEl = el.querySelector('.tooltip-text');
-      if (tooltipEl) el.removeChild(tooltipEl);
-    });
-  },
-  unmounted(el) {
-    const tooltipEl = el.querySelector('.tooltip-text');
-    if (tooltipEl) el.removeChild(tooltipEl);
-  },
+// Add stamina management
+const recoverStamina = (amount) => {
+  playerCharacter.value.stamina = Math.min(
+    playerCharacter.value.maxStamina,
+    playerCharacter.value.stamina + amount
+  );
 };
+
+const useStamina = (amount) => {
+  playerCharacter.value.stamina = Math.max(0, playerCharacter.value.stamina - amount);
+};
+
+// Animation Loop
+const updateAnimation = (now) => {
+  if (!combatStarted.value) return;
+  const anim = animations[currentAnimation.value];
+  if (now - frameTimer.value > anim.frameInterval) {
+    frameTimer.value = now;
+    currentFrame.value++;
+    if (currentFrame.value >= anim.frames.length) {
+      currentFrame.value = 0;
+      if (playerAttacking.value) {
+        playerAttacking.value = false;
+      }
+    }
+  }
+  animationFrameId = requestAnimationFrame(updateAnimation);
+};
+
+// Background management
+const tutorialBackgroundImage = ref('@/assets/tutorial-background.png');
+const backgroundImage = ref('@/assets/tutorial-fight.png');
+const completedBackgroundImage = ref('@/assets/tutorial-completed.png');
+const battleArenaStyle = computed(() => ({
+  backgroundImage: `url(${victory.value ? completedBackgroundImage.value : combatStarted.value ? backgroundImage.value : tutorialBackgroundImage.value})`,
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+}));
 
 const addLogMessage = (message) => {
   battleLog.value.push(message);
@@ -331,8 +353,7 @@ const addLogMessage = (message) => {
 const showPopup = (value, targetElement, type = 'enemy-damage') => {
   const rect = targetElement.getBoundingClientRect();
   const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
-  let prefix = '-';
-  if (type === 'hp-heal') prefix = '+';
+  let prefix = type === 'hp-heal' ? '+' : '-';
 
   damagePopup.value = {
     active: true,
@@ -344,20 +365,22 @@ const showPopup = (value, targetElement, type = 'enemy-damage') => {
   };
   setTimeout(() => {
     damagePopup.value.active = false;
-  }, 1000);
+  }, 800);
 };
 
-const showAttackEffect = async (attackerElement, targetElement) => {
+const showAttackEffect = async (attackerElement, targetElement, isPlayer = true) => {
   const startRect = attackerElement.getBoundingClientRect();
   const endRect = targetElement.getBoundingClientRect();
   const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
+  const spriteToUse = isPlayer ? attackEffectSpritePlayer : attackEffectSpriteDummy;
 
+  attackEffect.value.active = true;
   attackEffect.value.style = {
     top: `${startRect.top - containerRect.top + startRect.height / 2}px`,
     left: `${startRect.left - containerRect.left + startRect.width / 2}px`,
     opacity: 1,
   };
-  attackEffect.value.active = true;
+  attackEffect.value.sprite = spriteToUse;
 
   await sleep(50);
 
@@ -370,6 +393,8 @@ const showAttackEffect = async (attackerElement, targetElement) => {
 
   await sleep(300);
   attackEffect.value.active = false;
+  attackEffect.value.style = {};
+  attackEffect.value.sprite = null;
 };
 
 const attackEnemy = async () => {
@@ -378,24 +403,43 @@ const attackEnemy = async () => {
   playClick();
   isAttacking.value = true;
   playerAttacking.value = true;
+  currentFrame.value = 0;
+  frameTimer.value = performance.now();
+
+  // Regenerate stamina
+  recoverStamina(5);
+  addLogMessage(`<span style="color: #33cc33;">⚡ +5 energia restaurada!</span>`);
+
+  // Check stamina
+  if (playerCharacter.value.stamina < 10) {
+    addLogMessage(`<span style="color: #ff6666;">⚡ Energia insuficiente para atacar!</span>`);
+    playerAttacking.value = false;
+    isAttacking.value = false;
+    isPlayerTurn.value = false;
+    await enemyTurn();
+    if (!gameOver.value && !victory.value) {
+      isPlayerTurn.value = true;
+      battleStatus.value = 'Desfira teu golpe, valente!';
+    }
+    return;
+  }
+
+  useStamina(10);
+  addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
 
   const enemyIndex = 0;
   const enemy = enemies.value[enemyIndex];
   const playerElement = document.querySelector('.player-character');
   const enemyElement = document.querySelector('.enemy-character');
 
-  if (!isMuted.value && attackSound) {
-    attackSound.currentTime = 0;
-    attackSound.play();
-  }
-
+  playAudio(playerAttackSound, { volume: 0.5 });
   battleStatus.value = `${playerCharacter.value.name} ergue sua arma...`;
   addLogMessage(`<b>⚔️ ${playerCharacter.value.name}</b> golpeia ${enemy.name}!`);
 
   const originalLeft = playerCharacter.value.left;
   playerCharacter.value.left += 40;
   await sleep(200);
-  await showAttackEffect(playerElement, enemyElement);
+  await showAttackEffect(playerElement, enemyElement, true);
   playerCharacter.value.left = originalLeft;
 
   damagedEnemy.value = enemyIndex;
@@ -407,7 +451,6 @@ const attackEnemy = async () => {
 
   await sleep(500);
   damagedEnemy.value = null;
-  playerAttacking.value = false;
 
   if (enemy.hpPercent <= 0) {
     addLogMessage(`<span style="color: #a09080;">☠️ ${enemy.name} tomba sem vida!</span>`);
@@ -420,9 +463,11 @@ const attackEnemy = async () => {
   }
 
   isPlayerTurn.value = false;
-  battleStatus.value = `${enemy.name} avança contra ti!`;
-  await sleep(1000);
   await enemyTurn();
+  if (!gameOver.value && !victory.value) {
+    isPlayerTurn.value = true;
+    battleStatus.value = 'Desfira teu golpe, valente!';
+  }
   isAttacking.value = false;
 };
 
@@ -431,6 +476,27 @@ const usePotion = async () => {
 
   playClick();
   isAttacking.value = true;
+
+  // Regenerate stamina
+  recoverStamina(5);
+  addLogMessage(`<span style="color: #33cc33;">⚡ +5 energia restaurada!</span>`);
+
+  // Check stamina
+  if (playerCharacter.value.stamina < 5) {
+    addLogMessage(`<span style="color: #ff6666;">⚡ Energia insuficiente para usar poção!</span>`);
+    isAttacking.value = false;
+    isPlayerTurn.value = false;
+    await enemyTurn();
+    if (!gameOver.value && !victory.value) {
+      isPlayerTurn.value = true;
+      battleStatus.value = 'Desfira teu golpe, valente!';
+    }
+    return;
+  }
+
+  useStamina(5);
+  addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
+
   const playerElement = document.querySelector('.player-character');
 
   if (!isMuted.value && potionSound) {
@@ -467,12 +533,14 @@ const enemyTurn = async () => {
   const enemyElement = document.querySelector('.enemy-character');
 
   battleStatus.value = `${enemy.name} avança contra ti!`;
+  addLogMessage(`<b>⚔️ ${enemy.name}</b> contra-ataca!`);
+  playAudio(dummyAttackSound, { volume: 0.5 });
   await sleep(800);
 
   const originalLeft = enemy.left;
   enemy.left -= 40;
   await sleep(200);
-  await showAttackEffect(enemyElement, playerElement);
+  await showAttackEffect(enemyElement, playerElement, false);
   enemy.left = originalLeft;
 
   damagedPlayer.value = true;
@@ -496,12 +564,33 @@ const enemyTurn = async () => {
   }
 
   isPlayerTurn.value = true;
-  battleStatus.value = `Desfira teu golpe, valente! Ou busca uma poção nas tuas vestes...`;
+  battleStatus.value = `Desfira teu golpe, valente!`;
   addLogMessage('<i>🛡️ O destino te chama à luta!</i>');
   isAttacking.value = false;
 };
 
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const tooltip = {
+  mounted(el, binding) {
+    el.setAttribute('data-tooltip', binding.value);
+    el.style.position = 'relative';
+    el.addEventListener('mouseenter', () => {
+      const tooltipEl = document.createElement('div');
+      tooltipEl.className = 'tooltip-text';
+      tooltipEl.textContent = el.getAttribute('data-tooltip');
+      el.appendChild(tooltipEl);
+    });
+    el.addEventListener('mouseleave', () => {
+      const tooltipEl = el.querySelector('.tooltip-text');
+      if (tooltipEl) el.removeChild(tooltipEl);
+    });
+  },
+  unmounted(el) {
+    const tooltipEl = el.querySelector('.tooltip-text');
+    if (tooltipEl) el.removeChild(tooltipEl);
+  },
+};
 
 onMounted(() => {
   typeLine();
@@ -514,6 +603,9 @@ onMounted(() => {
 onUnmounted(() => {
   clearInterval(typingInterval.value);
   [tutorialBgMusic, battleBgMusic, ...dialogSounds].forEach(audio => audio?.pause());
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+  }
 });
 </script>
 
@@ -528,7 +620,7 @@ onUnmounted(() => {
   background: url('@/assets/tutorial-background.png') no-repeat center center fixed;
   background-size: cover;
   box-sizing: border-box;
-  color: #d0b090;
+  color: #d0b090d0;
   font-family: 'MedievalSharp', cursive;
   margin: 0;
   padding: 0;
@@ -537,32 +629,29 @@ onUnmounted(() => {
 
 .bartolomeu-image {
   position: absolute;
-  width: 600px;
-  bottom: 20vh;
-  left: -100px;
+  width: 800px;
   z-index: 30;
 }
 
 .skip-button {
   position: fixed;
   top: 20px;
-  right: 20px;
   z-index: 35;
 }
 
 .menu-button {
   background-color: #e0a867;
-  color: #5c2c1d;
-  border: 4px solid #5c2c1d;
+  color: #5c4033;
+  border: 4px solid #5c4033;
   padding: 10px 40px;
   width: 200px;
   height: 30px;
-  font-size: 30px;
+  font-size: 20px;
   text-align: center;
   cursor: pointer;
   position: relative;
   image-rendering: pixelated;
-  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8e;
+  box-shadow: inset -6px -6px #d17844, inset 6px 6px #ffcb8c;
   font-weight: bold;
   transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
 }
@@ -575,7 +664,7 @@ onUnmounted(() => {
 
 .menu-button:active:not(:disabled) {
   transform: translateY(2px);
-  box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8e;
+  box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8c;
 }
 
 .menu-button:disabled {
@@ -592,7 +681,7 @@ onUnmounted(() => {
   transform: translateX(-50%);
   background: rgba(40, 25, 15, 0.85);
   padding: 20px;
-  border: none; /* Removed border to avoid visual divisions */
+  border: none;
   border-radius: 8px;
   max-width: 500px;
   text-align: center;
@@ -611,8 +700,8 @@ onUnmounted(() => {
   width: 100%;
   height: 80vh;
   border-bottom: 4px solid #5c4033;
-  background: v-bind(combatStarted ? 'url(@/assets/tutorial-fight.png)' : 'url(@/assets/tutorial-background.png)') no-repeat center center fixed;
   background-size: cover;
+  background-position: center;
   overflow: hidden;
 }
 
@@ -655,25 +744,45 @@ onUnmounted(() => {
 
 .unit {
   position: absolute;
-  width: 120px;
-  height: 120px;
+  width: 96px;
+  height: 96px;
   display: flex;
   justify-content: center;
   align-items: center;
-  transition: top 0.4s ease, left 0.4s ease, transform 0.2s ease;
+  transition: top 0.4s ease, left 0.4s ease;
   user-select: none;
   filter: drop-shadow(5px 5px 5px rgba(0, 0, 0, 0.7));
 }
 
-.character-sprite {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  image-rendering: pixelated;
-}
-
 .player-character {
   z-index: 10;
+  transform: scale(5);
+  transform-origin: center center;
+  image-rendering: pixelated;
+  margin-top: 7%;
+}
+
+.player-character.is-attacking {
+  animation: attackShake 0.4s ease-in-out;
+  scale: 5.1;
+}
+
+.player-character.is-damaged {
+  animation: damageBrighten 1s linear forwards;
+}
+
+@keyframes attackShake {
+  0%, 100% { transform: scale(5) translateX(0); }
+  25% { transform: scale(5) translateX(-5px); }
+  75% { transform: scale(5) translateX(5px); }
+}
+
+@keyframes damageBrighten {
+  0% { filter: brightness(1); }
+  30% { filter: brightness(1.2); }
+  50% { filter: brightness(1.5); }
+  90% { filter: brightness(1.2); }
+  100% { filter: brightness(1); }
 }
 
 .enemy-character {
@@ -683,6 +792,13 @@ onUnmounted(() => {
 .enemy-character.fainted {
   filter: grayscale(100%) opacity(40%);
   transition: filter 0.5s ease;
+}
+
+.character-sprite {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
 }
 
 .character-info {
@@ -891,35 +1007,6 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-.unit.is-attacking {
-  animation: attackShake 0.4s ease-in-out;
-}
-
-.unit.is-damaged {
-  animation: damageFlash 0.3s linear 2;
-}
-
-@keyframes attackShake {
-  0%, 100% {
-    transform: translateX(0);
-  }
-  25% {
-    transform: translateX(-5px);
-  }
-  75% {
-    transform: translateX(5px);
-  }
-}
-
-@keyframes damageFlash {
-  0%, 100% {
-    filter: brightness(1) drop-shadow(5px 5px 5px rgba(0, 0, 0, 0.7));
-  }
-  50% {
-    filter: brightness(1.5) saturate(1.2) drop-shadow(5px 5px 5px rgba(100, 0, 0, 0.7));
-  }
-}
-
 .damage-popup {
   position: absolute;
   font-size: 24px;
@@ -933,27 +1020,13 @@ onUnmounted(() => {
   font-family: 'UnifrakturMaguntia', cursive;
 }
 
-.damage-popup.player-damage {
-  color: #c06060;
-}
-
-.damage-popup.enemy-damage {
-  color: #d0a070;
-}
-
-.damage-popup.hp-heal {
-  color: #90c090;
-}
+.damage-popup.player-damage { color: #c06060; }
+.damage-popup.enemy-damage { color: #d0a070; }
+.damage-popup.hp-heal { color: #90c090; }
 
 @keyframes floatUpFade {
-  0% {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50px);
-  }
+  0% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -50px); }
 }
 
 .attack-effect {

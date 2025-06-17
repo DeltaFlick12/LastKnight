@@ -73,13 +73,13 @@
 <script setup>
 import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useGameState, ITEMS } from '@/stores/gamestate.js'; // Import useGameState instead of gameState and actions
+import { useGameState, ITEMS } from '@/stores/gameState.js';
 import bgImage from '@/assets/interior/ferreiro-bg.gif';
 import bjornParado from '/public/img/sprites/bjorn/bjorn.png';
 import bjornFalando from '/public/img/sprites/bjorn/bjorn-falando.gif';
 
 // Initialize the Pinia store
-const gameState = useGameState(); // Call useGameState to get the store instance
+const gameState = useGameState();
 
 const goldIcon = computed(() => ITEMS.gold?.icon || '/icons/gold-icon.png');
 const backpackIcon = computed(() => ITEMS.backpack?.icon || '/icons/bag-icon.png');
@@ -88,16 +88,18 @@ const router = useRouter();
 
 // Audio setup
 const sounds = {
-  ambient: new Audio('/sounds/forge_ambient.mp3'),
+  ambient: new Audio('/audio/ferreiro/fogo.wav'),
   dialogClick: new Audio('/sounds/click.wav'),
-  coinClank: new Audio('/sounds/coin_clank.mp3'),
-  doorCreak: new Audio('/sounds/door_creak.mp3'),
+  coinClank: new Audio('/sounds/compra.wav'),
+  doorCreak: new Audio('/sounds/porta_abrindo.mp3'),
+  bjornSpeak: new Audio('/audio/ferreiro/bjorn_voz.mp3'),
 };
 sounds.ambient.loop = true;
 sounds.ambient.volume = 0.3;
 sounds.dialogClick.volume = 0.5;
 sounds.coinClank.volume = 0.5;
 sounds.doorCreak.volume = 0.5;
+sounds.bjornSpeak.volume = 0.5;
 
 const showDialog = ref(true);
 const dialogIndex = ref(0);
@@ -130,6 +132,12 @@ const typeLine = (text) => {
 
     const line = text || dialogLines.value[dialogIndex.value] || hoverItemDescriptionText.value || shopDialogLines[0] || message.value;
     let index = 0;
+
+    // Play Bjorn's speaking sound
+    sounds.bjornSpeak.currentTime = 0;
+    sounds.bjornSpeak.play().catch((error) => {
+      console.error('Erro ao tocar som de Bjorn falando:', error);
+    });
 
     typingInterval = setInterval(() => {
       if (index < line.length) {
@@ -207,7 +215,7 @@ const buyWeapon = async (item) => {
     message.value = `Você já possui ${item.name}.`;
   } else if (gameState.player.gold >= item.price) {
     gameState.player.gold -= item.price;
-    gameState.addItemToInventory(item.itemId, 1); // Use gameState to call the action
+    gameState.addItemToInventory(item.itemId, 1);
     message.value = `Você comprou ${item.name}! Foi adicionado à sua mochila.`;
     sounds.coinClank.play();
   } else {
@@ -242,13 +250,14 @@ onMounted(() => {
   console.log('ITEMS:', ITEMS);
   console.log('Weapons:', weapons.value);
   console.log('Inventário:', gameState.player.inventory);
-  gameState.addItemToInventory('axe_iron', 1); // Use gameState to call the action
 });
 
 onUnmounted(() => {
   sounds.ambient.pause();
   sounds.ambient.currentTime = 0;
   if (typingInterval) clearInterval(typingInterval);
+  sounds.bjornSpeak.pause();
+  sounds.bjornSpeak.currentTime = 0;
 });
 
 watch(() => showShop, (newVal) => {
@@ -256,6 +265,13 @@ watch(() => showShop, (newVal) => {
     hideAllDialogs();
     showShopDialog.value = true;
     typeLine(shopDialogLines[0]);
+  }
+});
+
+watch(typing, (newTyping) => {
+  if (!newTyping) {
+    sounds.bjornSpeak.pause();
+    sounds.bjornSpeak.currentTime = 0;
   }
 });
 

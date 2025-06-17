@@ -42,102 +42,154 @@
 
     <!-- Botões no lado direito central -->
     <div class="hud-buttons">
-      <!-- Botão MENU (alterado para CSS puro) -->
       <button class="menu-button" @click="togglePauseMenu" :class="{ active: pauseMenuOpen }">
         <span></span>
         <span></span>
         <span></span>
       </button>
-      
-      <!-- Botão MAPA -->
+
       <button class="map-button" @click="handleMapClick">
         <img src="/icons/map-icon.png" alt="Mapa" class="button-icon" />
       </button>
 
-      <!-- Botão MOCHILA -->
       <button class="bag-button" @click="toggleBag">
         <img src="/icons/bag-icon.png" alt="Mochila" class="button-icon" />
       </button>
     </div>
 
-    <!-- Inventário: renderiza somente se aberto -->
     <Inventory v-if="inventoryOpen" />
-    
-    <!-- Menu de Pausa: renderiza somente se aberto -->
+
+    <!-- Menu de Pausa -->
     <div v-if="pauseMenuOpen" class="pause-menu-overlay">
       <div class="pause-menu">
         <h2 class="pause-title">Menu</h2>
         <div class="pause-options">
           <button class="pause-option" @click="continuarJogo">Continuar</button>
           <button class="pause-option" @click="irParaOpcoes">Opções</button>
-          <button class="pause-option" @click="voltarAoMenu">Sair</button>
+          <button class="pause-option-sair" @click="voltarAoMenu">Sair</button>
         </div>
       </div>
+    </div>
+
+    <!-- Opções como overlay -->
+<Options v-if="optionsOverlayOpen" @close="optionsOverlayOpen = false" />
+
+    <!-- Mensagem de recompensa -->
+    <div v-if="tossRewardMessage" class="reward-message">
+      {{ tossRewardMessage }}
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
-import { useRouter } from "vue-router";
-import Inventory from "@/components/Inventory.vue";
-import { useGameState } from "@/stores/gameState";
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import Inventory from '@/components/Inventory.vue'
+import Options from '@/components/Options.vue'
+import { useGameState } from '@/stores/gameState'
 
-const gameState = useGameState();
+const audioManager = {
+  mapOpenSound: new Audio('/sounds/map.mp3'),
+  bagOpenSound: new Audio('/sounds/zipper.mp3'),
+  menuToggleSound: new Audio('/sounds/click.wav'),
+  buttonClickSound: new Audio('/sounds/click.wav'),
+}
+audioManager.mapOpenSound.volume = 0.5
+audioManager.bagOpenSound.volume = 0.5
+audioManager.menuToggleSound.volume = 0.5
+audioManager.buttonClickSound.volume = 0.5
 
-const router = useRouter();
-const inventoryOpen = ref(false);
-const pauseMenuOpen = ref(false);
+defineProps(['potions', 'coins', 'tossRewardMessage'])
+const gameState = useGameState()
+const router = useRouter()
+
+const inventoryOpen = ref(false)
+const pauseMenuOpen = ref(false)
+const optionsOverlayOpen = ref(false)
+
+const startAudioOnInteraction = () => {
+  try {
+    [
+      audioManager.bagOpenSound,
+      audioManager.mapOpenSound,
+      audioManager.menuToggleSound,
+      audioManager.buttonClickSound
+    ].forEach((sound) => {
+      sound.play().then(() => sound.pause()).catch(() => {})
+    })
+  } catch (error) {
+    console.error(error)
+  }
+  document.removeEventListener('click', startAudioOnInteraction)
+  document.removeEventListener('keydown', startAudioOnInteraction)
+}
+
+onMounted(() => {
+  document.addEventListener('click', startAudioOnInteraction)
+  document.addEventListener('keydown', startAudioOnInteraction)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', startAudioOnInteraction)
+  document.removeEventListener('keydown', startAudioOnInteraction)
+  Object.values(audioManager).forEach(sound => sound.pause())
+})
+
+watch(inventoryOpen, (newValue) => {
+  if (newValue) {
+    audioManager.bagOpenSound.currentTime = 0
+    audioManager.bagOpenSound.play().catch(() => {})
+  }
+})
 
 const toggleBag = () => {
-  if (pauseMenuOpen.value) return; // Não abre a mochila se o menu de pausa estiver aberto
-  inventoryOpen.value = !inventoryOpen.value;
-};
+  if (pauseMenuOpen.value) return
+  inventoryOpen.value = !inventoryOpen.value
+}
 
 const togglePauseMenu = () => {
-  pauseMenuOpen.value = !pauseMenuOpen.value;
-  if (pauseMenuOpen.value) {
-    inventoryOpen.value = false; // Fecha o inventário se o menu de pausa for aberto
-  }
-};
+  pauseMenuOpen.value = !pauseMenuOpen.value
+  if (pauseMenuOpen.value) inventoryOpen.value = false
+  audioManager.menuToggleSound.currentTime = 0
+  audioManager.menuToggleSound.play().catch(() => {})
+}
 
 const continuarJogo = () => {
-  pauseMenuOpen.value = false;
-};
+  audioManager.buttonClickSound.currentTime = 0
+  audioManager.buttonClickSound.play().catch(() => {})
+  pauseMenuOpen.value = false
+}
 
 const irParaOpcoes = () => {
-  router.push("/options");
-};
+  audioManager.buttonClickSound.currentTime = 0
+  audioManager.buttonClickSound.play().catch(() => {})
+  optionsOverlayOpen.value = true
+}
 
 const voltarAoMenu = () => {
-  router.push("/");
-};
+  audioManager.buttonClickSound.currentTime = 0
+  audioManager.buttonClickSound.play().catch(() => {})
+  router.push('/')
+}
 
 const handleMapClick = () => {
-  if (pauseMenuOpen.value) return; // Não abre o mapa se o menu de pausa estiver aberto
-  
-  const tutorialDone = localStorage.getItem("tutorialCompleted");
-  if (!tutorialDone) {
-    localStorage.setItem("tutorialCompleted", "true");
-    router.push("/tutorial");
-  } else {
-    router.push("/map");
-  }
-};
+  if (pauseMenuOpen.value) return
+  audioManager.mapOpenSound.currentTime = 0
+  audioManager.mapOpenSound.play().catch(() => {})
+  setTimeout(() => {
+    router.push('/map')
+  }, 150)
+}
 
-const maxBarSegments = 10;
+const maxBarSegments = 10
 
 const filledHealthSegments = computed(() => {
-  return Math.round(
-    (gameState.player.health / gameState.player.maxHealth) * maxBarSegments
-  );
-});
+  return Math.round((gameState.player.health / gameState.player.maxHealth) * maxBarSegments)
+})
 
 const filledStaminaSegments = computed(() => {
-  return Math.round(
-    (gameState.player.stamina / gameState.player.maxStamina) * maxBarSegments
-  );
-});
+  return Math.round((gameState.player.stamina / gameState.player.maxStamina) * maxBarSegments)
+})
 </script>
 
 <style scoped>
@@ -150,7 +202,6 @@ const filledStaminaSegments = computed(() => {
   letter-spacing: 0.5px;
 }
 
-/* Painel de vida e energia */
 .panel-frame {
   display: flex;
   flex-direction: column;
@@ -177,7 +228,7 @@ const filledStaminaSegments = computed(() => {
   height: 64px;
   image-rendering: pixelated;
   margin-left: 20px;
-  z-index: 100;
+  z-index: 10;
 }
 
 .lives-count {
@@ -189,7 +240,7 @@ const filledStaminaSegments = computed(() => {
   color: #fff;
   text-shadow: 1px 1px 2px #000;
   font-weight: bold;
-  z-index: 101;
+  z-index: 11;
 }
 
 .bar-container {
@@ -200,10 +251,6 @@ const filledStaminaSegments = computed(() => {
   border: 2px solid #333;
   overflow: hidden;
   box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
-}
-
-.bar {
-  height: 100%;
 }
 
 .bar-label {
@@ -244,7 +291,13 @@ const filledStaminaSegments = computed(() => {
   background: linear-gradient(to bottom, #33cc33, rgb(11, 112, 11));
 }
 
-/* Botões no lado direito */
+.moedas .bar-label {
+  position: static;
+  transform: none;
+  font-size: 18px;
+  margin-left: 10px;
+}
+
 .hud-buttons {
   position: fixed;
   right: 10px;
@@ -255,21 +308,7 @@ const filledStaminaSegments = computed(() => {
   gap: 10px;
 }
 
-.menu-button {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  width: 122px;
-  height: 122px;
-  display: flex;
-  margin-left: -1000%;
-  margin-top: -200%;
-  justify-content: center;
-  align-items: center;
-  z-index: 100000;
-}
-
+.menu-button,
 .map-button,
 .bag-button {
   background: transparent;
@@ -301,16 +340,15 @@ const filledStaminaSegments = computed(() => {
   width: 122px;
   height: 122px;
   image-rendering: pixelated;
-  z-index: 10000;
+  z-index: 12;
 }
 
-/* Estilo do botão de menu (ícone hambúrguer) */
 .menu-button {
   flex-direction: column;
   gap: 10px;
   background: rgba(0, 0, 0, 0);
   padding: 20px;
-  z-index: 10000;
+  z-index: 12;
 }
 
 .menu-button span {
@@ -320,7 +358,7 @@ const filledStaminaSegments = computed(() => {
   background-color: #fff9d6;
   border-radius: 4px;
   transition: all 0.3s ease;
-} 
+}
 
 .menu-button.active span:nth-child(1) {
   transform: rotate(45deg) translate(12px, 12px);
@@ -334,16 +372,6 @@ const filledStaminaSegments = computed(() => {
   transform: rotate(-45deg) translate(14px, -14px);
 }
 
-/* Cores das barras */
-.vida .bar {
-  background: linear-gradient(to bottom, #ff3333, #cc0000);
-}
-
-.energia .bar {
-  background: linear-gradient(to bottom, #33cc33, #009900);
-}
-
-/* Estilo do Menu de Pausa */
 .pause-menu-overlay {
   position: fixed;
   top: 0;
@@ -354,7 +382,7 @@ const filledStaminaSegments = computed(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000;
+  z-index: 20;
   animation: fadeIn 0.3s ease-in-out;
 }
 
@@ -393,6 +421,30 @@ const filledStaminaSegments = computed(() => {
   gap: 15px;
 }
 
+.pause-option-sair {
+  background-color: #e73939;
+  color: #5c1d1d;
+  border: 4px solid #5c1d1d;
+  padding: 15px;
+  font-size: 24px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: inset -6px -6px #d14444, inset 6px 6px #ff8e8e;
+  font-weight: bold;
+  transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.2s;
+}
+
+.pause-option-sair:hover {
+  background-color: #f04545;
+  color: #3e1414;
+  box-shadow: inset -6px -6px #c93232, inset 6px 6px #ffa1a1;
+}
+
+.pause-option-sair:active {
+  transform: translateY(2px);
+  box-shadow: inset -3px -3px #d14444, inset 3px 3px #ff8e8e;
+}
+
 .pause-option {
   background-color: #e0a867;
   color: #5c2c1d;
@@ -415,5 +467,17 @@ const filledStaminaSegments = computed(() => {
 .pause-option:active {
   transform: translateY(2px);
   box-shadow: inset -3px -3px #d17844, inset 3px 3px #ffcb8e;
+}
+
+.reward-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.7);
+  padding: 10px;
+  border-radius: 5px;
+  color: #aaffaa;
+  font-size: 18px;
 }
 </style>

@@ -1,53 +1,43 @@
 <template>
   <div class="menu-container fade-in">
     <img src="@/assets/menu-bg.jpg" class="background-image" alt="Background" />
-
-    <!-- LOGO ANIMADA -->
     <img src="@/assets/Logo.png" alt="Logo Last Knight" class="game-logo" />
 
-    <!-- BOTÕES -->
-    <div class="menu">
+    <div class="menu" v-if="!showOptions">
       <div class="menu-button story" @click="goToStory">{{ texts[language].story }}</div>
-      <div class="menu-button options" @click="goTo('options')">{{ texts[language].options }}</div>
+      <div class="menu-button options" @click="openOptions">{{ texts[language].options }}</div>
       <div class="menu-button credits" @click="goTo('creditsscreen')">{{ texts[language].credits }}</div>
     </div>
 
-    <!-- BOTÃO FULLSCREEN -->
     <div class="btn-fullscreen" @click="toggleFullscreen">
       <img src="@/assets/fullscreen-icon.png" alt="Fullscreen" class="fullscreen-icon" />
     </div>
 
-    <!-- BOTÃO DE SOM -->
     <div class="btn-sound" @click="toggleMute">
       <img :src="isMuted ? '/src/assets/music-icon.png' : '/src/assets/mute-music-icon.png'" alt="Sound Toggle" class="sound-icon" />
     </div>
+
+    <!-- OVERLAY DE OPÇÕES -->
+    <Options v-if="showOptions" @close="showOptions = false" />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import Options from './Options.vue' // importe aqui
 
 const router = useRouter()
 
+const showOptions = ref(false) // controla o overlay
+
 const texts = {
-  pt: {
-    story: "HISTÓRIA",
-    endless: "INFINITO",
-    options: "OPÇÕES",
-    credits: "CRÉDITOS"
-  },
-  en: {
-    story: "STORY",
-    endless: "ENDLESS",
-    options: "OPTIONS",
-    credits: "CREDITS"
-  }
+  pt: { story: "HISTÓRIA", endless: "INFINITO", options: "OPÇÕES", credits: "CRÉDITOS" },
+  en: { story: "STORY", endless: "ENDLESS", options: "OPTIONS", credits: "CREDITS" }
 }
 
 const language = ref('pt')
 const isMuted = ref(localStorage.getItem('isMuted') === 'true')
-
 let clickSound
 let backgroundMusic
 
@@ -66,11 +56,8 @@ onMounted(() => {
 
   const tryPlayMusic = () => {
     if (!isMuted.value) {
-      backgroundMusic.play().then(() => {
-        fadeInMusic()
-      }).catch(err => {
-        console.warn('Erro ao tocar música após clique:', err)
-      })
+      backgroundMusic.play().then(() => fadeInMusic())
+      .catch(err => console.warn('Erro ao tocar música após clique:', err))
     }
     document.removeEventListener('click', tryPlayMusic)
   }
@@ -99,13 +86,9 @@ function goToStory() {
 function toggleFullscreen() {
   playClick()
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(err => {
-      console.error(`Erro ao entrar em tela cheia: ${err.message}`)
-    })
+    document.documentElement.requestFullscreen().catch(console.error)
   } else {
-    document.exitFullscreen().catch(err => {
-      console.error(`Erro ao sair da tela cheia: ${err.message}`)
-    })
+    document.exitFullscreen().catch(console.error)
   }
 }
 
@@ -141,7 +124,13 @@ function fadeInMusic() {
     }
   }, 100)
 }
+
+function openOptions() {
+  playClick()
+  showOptions.value = true
+}
 </script>
+
 
 <style scoped>
 .fade-in {

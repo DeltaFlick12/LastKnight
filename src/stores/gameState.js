@@ -1,44 +1,46 @@
 import { defineStore } from 'pinia';
-import { reactive } from 'vue';
 
-// Definição de classes e itens
 const CLASSES = {
   Guerreiro: {
     name: 'Guerreiro',
     description: 'Combatente equilibrado, focado em dano corpo a corpo.',
-    baseStats: { attack: 12, defense: 8, speed: 10, maxHealth: 110, maxStamina: 100 },
+    baseStats: { attack: 12, defense: 8, speed: 10, maxHealth: 100, maxStamina: 100 },
     startItems: { weapon: 'sword_wood' }
   },
 };
 
 export const ITEMS = {
   sword_wood: { id: 'sword_wood', name: 'Espada de Madeira', type: 'Arma', slot: 'weapon', stats: { attack: 5 }, description: 'Uma espada de treino.', icon: '/icons/weapons/sword_wood.png' },
-  axe_iron: { id: 'axe_iron', name: 'Machado de Ferro', type: 'Arma', slot: 'weapon', stats: { attack: 8, speed: -1 }, description: 'Pesado, mas poderoso.', icon: '/icons/weapons/axe_iron.png' },
-  sword_iron: { id: 'sword_iron', name: 'Espada de Ferro', type: 'Arma', slot: 'weapon', price: 50, stats: { attack: 10 }, description: 'Uma espada básica, mas confiável.', icon: '/icons/weapons/sword_iron.png' },
-  sword_mythril: { id: 'sword_mythril', name: 'Lança Rúnica', type: 'Arma', slot: 'weapon', price: 200, stats: { attack: 20 }, description: 'Aumenta o dano em +20. Forjada com magia anã.', icon: '/icons/weapons/sword_mythril.png' },
-  potion_health: { id: 'potion_health', name: 'Poção de Cura', type: 'Consumível', price: 80, effect: { heal: 50 }, description: 'Restaura 50 de vida.', icon: '/icons/potions/potvida-icon.png' },
+  axe_iron: { id: 'axe_iron', name: 'Machado de Ferro', type: 'Arma', slot: 'weapon', stats: { attack: 13, speed: -1 }, price: 60, description: 'Pesado, mas poderoso.', icon: '/icons/weapons/axe_iron.png' },
+  sword_iron: { id: 'sword_iron', name: 'Espada de Ferro', type: 'Arma', slot: 'weapon', price: 40, stats: { attack: 10 }, description: 'Uma espada básica, mas confiável.', icon: '/icons/weapons/sword_iron.png' },
+  sword_mythril: { id: 'sword_mythril', name: 'Lança Rúnica', type: 'Arma', slot: 'weapon', price: 200, stats: { attack: 25 }, description: 'Aumenta o dano em +25. Forjada com magia anã.', icon: '/icons/weapons/sword_mythril.png' },
+  potion_health: { id: 'potion_health', name: 'Poção de Cura', type: 'Consumível', price: 50, effect: { heal: 50 }, description: 'Restaura 50 de vida.', icon: '/icons/potions/potvida-icon.png' },
   potion_mystery: { id: 'potion_mystery', name: 'Poção Azul Misteriosa', type: 'Consumível', price: 120, effect: { mystery: true }, description: 'Um líquido enigmático que pode revelar segredos... ou não.', icon: '/icons/potions/potmystery-icon.png' },
-  potion_death: { id: 'potion_death', name: 'Poção da Morte', type: 'Consumível', price: 999, effect: { heal: -999 }, description: 'Uma poção letal. Use por sua conta e risco.', icon: '/icons/potions/potmorte-icon.png' },
-  potion_forbidden: { id: 'potion_forbidden', name: 'Poção Proibida', type: 'Consumível Especial', price: 500, effect: { special: 'sacrifice' }, description: 'Troca sua vida pela da princesa.', icon: '/icons/potions/potforbidden-icon.png' },
+  potion_forbidden: { id: 'potion_forbidden', name: 'Poção Proibida', type: 'Consumível Especial', price: 500, effect: { special: 'sacrifice' }, description: '?????????????????????', icon: '/icons/potions/potforbidden-icon.png' },
   key_ancient: { id: 'key_ancient', name: 'Chave Ancestral', type: 'Chave', description: 'Uma chave antiga das ruínas.', icon: '/icons/key_ancient.png' },
   key_ice: { id: 'key_ice', name: 'Chave de Gelo', type: 'Chave', description: 'Uma chave congelada da montanha.', icon: '/icons/key_ice.png' },
   key_fire: { id: 'key_fire', name: 'Chave de Fogo', type: 'Chave', description: 'Uma chave envolta em chamas da caverna.', icon: '/icons/key_fire.png' },
   key_small_rusty: { id: 'key_small_rusty', name: 'Chave Pequena', type: 'Chave', description: 'Abre uma porta no castelo.', icon: '/icons/key-detail.png' },
+  blessing_river: {
+    id: 'blessing_river',
+    name: 'Bênção do Rio',
+    type: 'Bênção',
+    price: 75,
+    description: 'Concede proteção divina do rio, aumentando a resistência.',
+    icon: '/icons/blessing-river.png'
+  },
 };
 
 export const useGameState = defineStore('game', {
   state: () => {
-    // Inline load state logic
     let savedState = null;
     try {
       const stored = localStorage.getItem('gameState');
       if (stored) {
         savedState = JSON.parse(stored);
-        // Ensure 'lives' exists in saved state
         if (!savedState.player.hasOwnProperty('lives')) {
           savedState.player.lives = 3;
         }
-        // Ensure 'shaders' exists in saved state
         if (!savedState.hasOwnProperty('shaders')) {
           savedState.shaders = true;
         }
@@ -50,12 +52,12 @@ export const useGameState = defineStore('game', {
     return savedState || {
       player: {
         classe: 'Guerreiro',
-        name: 'Joao',
+        name: null,
         health: 100,
         maxHealth: 100,
         stamina: 100,
         maxStamina: 100,
-        gold: 100,
+        gold: 200,
         lives: 3,
         inventory: [{ itemId: 'sword_wood', quantity: 1 }, { itemId: 'potion_health', quantity: 1 }],
         equipment: {
@@ -76,8 +78,8 @@ export const useGameState = defineStore('game', {
       },
       boss: {
         name: 'Magnus',
-        health: 500,
-        maxHealth: 500,
+        health: 700,
+        maxHealth: 700,
         stamina: 100,
         maxStamina: 100,
         phase: 1,
@@ -88,20 +90,13 @@ export const useGameState = defineStore('game', {
       levelsCompleted: [],
       quests: {
         mainQuestStep: 0,
-        luccaRescued: false,
-      },
-      castleState: {
-        leverPulled: false,
-        foundSmallKey: false,
-        crossedBridge: false,
-        finalDoorOpened: false,
       },
       magnusDefeated: false,
       endingTriggered: false,
       endingType: null,
       isBagOpen: false,
       currentDialog: null,
-      shaders: true, // Adicionado a propriedade shaders com valor padrão true
+      shaders: true,
     };
   },
 
@@ -125,7 +120,6 @@ export const useGameState = defineStore('game', {
       }
     },
 
-    // Ações do jogador
     setPlayerClass(className) {
       if (!CLASSES[className]) return;
       const classData = CLASSES[className];
@@ -134,7 +128,7 @@ export const useGameState = defineStore('game', {
       this.player.maxStamina = classData.baseStats.maxStamina;
       this.player.health = this.player.maxHealth;
       this.player.stamina = this.player.maxStamina;
-      this.player.lives = 3; // Reset lives when setting class
+      this.player.lives = 3;
       this.player.inventory = [];
       this.player.equipment = { weapon: null };
       for (const slot in classData.startItems) {
@@ -160,11 +154,16 @@ export const useGameState = defineStore('game', {
           }
         }
       }
+      console.log('Recalculating stats. Before: ', this.player.stats);
       this.player.stats = currentStats;
+      const oldMaxHealth = this.player.maxHealth;
       this.player.maxHealth = currentStats.maxHealth;
       this.player.maxStamina = currentStats.maxStamina;
-      this.player.health = Math.min(this.player.health, this.player.maxHealth);
+      if (this.player.maxHealth > oldMaxHealth) {
+        this.player.health = Math.min(this.player.health, this.player.maxHealth);
+      }
       this.player.stamina = Math.min(this.player.stamina, this.player.maxStamina);
+      console.log('Recalculating stats. After: ', this.player.stats);
       this.saveState();
     },
 
@@ -194,10 +193,15 @@ export const useGameState = defineStore('game', {
       const itemData = ITEMS[itemId];
       if (!itemData || !itemData.slot) return;
       const currentItemInSlot = this.player.equipment[itemData.slot];
+      if (currentItemInSlot === itemId) {
+        console.log(`Item ${itemId} is already equipped in ${itemData.slot}`);
+        return; // Evita re-equipagem desnecessária
+      }
       if (currentItemInSlot) {
         this.unequipItem(itemData.slot);
       }
       this.player.equipment[itemData.slot] = itemId;
+      console.log(`Equipped ${itemId} in ${itemData.slot}. Equipment:`, this.player.equipment);
       this.recalculateStats();
       this.saveState();
     },
@@ -206,6 +210,7 @@ export const useGameState = defineStore('game', {
       const itemId = this.player.equipment[slot];
       if (!itemId) return;
       this.player.equipment[slot] = null;
+      console.log(`Unequipped item from ${slot}. Equipment:`, this.player.equipment);
       this.recalculateStats();
       this.saveState();
     },
@@ -257,7 +262,7 @@ export const useGameState = defineStore('game', {
     },
 
     restorePlayer() {
-      this.player.health = this.player.maxHealth;
+      this.player.health = 100;
       this.player.stamina = this.player.maxStamina;
       this.saveState();
     },
@@ -298,10 +303,7 @@ export const useGameState = defineStore('game', {
     },
 
     collectKey(keyType) {
-      if (keyType === 'small_rusty') {
-        this.addItemToInventory('key_small_rusty', 1);
-        this.castleState.foundSmallKey = true;
-      } else if (this.player.keys.hasOwnProperty(keyType)) {
+      if (this.player.keys.hasOwnProperty(keyType)) {
         this.player.keys[keyType] = true;
         this.addItemToInventory(`key_${keyType}`, 1);
       }
@@ -378,16 +380,6 @@ export const useGameState = defineStore('game', {
       this.saveState();
     },
 
-    completeQuest(questId) {
-      if (this.quests.hasOwnProperty(questId)) {
-        this.quests[questId] = true;
-        if (questId === 'luccaRescued') {
-          this.completeLevel('acampamento');
-        }
-      }
-      this.saveState();
-    },
-
     setCurrentArea(areaName) {
       this.currentArea = areaName;
       this.saveState();
@@ -411,52 +403,8 @@ export const useGameState = defineStore('game', {
       this.saveState();
     },
 
-    // Nova ação para alternar o estado dos shaders
     toggleShaders() {
       this.shaders = !this.shaders;
-      this.saveState();
-    },
-
-    resetGame() {
-      Object.assign(this.$state, {
-        player: {
-          classe: 'Guerreiro',
-          name: 'Joao',
-          health: 100,
-          maxHealth: 100,
-          stamina: 100,
-          maxStamina: 100,
-          gold: 100,
-          lives: 3,
-          inventory: [{ itemId: 'sword_wood', quantity: 1 }, { itemId: 'potion_health', quantity: 1 }],
-          equipment: { weapon: 'sword_wood' },
-          stats: { attack: 10, defense: 5, speed: 10 },
-          keys: { ancestral: false, ice: false, fire: false },
-          hasRiverBlessing: false,
-          hasForbiddenPotion: false,
-        },
-        boss: {
-          name: 'Magnus',
-          health: 500,
-          maxHealth: 500,
-          stamina: 100,
-          maxStamina: 100,
-          phase: 1,
-          isVulnerable: false,
-          attackPattern: null,
-        },
-        currentArea: 'CutsceneInicial',
-        levelsCompleted: [],
-        quests: { mainQuestStep: 0, luccaRescued: false },
-        castleState: { leverPulled: false, foundSmallKey: false, crossedBridge: false, finalDoorOpened: false },
-        magnusDefeated: false,
-        endingTriggered: false,
-        endingType: null,
-        isBagOpen: false,
-        currentDialog: null,
-        shaders: true, // Mantém o valor padrão dos shaders ao resetar o jogo
-      });
-      localStorage.removeItem('gameState');
       this.saveState();
     },
   },
