@@ -137,6 +137,22 @@ import HUD from '@/components/HUD.vue'
 import bgImage from '@/assets/interior/bossroom.png'
 import fgImage from '@/assets/interior/bossroom_detalhes.png'
 
+const backgroundMusic = new Audio(new URL('/sounds/casteloback.mp3', import.meta.url).href)
+const footstepLeft = new Audio(new URL('/sounds/passoscastelo.mp3', import.meta.url).href)
+const footstepRight = new Audio(new URL('/sounds/passoscastelo2.mp3', import.meta.url).href)
+const swordSound = new Audio(new URL('/sounds/espadahit2.mp3', import.meta.url).href)
+
+backgroundMusic.loop = true 
+backgroundMusic.volume = 0.5 
+footstepLeft.volume = 0.5 
+footstepRight.volume = 0.5
+swordSound.volume = 1
+
+const isLeftStep = ref(true) 
+const lastStepTime = ref(0) 
+const walkStepInterval = 350 
+const runStepInterval = 200 
+
 const gameState = useGameState()
 
 // Player Animation Variables
@@ -920,17 +936,30 @@ const updateMovement = () => {
         }
       }
       gameState.useStamina(staminaCost)
+
+      // Play footstep sound if moving
+      const stepInterval = isSprinting.value && gameState.player.stamina > 0 ? runStepInterval : walkStepInterval
+      if (now - lastStepTime.value >= stepInterval) {
+        const soundToPlay = isLeftStep.value ? footstepLeft : footstepRight
+        soundToPlay.currentTime = 0
+        soundToPlay.play().catch(error => {
+          console.error('Erro ao tocar som de passo:', error)
+        })
+        isLeftStep.value = !isLeftStep.value
+        lastStepTime.value = now
+        console.log(`Passo tocado: ${isLeftStep.value ? 'direito' : 'esquerdo'}, timestamp: ${now}`)
+      }
     }
   }
 
-  if (
+if (
     now - staminaTimer.value >= 600 &&
     gameState.player.stamina < gameState.player.maxStamina
   ) {
     gameState.recoverStamina(10)
   }
 
-  const anim = animations[currentAnimation.value]
+const anim = animations[currentAnimation.value]
   if (now - frameTimer.value > anim.frameInterval) {
     frameTimer.value = now
     currentFrame.value++
@@ -979,7 +1008,7 @@ const updateMovement = () => {
     }
   }
 
-  updateEnemy(now)
+ updateEnemy(now)
   updateProjectiles()
 
   animationFrameId = requestAnimationFrame(updateMovement)
@@ -992,17 +1021,23 @@ const startMoving = (event) => {
   if (key === 'e') {
     const area = isInInteractionArea()
     if (area) area.action()
-  } else if (key === ' ') {
-    if (gameState.player.stamina >= 10) {
-      gameState.useStamina(10)
-      console.log(
-        `Player attacked, stamina reduced to ${gameState.player.stamina}`
-      )
-      isAttacking.value = true
-      currentFrame.value = 0
-    } else {
-      console.log('Not enough stamina to attack!')
-    }
+} else if (key === ' ') {
+  if (gameState.player.stamina >= 10) {
+    gameState.useStamina(10)
+    console.log(
+      `Player attacked, stamina reduced to ${gameState.player.stamina}`
+    )
+    isAttacking.value = true
+    currentFrame.value = 0
+    // Play sword sound
+    swordSound.currentTime = 0
+    swordSound.play().catch(error => {
+      console.error('Erro ao tocar som de espada:', error)
+    })
+    console.log('Sword sound played for attack')
+  } else {
+    console.log('Not enough stamina to attack!')
+  }
   } else if (key === 'b') {
     toggleBag()
   } else if (key === 'shift') {
@@ -1028,12 +1063,17 @@ onMounted(() => {
   const screen = document.querySelector('.castelo-screen')
   screen.focus()
   screen.addEventListener('click', () => screen.focus())
+  
 
-  if (checkEntityCollision(characterPosition.value, enemy.value.position)) {
+if (checkEntityCollision(characterPosition.value, enemy.value.position)) {
     console.warn('Initial overlap detected! Repositioning player.')
     characterPosition.value.x = 850
     characterPosition.value.y = 1100
   }
+
+backgroundMusic.play().catch(error => {
+    console.error('Failed to play background music:', error)
+  })
 
   gameState.recalculateStats()
   console.log('Initial boss stats:', gameState.boss)
@@ -1056,6 +1096,14 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // Stop and reset audio
+  backgroundMusic.pause()
+  backgroundMusic.currentTime = 0
+  footstepLeft.pause()
+  footstepLeft.currentTime = 0
+  footstepRight.pause()
+  footstepRight.currentTime = 0
+
   cancelAnimationFrame(animationFrameId)
   clearInterval(typeInterval)
   clearTimeout(invulnerabilityTimer)
