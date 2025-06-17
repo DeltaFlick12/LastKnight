@@ -1,29 +1,9 @@
-# lastknight
+# LAST KNIGHT
+Obrigado por jogar, este jogo foi feito como um trabalho da faculdade de engenharia de software entre amigos, site oficial
 
-This template should help get you started developing with Vue 3 in Vite.
+lastknight.com.br
 
-## Recommended IDE Setup
-
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
-npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
-npm run dev
-```
-
-### Compile and Minify for Production
-
-```sh
-npm run build
-```
+TODA A DOCUMENTACAO ESTA EM:
+´´´
+https://docs.google.com/document/d/1P9X8Ier3VZiO6qundvVDGcqjjBD9SLyK/edit?usp=sharing&ouid=105659326231880680439&rtpof=true&sd=true
+´´´

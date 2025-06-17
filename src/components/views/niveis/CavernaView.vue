@@ -1080,7 +1080,7 @@ onUnmounted(() => {
   transform: scale(5);
   transform-origin: center center;
   image-rendering: pixelated;
-  margin-top: 7%;
+  margin-top: 5%;
 }
 
 .player-character.is-damaged {

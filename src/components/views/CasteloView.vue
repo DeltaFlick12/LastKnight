@@ -387,7 +387,7 @@ const collisionAreas = [
   { x: 0, y: 1080, width: 2048, height: 1 },
   { x: 1920, y: 0, width: 1, height: 1266 },
   { x: 0, y: 200, width: 2048, height: 1 },
-  { x: 650, y: 390, width: 300, height: 100 }
+  { x: 530, y: 290, width: 200, height: 100 }
 ]
 
 const screenSize = { width: window.innerWidth, height: window.innerHeight }
