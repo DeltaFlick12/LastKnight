@@ -1,4 +1,3 @@
-```vue
 <template>
   <div class="caverna-view" :style="showCutscene ? cutsceneBackgroundStyle : backgroundStyle">
     <!-- Heat Overlay -->
@@ -73,13 +72,6 @@
         </div>
       </div>
 
-      <!-- Post-Battle -->
-      <div v-if="!inBattle && bossDefeated && !showCutscene" class="interactions">
-        <p>O Dragão de Fogo foi derrotado. As chamas se extinguem lentamente.</p>
-        <p v-if="!gameState.player.keys.fire">Uma Chave Incandescente brilha entre as cinzas.</p>
-        <button v-if="!gameState.player.keys.fire" @click="collectKey">Pegar Chave Incandescente</button>
-      </div>
-
       <!-- Battle System -->
       <div v-if="inBattle && !showCutscene" class="medieval-battle-container">
         <div class="battle-arena">
@@ -93,13 +85,17 @@
           <div
             class="unit player-character"
             :class="{ 'is-attacking': playerAttacking, 'is-damaged': damagedPlayer }"
-            :style="{ top: `${playerCharacter.top}px`, left: `${playerCharacter.left}px` }"
-          >
-            <img :src="playerSprite" alt="Player" class="character-sprite" />
-            <img v-if="weaponSprite" :src="weaponSprite" alt="Weapon" class="weapon-sprite" />
-          </div>
+            :style="{
+              top: `${playerCharacter.top}px`,
+              left: `${playerCharacter.left}px`,
+              backgroundImage: `url(${playerSprite})`,
+              backgroundPosition: `-${animations[currentAnimation].frames[currentFrame] * frameWidth}px -${animations[currentAnimation].row * frameHeight}px`,
+              width: `${frameWidth}px`,
+              height: `${frameHeight}px`
+            }"
+          ></div>
           <div class="character-info player-info">
-            <span class="character-name">{{ gameState.player.name || 'Herói' }} ({{ gameState.player.classe }}{{ weaponName ? ', ' + weaponName : '' }})</span>
+            <span class="character-name">{{ gameState.player.name || 'Herói' }} ({{ weaponName }})</span>
           </div>
 
           <!-- Enemy -->
@@ -165,21 +161,7 @@
       <div v-if="showFeedback && !showCutscene" class="dialog-box feedback-box">
         <p>{{ feedbackMessage }}</p>
         <button @click="showFeedback = false">Ok</button>
-        <button v-if="gameOver" @click="returnToMenu">Voltar ao Menu</button>
       </div>
-    </div>
-
-    <!-- Navigation Bar -->
-    <div class="navigation-bar" v-if="!showCutscene">
-      <button
-        v-if="bossDefeated"
-        class="nav-btn"
-        @click="goToNextArea"
-        aria-label="Seguir para próxima área"
-        :disabled="!bossDefeated"
-      >
-        Seguir para Próxima Área
-      </button>
     </div>
   </div>
 </template>
@@ -195,9 +177,27 @@ import caveImage1 from '@/assets/backviews/caverna-entrada.png';
 import caveImage2 from '@/assets/backviews/caverna-confronto.png';
 import caveBattleImage from '@/assets/backviews/caverna-cenario.png';
 import dragonFireSprite from '@/assets/sprites/dragao-fogo.png';
-import playerSprite from '@/assets/sprites/player/player_idle.png';
 import attackEffectSpritePlayer from '@/assets/sprites/ataque-efeito.png';
 import attackEffectSpriteDragon from '@/assets/sprites/ataque-dragao.png';
+
+// Player Sprite Sheet
+const playerSprite = new URL('/img/sprites/player/player_sprite.png', import.meta.url).href;
+
+// Animation Variables
+const currentFrame = ref(0);
+const frameTimer = ref(0);
+const frameWidth = 96;
+const frameHeight = 96;
+const animations = {
+  idle: { row: 2, frames: [0, 1, 2, 3, 4, 5, 6, 7], frameInterval: 150 },
+  attack_right: {
+    row: 14,
+    frames: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11],
+    frameInterval: 100
+  }
+};
+const currentAnimation = computed(() => playerAttacking.value ? 'attack_right' : 'idle');
+let animationFrameId = null;
 
 const router = useRouter();
 const gameState = useGameState();
@@ -340,6 +340,23 @@ const enemyStyle = (index, enemy) => ({
   transformOrigin: 'center center',
 });
 
+// Animation Loop
+const updateAnimation = (now) => {
+  if (!inBattle.value) return;
+  const anim = animations[currentAnimation.value];
+  if (now - frameTimer.value > anim.frameInterval) {
+    frameTimer.value = now;
+    currentFrame.value++;
+    if (currentFrame.value >= anim.frames.length) {
+      currentFrame.value = 0;
+      if (playerAttacking.value) {
+        playerAttacking.value = false;
+      }
+    }
+  }
+  animationFrameId = requestAnimationFrame(updateAnimation);
+};
+
 // Utility Functions
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -356,16 +373,13 @@ const showPopup = (value, targetElement, type = 'enemy-damage') => {
   try {
     const rect = targetElement.getBoundingClientRect();
     const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
-    console.log('Showing popup:', { value, type, top: rect.top, left: rect.left });
-    Object.assign(damagePopup, {
-      active: true,
-      value,
-      top: rect.top - containerRect.top + rect.height / 2 - 20,
-      left: rect.left - containerRect.left + rect.width / 2,
-      type,
-      prefix: type === 'hp-heal' ? '+' : '-',
-    });
-    setTimeout(() => Object.assign(damagePopup, { active: false }), 800);
+    damagePopup.active = true;
+    damagePopup.value = value;
+    damagePopup.top = rect.top - containerRect.top + rect.height / 2 - 20;
+    damagePopup.left = rect.left - containerRect.left + rect.width / 2;
+    damagePopup.type = type;
+    damagePopup.prefix = type === 'hp-heal' ? '+' : '-';
+    setTimeout(() => { damagePopup.active = false; }, 800);
   } catch (err) {
     console.warn('Error in showPopup:', err);
   }
@@ -377,24 +391,24 @@ const showAttackEffect = async (attackerElement, targetElement, isPlayer = true)
     const endRect = targetElement.getBoundingClientRect();
     const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
     const spriteToUse = isPlayer ? attackEffectSpritePlayer : attackEffectSpriteDragon;
-    Object.assign(attackEffect, {
-      active: true,
-      style: {
-        top: `${startRect.top - containerRect.top + startRect.height / 2}px`,
-        left: `${startRect.left - containerRect.left + startRect.width / 2}px`,
-        opacity: 1,
-      },
-      sprite: spriteToUse,
-    });
+    attackEffect.active = true;
+    attackEffect.style = {
+      top: `${startRect.top - containerRect.top + startRect.height / 2}px`,
+      left: `${startRect.left - containerRect.left + startRect.width / 2}px`,
+      opacity: 1,
+    };
+    attackEffect.sprite = spriteToUse;
     await sleep(50);
-    Object.assign(attackEffect.style, {
+    attackEffect.style = {
       top: `${endRect.top - containerRect.top + endRect.height / 2}px`,
       left: `${endRect.left - containerRect.left + endRect.width / 2}px`,
       opacity: 0,
       transition: 'top 0.3s ease-out, left 0.3s ease-out, opacity 0.3s ease-out',
-    });
+    };
     await sleep(300);
-    Object.assign(attackEffect, { active: false, style: {}, sprite: null });
+    attackEffect.active = false;
+    attackEffect.style = {};
+    attackEffect.sprite = null;
   } catch (err) {
     console.warn('Error in showAttackEffect:', err);
   }
@@ -405,23 +419,22 @@ const showProjectile = async (attackerElement, targetElement) => {
     const startRect = attackerElement.getBoundingClientRect();
     const endRect = targetElement.getBoundingClientRect();
     const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
-    Object.assign(projectile, {
-      active: true,
-      style: {
-        top: `${startRect.top - containerRect.top + startRect.height / 2}px`,
-        left: `${startRect.left - containerRect.left + startRect.width / 2}px`,
-        opacity: 1,
-      },
-    });
+    projectile.active = true;
+    projectile.style = {
+      top: `${startRect.top - containerRect.top + startRect.height / 2}px`,
+      left: `${startRect.left - containerRect.left + startRect.width / 2}px`,
+      opacity: 1,
+    };
     await sleep(50);
-    Object.assign(projectile.style, {
+    projectile.style = {
       top: `${endRect.top - containerRect.top + endRect.height / 2}px`,
       left: `${endRect.left - containerRect.left + endRect.width / 2}px`,
       opacity: 0,
       transition: 'top 0.5s ease-out, left 0.5s ease-out, opacity 0.5s ease-out',
-    });
+    };
     await sleep(500);
-    Object.assign(projectile, { active: false, style: {} });
+    projectile.active = false;
+    projectile.style = {};
   } catch (err) {
     console.warn('Error in showProjectile:', err);
   }
@@ -502,16 +515,11 @@ const confrontBoss = () => {
   playAudio('battle_start_dragon_fire', { volume: 0.3 });
   feedbackMessage.value = 'O Dragão de Fogo surge rugindo das chamas!';
   showFeedback.value = true;
+  frameTimer.value = performance.now();
+  animationFrameId = requestAnimationFrame(updateAnimation);
 };
 
 const attackEnemy = async () => {
-  console.log('Attack attempt:', {
-    enemies: activeEnemies.value.length,
-    isPlayerTurn: isPlayerTurn.value,
-    isAttacking: isAttacking.value,
-    stamina: gameState.player.stamina,
-    weapon: gameState.player.equipment.weapon,
-  });
   if (!activeEnemies.value.length || !isPlayerTurn.value || isAttacking.value || gameState.player.stamina < 10) {
     if (gameState.player.stamina < 10) {
       addLogMessage(`<span style="color: #ff6666;">⚡ Energia insuficiente!</span>`);
@@ -520,12 +528,13 @@ const attackEnemy = async () => {
   }
   isAttacking.value = true;
   playerAttacking.value = true;
+  currentFrame.value = 0;
+  frameTimer.value = performance.now();
 
   gameState.recoverStamina(5);
   addLogMessage(`<span style="color: #33cc33;">⚡ +5 energia restaurada!</span>`);
 
   const attackResult = gameState.playerAttackAction();
-  console.log('Attack result:', attackResult);
   if (!attackResult.success) {
     addLogMessage(`<span style="color: #ff6666;">${attackResult.message}</span>`);
     playerAttacking.value = false;
@@ -557,21 +566,16 @@ const attackEnemy = async () => {
   damagedEnemy.value = enemyIndex;
   const damageDealt = attackResult.damage || 0;
   if (damageDealt > 0) {
-    enemies[enemyIndex] = {
-      ...enemies[enemyIndex],
-      currentHp: Math.max(0, enemies[enemyIndex].currentHp - damageDealt),
-      hpPercent: (Math.max(0, enemies[enemyIndex].currentHp - damageDealt) / enemies[enemyIndex].maxHp) * 100,
-    };
+    enemies[enemyIndex].currentHp = Math.max(0, enemies[enemyIndex].currentHp - damageDealt);
+    enemies[enemyIndex].hpPercent = (enemies[enemyIndex].currentHp / enemies[enemyIndex].maxHp) * 100;
     showPopup(damageDealt, enemyElement, 'enemy-damage');
     addLogMessage(`<span style="color: #d0a070;">💥 ${damageDealt} de dano ao Dragão de Fogo!</span>`);
   } else {
     addLogMessage(`<span style="color: #ff6666;">⚠️ Nenhum dano causado!</span>`);
-    console.warn('Damage dealt is 0:', attackResult);
   }
 
   await sleep(500);
   damagedEnemy.value = null;
-  playerAttacking.value = false;
 
   if (enemy.hpPercent <= 0) {
     addLogMessage(`<span style="color: #a09080;">☠️ O Dragão de Fogo caiu!</span>`);
@@ -665,12 +669,19 @@ const handleVictory = async () => {
   inBattle.value = false;
   gameState.addItemToInventory('fire_shard', 1);
   gameState.addGold(100);
+  if (!gameState.player.keys.fire) {
+    gameState.collectKey('fire');
+    addLogMessage(`<span style="color: #d0a070;">🔥 Chave Incandescente obtida!</span>`);
+  }
   addLogMessage(`<span style="color: #d0a070;">🎁 Fragmento de Fogo!</span>`);
   addLogMessage(`<span style="color: #d0a070;">💰 +100 ouro!</span>`);
   playAudio('boss_defeat', { volume: 0.3 });
-  feedbackMessage.value = 'Dragão de Fogo derrotado!';
+  feedbackMessage.value = 'Dragão de Fogo derrotado! Chave Incandescente obtida!';
   showFeedback.value = true;
   stopAllAudio();
+  await sleep(2000); // Wait 2 seconds to show feedback
+  gameState.setCurrentArea('Albadia');
+  router.push('/level/albadia');
 };
 
 const handleDefeat = async () => {
@@ -691,21 +702,8 @@ const handleDefeat = async () => {
     battleMusic.play().catch(err => console.warn('Erro ao tocar música de batalha:', err));
   } else {
     gameOver.value = true;
-    feedbackMessage.value = 'Sem vidas restantes! Deseja voltar ao menu inicial?';
-    showFeedback.value = true;
-  }
-};
-
-const collectKey = () => {
-  if (bossDefeated.value && !gameState.player.keys.fire) {
-    gameState.collectKey('fire');
-    gameState.addGold(50);
-    playAudio('collect_key_fire', { volume: 0.3 });
-    feedbackMessage.value = 'Chave Incandescente e 50 de ouro obtidos!';
-    showFeedback.value = true;
-  } else {
-    feedbackMessage.value = 'Não há chave aqui ou você já a pegou.';
-    showFeedback.value = true;
+    stopAllAudio();
+    router.push('/gameOver');
   }
 };
 
@@ -713,13 +711,6 @@ const fleeArea = () => {
   playAudio('ui_back', { volume: 0.3 });
   stopAllAudio();
   router.push('/map');
-};
-
-const goToNextArea = () => {
-  if (!bossDefeated.value) return;
-  playAudio('ui_confirm', { volume: 0.3 });
-  stopAllAudio();
-  router.push({ name: 'NextArea' });
 };
 
 const returnToMenu = () => {
@@ -744,7 +735,7 @@ onMounted(() => {
     gameState.levelsCompleted = reactive([]);
   }
   if (!gameState.player.equipment) {
-    gameState.player.equipment = { weapon: 'sword_iron' }; // Default weapon
+    gameState.player.equipment = { weapon: 'sword_iron' };
   }
   if (!gameState.player.inventory) {
     gameState.player.inventory = reactive({ potion_health: 3, fire_shard: 0 });
@@ -761,6 +752,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopAllAudio();
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+  }
 });
 </script>
 
@@ -1003,7 +997,7 @@ onUnmounted(() => {
   font-size: 16px;
 }
 
-.feedback-box button, .interactions button, .action-btn, .nav-btn {
+.feedback-box button, .interactions button, .action-btn {
   background: linear-gradient(to bottom, #b64e1a, #8b3e15);
   border: 3px solid #8b3e15;
   color: #f0d0a0;
@@ -1017,39 +1011,17 @@ onUnmounted(() => {
   transition: filter 0.2s, transform 0.1s;
 }
 
-.feedback-box button:hover:not(:disabled), .interactions button:hover:not(:disabled), .action-btn:hover:not(:disabled), .nav-btn:hover:not(:disabled) {
+.feedback-box button:hover:not(:disabled), .interactions button:hover:not(:disabled), .action-btn:hover:not(:disabled) {
   filter: brightness(1.2);
 }
 
-.feedback-box button:active:not(:disabled), .interactions button:active:not(:disabled), .action-btn:active:not(:disabled), .nav-btn:active:not(:disabled) {
+.feedback-box button:active:not(:disabled), .interactions button:active:not(:disabled), .action-btn:active:not(:disabled) {
   transform: scale(0.97);
   box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6);
 }
 
 .potion-btn {
   background: linear-gradient(to bottom, #c85d27, #9b4e22);
-}
-
-/* Navigation Bar */
-.navigation-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  background: rgba(40, 20, 10, 0.95);
-  border-top: 4px solid #b64e1a;
-  padding: 5px 10px;
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  z-index: 10;
-  height: 50px;
-  box-sizing: border-box;
-}
-
-.nav-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* Battle */
@@ -1100,17 +1072,31 @@ onUnmounted(() => {
 
 .unit {
   position: absolute;
-  width: 100px;
-  height: 200px;
   transition: top 0.3s ease, left 0.3s ease;
 }
 
-.character-sprite {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+.player-character {
+  z-index: 10;
+  transform: scale(5);
+  transform-origin: center center;
   image-rendering: pixelated;
-  scale: 2;
+  margin-top: 7%;
+}
+
+.player-character.is-damaged {
+  animation: damageBrighten 1s linear forwards;
+}
+
+@keyframes damageBrighten {
+  0% { filter: brightness(1); }
+  30% { filter: brightness(1.2); }
+  50% { filter: brightness(1.5); }
+  90% { filter: brightness(1.2); }
+  100% { filter: brightness(1); }
+}
+
+.player-character.is-attacking {
+  scale: 1.01;
 }
 
 .weapon-sprite {
@@ -1124,9 +1110,31 @@ onUnmounted(() => {
   image-rendering: pixelated;
 }
 
-.player-character { z-index: 10; }
-.enemy-character { z-index: 9;margin-top: 5%;margin-left: -6%; }
-.enemy-character.fainted { filter: grayscale(100%) opacity(40%); }
+.enemy-character {
+  z-index: 9;
+}
+
+.enemy-character.fainted {
+  filter: grayscale(100%) opacity(40%);
+}
+
+.enemy-character.dragao-fogo {
+  transform: scale(4.5);
+  transform-origin: center center;
+}
+
+.enemy-character.dragao-fogo.is-attacking {
+  animation: dragonShake 0.4s ease-in-out;
+}
+
+.character-sprite {
+  width: 110%;
+  height: 130%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  margin-left: -60%;
+  margin-top: 20%;
+}
 
 .character-info {
   position: absolute;
@@ -1145,7 +1153,9 @@ onUnmounted(() => {
   z-index: 5;
 }
 
-.enemy-info { text-align: right; }
+.enemy-info {
+  text-align: center;
+}
 
 .character-name {
   font-weight: bold;
@@ -1193,13 +1203,14 @@ onUnmounted(() => {
 
 .battle-log-container {
   width: 100%;
-  height: 20vh;
+  height: 30vh;
   background: rgba(40, 20, 10, 0.95);
   border-top: 4px solid #b64e1a;
   display: flex;
   justify-content: space-between;
   padding: 5px;
   box-sizing: border-box;
+  margin-bottom: -10%;
 }
 
 .battle-log {
@@ -1214,7 +1225,9 @@ onUnmounted(() => {
   color: #f0d0a0;
 }
 
-.battle-log p { margin: 0 0 4px 0; }
+.battle-log p {
+  margin: 0 0 4px 0;
+}
 
 .battle-log::-webkit-scrollbar {
   width: 6px;
@@ -1249,34 +1262,16 @@ onUnmounted(() => {
   cursor: not-allowed;
 }
 
-.enemy-character.dragao-fogo {
-  transform: scale(4.5);
-  transform-origin: center center;
-}
-
-.enemy-character.dragao-fogo.is-attacking {
-  animation: dragonShake 0.4s ease-in-out;
-  transform: scale(3.5);
-}
-
-.unit.is-attacking { animation: attackShake 0.4s ease-in-out; }
-.unit.is-damaged { animation: damageFlash 0.3s linear 2; }
-
 @keyframes dragonShake {
-  0%, 100% { transform: scale(3.5) translateX(0); }
-  25% { transform: scale(3.5) translateX(-5px); }
-  75% { transform: scale(3.5) translateX(5px); }
+  0%, 100% { transform: scale(4.5) translateX(0); }
+  25% { transform: scale(4.5) translateX(-5px); }
+  75% { transform: scale(4.5) translateX(5px); }
 }
 
 @keyframes attackShake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
-}
-
-@keyframes damageFlash {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.5) saturate(1.2); }
+  0%, 100% { transform: scale(4) translateX(0); }
+  25% { transform: scale(4) translateX(-5px); }
+  75% { transform: scale(4) translateX(5px); }
 }
 
 .damage-popup {
@@ -1329,4 +1324,3 @@ onUnmounted(() => {
   100% { transform: scale(1.2); opacity: 0.8; }
 }
 </style>
-```

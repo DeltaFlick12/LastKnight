@@ -1137,7 +1137,6 @@ onUnmounted(() => {
   position: absolute;
   z-index: 4;
   scale: 3.5; /* Boss maior que o jogador */
-  filter: brightness(0.4); /* Mais escuro que o jogador */
 }
 
 .enemy.damaged {

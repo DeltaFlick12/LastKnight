@@ -51,7 +51,7 @@
 <script setup>
 import { ref, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
-import { useGameState } from '@/stores/gamestate.js';
+import { useGameState } from '@/stores/gameState.js';
 
 const emit = defineEmits(["close"]); // ✅ movido aqui para funcionar em goBack
 

@@ -121,7 +121,7 @@
           >
           </div>
           <div class="character-info player-info">
-            <span class="character-name">{{ gameState.player.name || 'Herói' }} ({{ gameState.player.classe }}{{ weaponName ? ', ' + weaponName : '' }})</span>
+            <span class="character-name">{{ gameState.player.name || 'Herói' }} ({{ weaponName ? '' + weaponName : '' }})</span>
           </div>
 
           <!-- Enemy (Ancestral Dragon) -->
@@ -597,10 +597,10 @@ const attackEnemy = async () => {
   currentFrame.value = 0;
   frameTimer.value = performance.now();
 
-  gameState.recoverStamina(7);
-  addLogMessage(`<span style="color: #33cc33;">⚡ +5 energia restaurada!</span>`);
-  gameState.useStamina(10);
-  addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
+  gameState.recoverStamina(10);
+  addLogMessage(`<span style="color: #33cc33;">⚡ +10 energia restaurada!</span>`);
+  gameState.useStamina(5);
+  addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
 
   const attackResult = gameState.playerAttackAction();
   if (!attackResult.success) {
@@ -745,8 +745,8 @@ const handleDefeat = async () => {
     battleMusic.play().catch(err => console.warn('Erro ao tocar música de batalha:', err));
   } else {
     gameOver.value = true;
-    feedbackMessage.value = 'Sem vidas restantes! Deseja voltar ao menu inicial?';
-    showFeedback.value = true;
+    stopAllAudio();
+    router.push('/gameOver'); // Redireciona para a tela de Game Over
   }
 };
 
@@ -793,8 +793,8 @@ onMounted(() => {
   if (!gameState.player.hasViewedRuinasCutscene) {
     gameState.player.hasViewedRuinasCutscene = false;
   }
-  if (!gameState.levelsCompleted) {
-    gameState.levelsCompleted = reactive([]);
+  if (!gameState.player.levelsCompleted) {
+    gameState.player.levelsCompleted = reactive([]);
   }
   if (!gameState.player.equipment) {
     gameState.player.equipment = { weapon: null };
@@ -1149,9 +1149,10 @@ onUnmounted(() => {
 
 .player-character {
   z-index: 10;
-  transform: scale(3);
+  transform: scale(5);
   transform-origin: center center;
   image-rendering: pixelated;
+  margin-top: 7%;
 }
 
 .player-character.is-damaged {
@@ -1159,13 +1160,15 @@ onUnmounted(() => {
 }
 
 @keyframes damageBrighten {
-  0% { filter: brightness(1.5); }
-  99% { filter: brightness(1.5); }
+  0% { filter: brightness(1); }
+  30% { filter: brightness(1.2); }
+  50% { filter: brightness(1.5); }
+  90% { filter: brightness(1.2); }
   100% { filter: brightness(1); }
 }
 
 .player-character.is-attacking {
-  animation: attackShake 0.4s ease-in-out;
+  scale: 1.01;
 }
 
 .weapon-sprite {
@@ -1198,10 +1201,11 @@ onUnmounted(() => {
 }
 
 .character-sprite {
-  width: 100%;
-  height: 100%;
+  width: 130%;
+  height: 150%;
   object-fit: contain;
   image-rendering: pixelated;
+  margin-left: -50%;
 }
 
 .character-info {
@@ -1222,7 +1226,7 @@ onUnmounted(() => {
 }
 
 .enemy-info {
-  text-align: right;
+  text-align: center;
   margin-top: -5%;
 }
 
@@ -1332,14 +1336,14 @@ onUnmounted(() => {
 
 @keyframes dragonShake {
   0%, 100% { transform: scale(5.5) translateX(0); }
-  25% { transform: scale(5.5) translateX(-5px); }
-  75% { transform: scale(5.5) translateX(5px); }
+  25% { transform: scale(7.5) translateX(-5px); }
+  75% { transform: scale(7.5) translateX(5px); }
 }
 
 @keyframes attackShake {
   0%, 100% { transform: scale(3) translateX(0); }
-  25% { transform: scale(3) translateX(-5px); }
-  75% { transform: scale(3) translateX(5px); }
+  25% { transform: scale(4) translateX(-5px); }
+  75% { transform: scale(4) translateX(5px); }
 }
 
 .damage-popup {
