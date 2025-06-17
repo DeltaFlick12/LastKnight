@@ -1319,7 +1319,6 @@ onUnmounted(() => {
   animation: pulseProjectile 0.5s infinite alternate;
 }
 
-
 @keyframes pulseProjectile {
   0% { transform: scale(1); opacity: 1; }
   100% { transform: scale(1.2); opacity: 0.8; }

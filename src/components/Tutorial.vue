@@ -764,7 +764,6 @@ onUnmounted(() => {
 
 .player-character.is-attacking {
   animation: attackShake 0.4s ease-in-out;
-  scale: 5.1;
 }
 
 .player-character.is-damaged {
@@ -812,6 +811,7 @@ onUnmounted(() => {
   font-size: 14px;
   min-width: 280px;
   box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.5);
+  text-align: center;
 }
 
 .player-info {
@@ -820,7 +820,7 @@ onUnmounted(() => {
 }
 
 .enemy-info {
-  text-align: right;
+  text-align: center;
 }
 
 .character-name {

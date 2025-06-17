@@ -13,10 +13,10 @@
     <!-- Dialogs -->
     <div v-if="showIntroDialog" class="dialog-box intro-dialog">
       <div class="dialog-content">
-        <p v-for="(line, index) in introDialogLines" :key="index" class="dialog-line">
+        <p v-for="(line, index) in currentDialogText" :key="index" class="dialog-line">
           {{ line }}
         </p>
-        <button @click="closeIntroDialog">Iniciar a Jornada</button>
+        <button v-if="isTypingComplete" @click="closeIntroDialog">Iniciar a Jornada</button>
       </div>
     </div>
     <div v-if="showForestDialog" class="dialog-box forest-dialog">
@@ -45,10 +45,12 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { useRouter } from 'vue-router';
 import { useGameState, ITEMS } from '@/stores/gameState.js';
 import HUD from '@/components/HUD.vue';
 
 const gameState = useGameState();
+const router = useRouter();
 const canvasRef = ref(null);
 const ctxRef = ref(null);
 const showIntroDialog = ref(true);
@@ -61,8 +63,8 @@ const defeatedEnemiesCount = ref(0);
 const totalEnemiesToDefeat = 6;
 const enemiesPerWave = 2;
 const currentWave = ref(0);
-const SPRITE_SCALE = 4;
-const attackCooldown = 350; // ms
+const SPRITE_SCALE = 5;
+const attackCooldown = 1000; // ms
 const staminaRecoveryRate = 10; // per second
 let lastAttackTime = 0;
 
@@ -76,9 +78,19 @@ const isSprinting = ref(false);
 const lastDirection = ref('right');
 const isAttacking = ref(false);
 const isJumping = ref(false);
-const jumpVelocity = -15; // Upward velocity for jump
-const gravity = 0.8; // Gravity force
+const jumpVelocity = -25; // Upward velocity for jump
+const gravity = 1; // Gravity force
 const groundY = ref(0); // Will be set in onMounted
+
+// Input state
+const keys = ref({ e: false, space: false });
+
+// Typing effect state
+const currentDialogText = ref([]);
+const currentLineIndex = ref(0);
+const currentCharIndex = ref(0);
+const isTypingComplete = ref(false);
+let typingInterval = null;
 
 // Sprite assets
 const backgroundImage = new Image();
@@ -86,13 +98,31 @@ backgroundImage.src = '/img/Floresta/floresta-bg.png';
 const playerSprite = new Image();
 playerSprite.src = '/img/sprites/player/player_sprite.png';
 
+// Enemy sprite assets (spritesheets)
+const enemyImages = {
+  idle: new Image(),
+  run: new Image(),
+  attack: new Image()
+};
+enemyImages.idle.src = '/img/sprites/rat/rat-idle.png';
+enemyImages.run.src = '/img/sprites/rat/rat-run.png';
+enemyImages.attack.src = '/img/sprites/rat/rat-attack.png';
+
 // Player animations
 const animations = {
-  idle: { row: 3, frames: [7, 1, 2, 3, 4, 5], frameInterval: 150 },
-  walk_left: { row: 20.1, frames: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], frameInterval: 70 },
+  idle: { row: 2, frames: [7, 1, 2, 3, 4, 5], frameInterval: 150 },
+  walk_left: { row: 5, frames: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], frameInterval: 70 },
   walk_right: { row: 5, frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], frameInterval: 70 },
-  attack_left: { row: 12, frames: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11], frameInterval: 110 },
+  attack_left: { row: 14, frames: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11], frameInterval: 110 },
   attack_right: { row: 14, frames: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11], frameInterval: 100 },
+};
+
+// Enemy animations
+const enemyAnimations = {
+  idle: { frames: [0, 1, 2, 3], frameInterval: 200, sprite: enemyImages.idle, frameWidth: 32, frameHeight: 32, scale: 2 },
+  walk_left: { frames: [0, 1, 2, 3, 4], frameInterval: 100, sprite: enemyImages.run, frameWidth: 32, frameHeight: 32, scale: 2 },
+  walk_right: { frames: [0, 1, 2, 3, 4], frameInterval: 100, sprite: enemyImages.run, frameWidth: 32, frameHeight: 32, scale: 2 },
+  attack: { frames: [0, 1, 2, 3], frameInterval: 100, sprite: enemyImages.attack, frameWidth: 32, frameHeight: 32, scale: 2 }
 };
 
 // Computed player animation
@@ -107,50 +137,72 @@ const currentAnimation = computed(() => {
 
 // Player state
 const player = {
-  x: 100,
-  y: 0, // Set in onMounted
+  x: 80,
+  y: 0,
   width: 96,
   height: 96,
   frameIndex: 0,
-  dy: 0, // Vertical velocity for jumping
+  dy: 0,
 };
 
-// Input state
-const keys = { e: false, space: false };
+// Enemies state
 const enemies = ref([]);
 const lastAttackTimes = new Map();
 
 // Dialog Lines
 const introDialogLines = [
-  'As brumas da Floresta Sombria envolvem-te, viajante.',
-  'Lobos amaldiçoados surgem em ondas, frutos de um feitiço antigo.',
-  'Enfrenta ondas de duas feras até derrotar seis ao total.',
-  'Toma tua arma e quebra a maldição que assola este lugar!',
+  'As brumas da Floresta Sombria envolvem-te, viajante. Lobos amaldiçoados surgem em ondas, frutos de um feitiço antigo. Enfrenta ondas de duas feras até derrotar seis ao total. Toma tua arma e quebra a maldição que assola este lugar!',
 ];
 const forestDialogLines = [
-  '🐺 Um lobo surge das sombras, olhos brilhando com fome!',
-  '🐺 Garras raspam o chão enquanto o lobo se aproxima!',
-  '🐺 O uivo do lobo ecoa, desafiando-te a lutar!',
-  '🐺 A fera fareja o ar, pronta para o ataque!',
+  'Um Lobo guincha nas sombras... cuidado!',
+  'A fera te encara com olhos famintos!',
+  'Prepare sua arma, herói!',
 ];
-const forestDialogLine = ref(forestDialogLines[0]);
+const forestDialogLine = ref('');
 const victoryDialogLines = [
   '✨ A floresta silencia, a maldição foi quebrada!',
-  'Os lobos jazem derrotados, e a paz retorna às árvores.',
-  'Tua bravura rendeu-te 60 ouros e a gratidão da vila.',
+  'Os Lobos jazem derrotados, e a paz retorna às árvores.',
   'Novos desafios aguardam-te além destas matas...',
 ];
 const gameOverDialogLines = [
-  '💀 As garras dos lobos prevaleceram, e a escuridão te engoliu.',
+  '💀 As garras dos Lobos prevaleceram, e a escuridão te engoliu.',
   'A floresta não perdoa os incautos, mas tua alma persiste.',
   'Levanta-te, herói, e enfrenta as feras novamente!',
 ];
+
+// Start typing effect
+const startTypingEffect = () => {
+  currentDialogText.value = introDialogLines.map(() => '');
+  currentLineIndex.value = 0;
+  currentCharIndex.value = 0;
+  isTypingComplete.value = false;
+
+  typingInterval = setInterval(() => {
+    if (currentLineIndex.value >= introDialogLines.length) {
+      clearInterval(typingInterval);
+      isTypingComplete.value = true;
+      return;
+    }
+
+    const currentLine = introDialogLines[currentLineIndex.value];
+    if (currentCharIndex.value < currentLine.length) {
+      currentDialogText.value[currentLineIndex.value] = currentLine.slice(0, currentCharIndex.value + 1);
+      currentCharIndex.value++;
+    } else {
+      setTimeout(() => {
+        currentLineIndex.value++;
+        currentCharIndex.value = 0;
+      }, 500); // Pause between lines
+    }
+    currentDialogText.value = [...currentDialogText.value]; // Trigger reactivity
+  }, 50); // Typing speed
+};
 
 // Resize canvas to window size
 const resizeCanvas = (canvas) => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  groundY.value = canvas.height - 40 * SPRITE_SCALE - 20 - 100; // Move ground up by 100px
+  groundY.value = canvas.height - 64 * SPRITE_SCALE - 20 - 100;
 };
 
 // Spawn a wave of enemies
@@ -162,17 +214,21 @@ const spawnWave = (canvas) => {
     } while (Math.abs(x - player.x) < 200);
     enemies.value.push({
       x,
-      y: groundY.value+100,
-      width: 50,
-      height: 40,
+      y: groundY.value + 96,
+      width: 64,
+      height: 60,
       dx: 0,
-      name: 'LOBO',
+      name: 'Lobo',
       life: 50,
       maxLife: 50,
+      frameIndex: 0,
+      frameTimer: performance.now(),
+      currentAnimation: 'idle',
+      isAttacking: false,
     });
   }
   currentWave.value++;
-  console.log(`Spawned wave ${currentWave.value} with ${enemies.value.length} wolves`);
+  console.log(`Spawned wave ${currentWave.value} with ${enemies.value.length} rats`);
 };
 
 // Check if current wave is complete
@@ -184,6 +240,7 @@ const checkWaveCompletion = (canvas) => {
 
 // Close intro dialog
 const closeIntroDialog = () => {
+  clearInterval(typingInterval);
   showIntroDialog.value = false;
 };
 
@@ -218,7 +275,9 @@ const attackEnemy = () => {
     height: player.height * SPRITE_SCALE,
   };
 
-  const enemyIndex = enemies.value.findIndex((enemy) => {
+  let closestEnemyIndex = -1;
+  let minDistance = Infinity;
+  enemies.value.forEach((enemy, index) => {
     const enemyBox = {
       x: enemy.x,
       y: enemy.y,
@@ -226,17 +285,21 @@ const attackEnemy = () => {
       height: enemy.height * SPRITE_SCALE,
     };
     const distX = (playerBox.x + playerBox.width / 2) - (enemyBox.x + enemyBox.width / 2);
-    return Math.abs(distX) < 100;
+    const distance = Math.abs(distX);
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestEnemyIndex = index;
+    }
   });
 
-  if (enemyIndex !== -1) {
-    const enemy = enemies.value[enemyIndex];
+  if (closestEnemyIndex !== -1) {
+    const enemy = enemies.value[closestEnemyIndex];
     const damage = attack.damage || 10;
     console.log(`Player deals ${damage} damage to ${enemy.name}`);
     enemy.life -= damage;
     if (enemy.life <= 0) {
       console.log(`${enemy.name} defeated`);
-      enemies.value.splice(enemyIndex, 1);
+      enemies.value.splice(closestEnemyIndex, 1);
       defeatedEnemiesCount.value++;
       gameState.addGold(10);
       showForestDialog.value = false;
@@ -244,7 +307,7 @@ const attackEnemy = () => {
       checkWaveCompletion(canvasRef.value);
       if (defeatedEnemiesCount.value >= totalEnemiesToDefeat) {
         showVictoryDialog.value = true;
-        gameState.addGold(60); // Reward for completing the mission
+        gameState.addGold(60);
       }
     }
   }
@@ -261,33 +324,71 @@ const useOrEquipItem = (itemId) => {
   }
 };
 
-// Close victory dialog
+// Close victory dialog and redirect
 const closeVictoryDialog = () => {
   showVictoryDialog.value = false;
+  router.push('/level/albadia');
 };
 
 // Draw enemies
 const drawEnemies = (ctx) => {
   enemies.value.forEach((enemy) => {
-    ctx.fillStyle = 'blue';
-    ctx.fillRect(enemy.x, enemy.y, enemy.width * SPRITE_SCALE, enemy.height * SPRITE_SCALE);
+    const anim = enemyAnimations[enemy.currentAnimation];
+    const frameX = anim.frames[enemy.frameIndex] * anim.frameWidth;
+    if (anim.sprite.complete) {
+      ctx.save();
+      const isLeftFacing = enemy.currentAnimation === 'walk_left';
+      const scaledWidth = enemy.width * SPRITE_SCALE;
+      const scaledHeight = enemy.height * SPRITE_SCALE;
+      if (isLeftFacing) {
+        ctx.scale(-1, 1);
+        ctx.drawImage(
+          anim.sprite,
+          frameX,
+          0,
+          anim.frameWidth,
+          anim.frameHeight,
+          -(enemy.x + scaledWidth),
+          enemy.y,
+          scaledWidth,
+          scaledHeight
+        );
+      } else {
+        ctx.drawImage(
+          anim.sprite,
+          frameX,
+          0,
+          anim.frameWidth,
+          anim.frameHeight,
+          enemy.x,
+          enemy.y,
+          scaledWidth,
+          scaledHeight
+        );
+      }
+      ctx.restore();
+    } else {
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(enemy.x, enemy.y, enemy.width * SPRITE_SCALE, enemy.height * SPRITE_SCALE);
+    }
+
     ctx.fillStyle = 'white';
     ctx.font = 'bold 16px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(enemy.name, enemy.x + (enemy.width * SPRITE_SCALE) / 2, enemy.y - 25);
+    ctx.fillText(enemy.name, enemy.x + (enemy.width * SPRITE_SCALE) / 2, enemy.y - 30);
 
     const barWidth = enemy.width * SPRITE_SCALE;
-    const barHeight = 6;
+    const barHeight = 8;
     const lifeRatio = enemy.life / enemy.maxLife;
 
     ctx.fillStyle = 'red';
-    ctx.fillRect(enemy.x, enemy.y - 20, barWidth, barHeight);
+    ctx.fillRect(enemy.x, enemy.y - 25, barWidth, barHeight);
 
     ctx.fillStyle = 'limegreen';
-    ctx.fillRect(enemy.x, enemy.y - 20, barWidth * lifeRatio, barHeight);
+    ctx.fillRect(enemy.x, enemy.y - 25, barWidth * lifeRatio, barHeight);
 
     ctx.strokeStyle = 'black';
-    ctx.strokeRect(enemy.x, enemy.y - 20, barWidth, barHeight);
+    ctx.strokeRect(enemy.x, enemy.y - 25, barWidth, barHeight);
   });
 };
 
@@ -367,13 +468,13 @@ const updatePlayer = (canvas, now) => {
         dx = (dx / magnitude) * step;
       }
       nextPos.x += dx;
-      // Confine player to canvas horizontally
       if (nextPos.x >= 0 && nextPos.x <= canvas.width - frameWidth * SPRITE_SCALE) {
         player.x = nextPos.x;
       }
     }
 
-    // Handle jumping
+    // Jump logic disabled
+    /*
     if (moving.value.jump && !isJumping.value && gameState.player.stamina >= 10) {
       isJumping.value = true;
       player.dy = jumpVelocity;
@@ -385,15 +486,17 @@ const updatePlayer = (canvas, now) => {
       player.dy += gravity;
       nextPos.y += player.dy;
       if (nextPos.y >= groundY.value) {
-        nextPos.y = groundY.value;
+        nextPos.y = groundY + 100;
         player.dy = 0;
         isJumping.value = false;
       }
       player.y = nextPos.y;
     }
+    */
+    // Ensure player stays at ground level
+    player.y = groundY.value + 96; // Align with enemy level
   }
 
-  // Stamina recovery
   if (now - staminaTimer.value >= 1000 && gameState.player.stamina < gameState.player.maxStamina) {
     gameState.recoverStamina(staminaRecoveryRate);
     staminaTimer.value = now;
@@ -411,7 +514,7 @@ const checkProximity = () => {
   const playerCenterX = player.x + (frameWidth * SPRITE_SCALE) / 2;
   const nearEnemy = enemies.value.some((enemy) => {
     const enemyCenterX = enemy.x + (enemy.width * SPRITE_SCALE) / 2;
-    return Math.abs(playerCenterX - enemyCenterX) < 100;
+    return Math.abs(playerCenterX - enemyCenterX) < 150;
   });
 
   if (nearEnemy && !showForestDialog.value) {
@@ -424,7 +527,10 @@ const checkProximity = () => {
 
 // Enemy movement and attack logic
 const enemyLogic = (canvas, now) => {
-  if (gameState.player.lives <= 0) return;
+  if (gameState.player.lives <= 0) {
+    showGameOverDialog.value = true;
+    return;
+  }
   const playerCenterX = player.x + (frameWidth * SPRITE_SCALE) / 2;
 
   enemies.value.forEach((enemy) => {
@@ -432,13 +538,25 @@ const enemyLogic = (canvas, now) => {
     const distX = enemyCenterX - playerCenterX;
     const distance = Math.abs(distX);
 
-    // Detection range: 600px
+    // Update animation
+    const anim = enemyAnimations[enemy.currentAnimation];
+    if (now - enemy.frameTimer > anim.frameInterval) {
+      enemy.frameTimer = now;
+      enemy.frameIndex = (enemy.frameIndex + 1) % anim.frames.length;
+      if (enemy.isAttacking && enemy.frameIndex === 0) {
+        enemy.isAttacking = false;
+        enemy.currentAnimation = 'idle';
+      }
+    }
+
     if (distance < 600) {
-      // Attack range: 50px
-      if (distance < 50 && enemy.y >= groundY.value - 10) {
+      if (distance < 80 && enemy.y >= groundY.value - 10) {
         const lastAttack = lastAttackTimes.get(enemy) || 0;
         if (now - lastAttack > 2000) {
           console.log(`${enemy.name} attacks player for 10 damage`);
+          enemy.currentAnimation = 'attack';
+          enemy.frameIndex = 0;
+          enemy.isAttacking = true;
           gameState.takeDamage(10);
           lastAttackTimes.set(enemy, now);
           if (gameState.player.health <= 0) {
@@ -446,37 +564,40 @@ const enemyLogic = (canvas, now) => {
           }
         }
       } else {
-        // Move toward player
         enemy.dx = distX > 0 ? -3 : 3;
+        enemy.currentAnimation = distX > 0 ? 'walk_left' : 'walk_right';
         const nextX = enemy.x + enemy.dx;
-        // Confine enemy to canvas
         if (nextX >= 0 && nextX <= canvas.width - enemy.width * SPRITE_SCALE) {
           enemy.x = nextX;
         }
       }
     } else {
       enemy.dx = 0;
+      enemy.currentAnimation = 'idle';
     }
   });
 };
 
-// Restart game
+// Restart game or redirect to gameover
 const restartGame = () => {
-  gameState.resetGame();
-  player.x = 100;
-  player.y = groundY.value;
-  player.frameIndex = 0;
-  player.dy = 0;
-  isJumping.value = false;
-  defeatedEnemiesCount.value = 0;
-  currentWave.value = 0;
-  showGameOverDialog.value = false;
-  enemies.value = [];
-  spawnWave(canvasRef.value);
+  if (gameState.player.lives <= 0) {
+    router.push('/gameOver');
+  } else {
+    gameState.resetGame();
+    player.x = 80;
+    player.y = groundY.value;
+    player.frameIndex = 0;
+    player.dy = 0;
+    isJumping.value = false;
+    defeatedEnemiesCount.value = 0;
+    currentWave.value = 0;
+    showGameOverDialog.value = false;
+    enemies.value = [];
+    spawnWave(canvasRef.value);
+  }
 };
 
 onMounted(() => {
-  // Initialize player stats
   gameState.player.health = gameState.player.maxHealth || 100;
   gameState.player.stamina = gameState.player.maxStamina || 100;
   gameState.player.lives = gameState.player.lives || 3;
@@ -491,17 +612,23 @@ onMounted(() => {
   resizeCanvas(canvas);
   window.addEventListener('resize', () => resizeCanvas(canvas));
 
+  startTypingEffect();
+
   const startGame = () => {
-    player.y = groundY.value;
-    spawnWave(canvas);
-    frameTimer.value = performance.now();
-    staminaTimer.value = performance.now();
-    loop();
+    try {
+      player.y = groundY.value + 96; // Align with enemy level
+      spawnWave(canvas);
+      frameTimer.value = performance.now();
+      staminaTimer.value = performance.now();
+      loop();
+    } catch (error) {
+      console.error('Error starting game:', error);
+    }
   };
 
   // Wait for images to load
   let imagesLoaded = 0;
-  const totalImages = 2;
+  const totalImages = 5; // backgroundImage, playerSprite, and 3 enemy sprites
   const onImageLoad = () => {
     imagesLoaded++;
     if (imagesLoaded === totalImages) {
@@ -509,9 +636,11 @@ onMounted(() => {
     }
   };
 
-  [backgroundImage, playerSprite].forEach((img) => {
+  // Load background and player sprite
+  [backgroundImage, playerSprite, enemyImages.idle, enemyImages.run, enemyImages.attack].forEach((img) => {
     img.onload = onImageLoad;
     if (img.complete) onImageLoad();
+    img.onerror = () => console.error(`Failed to load image: ${img.src}`);
   });
 
   const clear = () => {
@@ -526,46 +655,48 @@ onMounted(() => {
 
   let animationFrameId = null;
   const loop = (timestamp) => {
-    if (showIntroDialog.value || showVictoryDialog.value || showGameOverDialog.value) {
-      frameTimer.value = timestamp;
-      staminaTimer.value = timestamp;
+    try {
+      if (showIntroDialog.value || showVictoryDialog.value || showGameOverDialog.value) {
+        frameTimer.value = timestamp;
+        staminaTimer.value = timestamp;
+        animationFrameId = requestAnimationFrame(loop);
+        return;
+      }
+      clear();
+      drawBackground();
+      drawEnemies(ctxRef.value);
+      updatePlayer(canvas, timestamp);
+      drawPlayer(ctxRef.value, timestamp);
+      checkProximity();
+      enemyLogic(canvas, timestamp);
       animationFrameId = requestAnimationFrame(loop);
-      return;
+    } catch (error) {
+      console.error('Error in game loop:', error);
     }
-    clear();
-    drawBackground();
-    updatePlayer(canvas, timestamp);
-    drawPlayer(ctxRef.value, timestamp);
-    drawEnemies(ctxRef.value);
-    checkProximity();
-    enemyLogic(canvas, timestamp);
-    animationFrameId = requestAnimationFrame(loop);
   };
 
   window.addEventListener('keydown', (e) => {
     if (gameState.player.lives <= 0) return;
     const key = e.key.toLowerCase();
-    if (key === 'w') moving.value.jump = true;
+    // 'w' key disabled for jumping
     if (key === 'a') moving.value.left = true;
     if (key === 'd') moving.value.right = true;
     if (key === 'shift') isSprinting.value = true;
     if (key === 'e' || e.code === 'Space') {
-      keys.e = key === 'e';
-      keys.space = e.code === 'Space';
-      if (showEnterPrompt.value || showForestDialog.value) {
-        attackEnemy();
-      }
+      keys.value.e = key === 'e';
+      keys.value.space = e.code === 'Space';
+      attackEnemy();
     }
   });
 
   window.addEventListener('keyup', (e) => {
     const key = e.key.toLowerCase();
-    if (key === 'w') moving.value.jump = false;
+    // 'w' key disabled for jumping
     if (key === 'a') moving.value.left = false;
     if (key === 'd') moving.value.right = false;
     if (key === 'shift') isSprinting.value = false;
-    if (key === 'e') keys.e = false;
-    if (e.code === 'Space') keys.space = false;
+    if (key === 'e') keys.value.e = false;
+    if (e.code === 'Space') keys.value.space = false;
   });
 
   onBeforeUnmount(() => {
@@ -573,6 +704,7 @@ onMounted(() => {
     if (animationFrameId) {
       cancelAnimationFrame(animationFrameId);
     }
+    clearInterval(typingInterval);
   });
 });
 </script>
@@ -611,7 +743,7 @@ onMounted(() => {
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(10, 10, 10, 0.7);
+  background-color: rgba(10, 10, 10, 0.7);
   padding: 8px 14px;
   border-radius: 6px;
   color: #f0d0a0;
@@ -641,7 +773,7 @@ onMounted(() => {
 }
 
 .dialog-content {
-  background: rgba(26, 47, 26, 0.95);
+  background: rgba(26, 47, 7, 0.95);
   border: 4px solid #4a2f1a;
   padding: 20px;
   max-width: 600px;
@@ -650,7 +782,7 @@ onMounted(() => {
   color: #f0d0a0;
   font-family: 'MedievalSharp', cursive;
   font-size: 18px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0,0.5);
   border-radius: 8px;
   overflow-y: auto;
 }
@@ -669,8 +801,8 @@ onMounted(() => {
   border-radius: 8px;
   cursor: pointer;
   font-family: 'MedievalSharp', cursive;
-  text-shadow: 1px 1px 2px #000;
-  box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.1), 2px 2px 6px rgba(0, 0, 0, 0.5);
+  text-shadow: 1px 1px 2px;
+  box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.1), 2px 2px 6px rgba(0,0,0,0.5);
   transition: filter 0.2s, transform 0.1s;
 }
 
@@ -681,6 +813,6 @@ onMounted(() => {
 
 .dialog-content button:active {
   transform: scale(0.97);
-  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 0 6px rgba(0,0,0,0.6);
 }
 </style>
