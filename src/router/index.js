@@ -22,6 +22,7 @@ import RuinasView from '@/components/views/niveis/RuinasView.vue';
 import CavernaView from '@/components/views/niveis/CavernaView.vue';
 import MontanhaView from '@/components/views/niveis/MontanhaView.vue';
 import CasteloView from '@/components/views/CasteloView.vue';
+import CutscenePlayer from '@/components/CutscenePlayer.vue';
 
 const routes = [
   { path: '/', name: 'Menu', component: Menu },
@@ -44,6 +45,7 @@ const routes = [
   { path: '/level/caverna', name: 'CavernaView', component: CavernaView },
   { path: '/level/montanha', name: 'MontanhaView', component: MontanhaView },
   { path: '/level/castelo', name: 'CasteloView', component: CasteloView },
+  { path: '/cutscene', name: 'Cutscene', component: CutscenePlayer },
 ];
 
 const router = createRouter({
@@ -98,4 +100,3 @@ router.beforeEach((to, from, next) => {
 });
 
 export default router;
-

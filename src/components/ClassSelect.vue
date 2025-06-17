@@ -90,7 +90,7 @@ function confirmarClasse() {
   }
 
   try {
-    router.push('/tutorial');
+    router.push('/cutscene');
   } catch (err) {
     console.error('Erro ao redirecionar:', err);
   }

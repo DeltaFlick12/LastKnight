@@ -174,7 +174,10 @@ const spriteSheet = new URL(
   '/img/sprites/player/player_sprite.png',
   import.meta.url
 ).href
-const bossSpriteSheet = spriteSheet // Usar o mesmo spritesheet do jogador
+const bossSpriteSheet = new URL(
+  '/img/sprites/boss/magnus_sprite.png',
+  import.meta.url
+).href // Usar o mesmo spritesheet do jogador
 
 // Player Position and State
 const characterPosition = ref({ x: 850, y: 1100 })
@@ -1069,9 +1072,8 @@ onUnmounted(() => {
   color: white;
 }
 
-.zoom-layer.background,
-.zoom-layer.foreground {
-  position: absolute;
+.zoom-layer.background {
+  position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
@@ -1082,6 +1084,7 @@ onUnmounted(() => {
 }
 
 .zoom-layer.foreground {
+  position: fixed;
   pointer-events: none;
   z-index: 6;
 }
@@ -1134,7 +1137,6 @@ onUnmounted(() => {
   position: absolute;
   z-index: 4;
   scale: 3.5; /* Boss maior que o jogador */
-  filter: brightness(0.4); /* Mais escuro que o jogador */
 }
 
 .enemy.damaged {

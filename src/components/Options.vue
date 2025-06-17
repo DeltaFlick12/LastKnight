@@ -51,7 +51,7 @@
 <script setup>
 import { ref, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
-import { useGameState } from '@/stores/gamestate.js';
+import { useGameState } from '@/stores/gameState.js';
 
 const emit = defineEmits(["close"]); // ✅ movido aqui para funcionar em goBack
 
@@ -102,7 +102,7 @@ onMounted(() => {
 
   shadersEnabled.value = gameState.shaders !== undefined ? gameState.shaders : true;
 
-  clickSound = new Audio("/audio/click.ogg");
+  clickSound = new Audio("/sounds/click.wav");
   clickSound.volume = 0.4;
 
   updateVolume("music");

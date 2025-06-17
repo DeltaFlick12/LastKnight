@@ -50,7 +50,6 @@
         <p class="copyright">© {{ currentYear }} [Seu Nome / Nome do Estúdio]. Todos os direitos reservados.</p>
         <div class="spacer"></div>
         <div class="spacer"></div>
-
       </div>
     </div>
     <button class="skip-button" @click="goToMainMenu">Voltar ao Menu</button>
@@ -70,6 +69,7 @@ const currentYear = new Date().getFullYear();
 const endingType = ref(route.params.type || '3'); // Default to true ending if type is missing
 
 let scrollInterval = null;
+let clickSound = null; // Instância para o som de clique
 
 // Mapeamento de estilos e música por final
 const endingStyles = {
@@ -96,6 +96,10 @@ onMounted(() => {
   const style = endingStyles[endingType.value] || endingStyles['3'];
   playAudio(style.music, { loop: true });
 
+  // Inicializar o som de clique
+  clickSound = new Audio('/sounds/click.wav');
+  clickSound.volume = 0.4;
+
   // Iniciar a rolagem
   const container = scrollContainer.value;
   if (container) {
@@ -120,15 +124,25 @@ onMounted(() => {
 onUnmounted(() => {
   stopAudio(); // Para toda a música ao sair
   clearInterval(scrollInterval);
+  if (clickSound) {
+    clickSound.pause();
+    clickSound = null; // Limpa a instância
+  }
 });
 
 const goToMainMenu = () => {
+  if (clickSound) {
+    clickSound.currentTime = 0; // Reseta o áudio para o início
+    clickSound.play().catch((error) => {
+      console.error('Erro ao reproduzir o som de clique:', error);
+    });
+  }
   router.push('/');
 };
-
 </script>
 
 <style scoped>
+/* Estilo permanece inalterado */
 .credits-screen {
   width: 100vw;
   height: 100vh;
