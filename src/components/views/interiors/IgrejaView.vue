@@ -211,16 +211,18 @@ const sounds = {
   stepDown: new Audio('/sounds/wood_step_r.mp3'),
   stepLeft: new Audio('/sounds/wood_step_l.mp3'),
   stepRight: new Audio('/sounds/wood_step_r.mp3'),
-  doorOpen: new Audio('/sounds/porta_abrindo.mp3')
+  doorOpen: new Audio('/sounds/porta_abrindo.mp3'),
+  bencao: new Audio('/sounds/bencao.mp3')
 }
 sounds.dialogClick.volume = 0.5
 sounds.coinClank.volume = 0.5
-sounds.background.volume = 0.3 // Aumentado para maior audibilidade
+sounds.background.volume = 0.15 // Aumentado para maior audibilidade
 sounds.stepUp.volume = 0.8
 sounds.stepDown.volume = 0.8
 sounds.stepLeft.volume = 0.8
 sounds.stepRight.volume = 0.8
 sounds.doorOpen.volume = 0.5
+sounds.bencao.volume = 0.5
 sounds.background.loop = true
 
 // Flag para controlar a primeira reprodução da música
@@ -268,7 +270,7 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 const resetState = () => {
   console.log('resetState: visitedChurch =', gameState.visitedChurch, 'showDialog =', showDialog.value)
   playSound(sounds.doorOpen)
-  showShop.value = false // Garantir que loja não interfira
+  showShop.value = false
   if (!gameState.visitedChurch) {
     showDialog.value = true
     dialogIndex.value = 0
@@ -303,6 +305,7 @@ const nextDialog = async () => {
   }
 }
 
+
 const buyBlessing = async (item) => {
   if (gameState.player.hasRiverBlessing) {
     message.value = `Você já possui a ${item.name}.`
@@ -310,7 +313,18 @@ const buyBlessing = async (item) => {
     gameState.removeGold(item.price)
     gameState.grantRiverBlessing()
     message.value = `Você recebeu a ${item.name}! Você agora tem a proteção do rio.`
-    playSound(sounds.coinClank)
+    // Mute background music
+    sounds.background.volume = 0
+    // Play bencao sound
+    playSound(sounds.bencao)
+    // Restore background volume after bencao ends
+    sounds.bencao.onended = () => {
+      sounds.background.volume = 0.15
+    }
+    // Fallback: restore volume after 3 seconds in case onended doesn't trigger
+    setTimeout(() => {
+      sounds.background.volume = 0.15
+    }, 6000)
   } else {
     message.value = 'Você não tem ouro suficiente para comprar esta bênção.'
   }
