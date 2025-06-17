@@ -1,4 +1,3 @@
-```vue
 <template>
   <div
     class="igreja-screen"
@@ -935,4 +934,3 @@ watch(() => showShop, (newVal) => {
   z-index: 1;
 }
 </style>
-```

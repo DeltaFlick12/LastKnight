@@ -1,4 +1,3 @@
-```vue
 <template>
   <div class="floresta-view" style="position: relative;">
     <canvas ref="canvasRef" class="game-canvas"></canvas>
@@ -497,4 +496,3 @@ button:hover {
   background-color: #4da1ff;
 }
 </style>
-```
