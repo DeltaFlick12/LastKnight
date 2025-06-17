@@ -233,7 +233,7 @@ battleMusic.loop = true;
 battleMusic.volume = 0.3;
 const suspenseMusic = new Audio('/audio/musica-sus.mp3');
 suspenseMusic.loop = true;
-suspenseMusic.volume = 0.3;
+suspenseMusic.volume = 0.5;
 
 // Sprite Sheet for Player
 const playerSprite = new URL('/img/sprites/player/player_sprite.png', import.meta.url).href;

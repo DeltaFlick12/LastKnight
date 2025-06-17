@@ -177,10 +177,10 @@ const spriteSheet = new URL(
 const bossSpriteSheet = new URL(
   '/img/sprites/boss/magnus_sprite.png',
   import.meta.url
-).href // Usar o mesmo spritesheet do jogador
+).href
 
 // Player Position and State
-const characterPosition = ref({ x: 850, y: 1100 })
+const characterPosition = ref({ x: 750, y: 700 })
 const moving = ref({ up: false, down: false, left: false, right: false })
 const isSprinting = ref(false)
 const lastDirection = ref('down')
@@ -190,7 +190,7 @@ const isInvulnerable = ref(false)
 const isBossDamaged = ref(false)
 const isBossRecovering = ref(false)
 const bossRecoveryStartTime = ref(0)
-const bossRecoveryDuration = 15000 // 15 seconds
+const bossRecoveryDuration = 5000 // 5 seconds
 const invulnerabilityDuration = 1000
 let invulnerabilityTimer = null
 const showGameOver = ref(false)
@@ -251,7 +251,7 @@ const animations = {
   }
 }
 
-// Boss Animations (Usando as mesmas linhas do jogador)
+// Boss Animations
 const bossAnimations = {
   idle: { row: 3, frames: [7, 1, 2, 3, 4, 5], frameInterval: 150 },
   walk_down: {
@@ -275,17 +275,17 @@ const bossAnimations = {
     frameInterval: 70
   },
   attack_melee: {
-    row: 14, // Usando attack_right como base para melee
+    row: 14,
     frames: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11],
     frameInterval: 100
   },
   attack_projectile: {
-    row: 13, // Usando attack_up como base para projétil
+    row: 13,
     frames: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11],
     frameInterval: 100
   },
   defeated: {
-    row: 3, // Reutilizando idle para derrota, com menos quadros
+    row: 3,
     frames: [0, 1, 2, 3],
     frameInterval: 200
   }
@@ -334,7 +334,7 @@ const dialogLines = [
   'Há séculos espero por alguém que ouse me desafiar.',
   'Sou Magnus, o guardião final de Albadia!',
   'Prepare-se... este será o seu último julgamento!'
-];
+]
 
 let typeInterval = null
 const typeLine = () => {
@@ -385,10 +385,10 @@ const interactionAreas = [
 
 const collisionAreas = [
   { x: 0, y: 0, width: 1, height: 1266 },
-  { x: 0, y: 1266, width: 2048, height: 1 },
-  { x: 2000, y: 0, width: 1, height: 1266 },
+  { x: 0, y: 1080, width: 2048, height: 1 },
+  { x: 1920, y: 0, width: 1, height: 1266 },
   { x: 0, y: 200, width: 2048, height: 1 },
-  { x: 650, y: 490, width: 300, height: 100 }
+  { x: 650, y: 390, width: 300, height: 100 }
 ]
 
 const screenSize = { width: window.innerWidth, height: window.innerHeight }
@@ -434,8 +434,8 @@ const checkEntityCollision = (entity1, entity2) => {
   const hitbox2 = {
     x: entity2.x,
     y: entity2.y,
-    width: bossFrameWidth, // 96px
-    height: bossFrameHeight // 96px
+    width: bossFrameWidth,
+    height: bossFrameHeight
   }
   const dx = (hitbox1.x + hitbox1.width / 2) - (hitbox2.x + hitbox2.width / 2)
   const dy = (hitbox1.y + hitbox1.height / 2) - (hitbox2.y + hitbox2.height / 2)
@@ -464,8 +464,8 @@ const resolveCollision = (playerPos, bossPos) => {
   const bossHitbox = {
     x: bossPos.x,
     y: bossPos.y,
-    width: bossFrameWidth, // 96px
-    height: bossFrameHeight // 96px
+    width: bossFrameWidth,
+    height: bossFrameHeight
   }
   if (
     playerHitbox.x < bossHitbox.x + bossHitbox.width &&
@@ -506,8 +506,8 @@ const checkEnemyCollision = (nextX, nextY) => {
   const hitbox = {
     x: nextX,
     y: nextY,
-    width: bossFrameWidth, // 96px
-    height: bossFrameHeight // 96px
+    width: bossFrameWidth,
+    height: bossFrameHeight
   }
   return collisionAreas.some(area =>
     hitbox.x < area.x + area.width &&
@@ -539,8 +539,8 @@ const checkAttackHit = () => {
   const enemyHitbox = {
     x: enemy.value.position.x,
     y: enemy.value.position.y,
-    width: bossFrameWidth, // 96px
-    height: bossFrameHeight // 96px
+    width: bossFrameWidth,
+    height: bossFrameHeight
   }
   const hit =
     playerAttackBox.x < enemyHitbox.x + enemyHitbox.width &&
@@ -607,13 +607,20 @@ const performMeleeAttack = (now) => {
 }
 
 const updateEnemy = (now) => {
+  // Se o diálogo está ativo, manter o boss em estado idle e não executar ações
+  if (showDialog.value) {
+    enemy.value.state = 'idle'
+    console.log('Boss attacks disabled during dialog')
+    return
+  }
+
   if (enemy.value.state === 'defeated') return
 
   console.log(
     `Boss stats: health=${gameState.boss.health}, stamina=${gameState.boss.stamina}, phase=${gameState.boss.phase}, vulnerable=${gameState.boss.isVulnerable}, recovering=${isBossRecovering.value}`
   )
 
-  // Check if boss is recovering
+  // Verificar se o boss está em recuperação
   if (isBossRecovering.value) {
     if (now - bossRecoveryStartTime.value >= bossRecoveryDuration) {
       gameState.boss.stamina = gameState.boss.maxStamina
@@ -628,7 +635,7 @@ const updateEnemy = (now) => {
     return
   }
 
-  // Check if boss has enough stamina
+  // Verificar se o boss está sem stamina
   if (gameState.boss.stamina <= 0) {
     isBossRecovering.value = true
     bossRecoveryStartTime.value = now
@@ -644,7 +651,7 @@ const updateEnemy = (now) => {
   let nextEnemyPos = { ...enemy.value.position }
   let isColliding = checkEntityCollision(characterPosition.value, enemy.value.position)
 
-  // Update boss direction
+  // Atualizar direção do boss
   if (Math.abs(dx) > Math.abs(dy)) {
     bossLastDirection.value = dx > 0 ? 'right' : 'left'
   } else {
@@ -678,7 +685,7 @@ const updateEnemy = (now) => {
         y: Math.floor(Math.random() * 3) - 1
       }
       enemy.value.randomMoveTimer = now
-      // Update direction for random movement
+      // Atualizar direção para movimento aleatório
       if (Math.abs(enemy.value.randomDirection.x) > Math.abs(enemy.value.randomDirection.y)) {
         bossLastDirection.value = enemy.value.randomDirection.x > 0 ? 'right' : 'left'
       } else if (enemy.value.randomDirection.y !== 0) {
@@ -736,7 +743,7 @@ const updateEnemy = (now) => {
     }
   }
 
-  // Update boss animation frame
+  // Atualizar quadro de animação do boss
   const bossAnim = bossAnimations[bossCurrentAnimation.value]
   if (now - bossFrameTimer.value > bossAnim.frameInterval) {
     bossFrameTimer.value = now
@@ -749,7 +756,7 @@ const updateEnemy = (now) => {
     }
   }
 
-  // Check if boss is defeated
+  // Verificar se o boss foi derrotado
   if (gameState.boss.health <= 0 && enemy.value.state !== 'defeated') {
     enemy.value.state = 'defeated'
     gameState.defeatMagnus()
@@ -887,7 +894,7 @@ const updateMovement = () => {
     gameState.recoverStamina(10)
   }
 
-  // Update player animation frame
+  // Atualizar quadro de animação do jogador
   const anim = animations[currentAnimation.value]
   if (now - frameTimer.value > anim.frameInterval) {
     frameTimer.value = now
@@ -1072,8 +1079,9 @@ onUnmounted(() => {
   color: white;
 }
 
-.zoom-layer.background {
-  position: fixed;
+.zoom-layer.background,
+.zoom-layer.foreground {
+  position: absolute;
   top: 0;
   left: 0;
   width: 100vw;
@@ -1084,7 +1092,6 @@ onUnmounted(() => {
 }
 
 .zoom-layer.foreground {
-  position: fixed;
   pointer-events: none;
   z-index: 6;
 }
@@ -1136,7 +1143,8 @@ onUnmounted(() => {
 .enemy {
   position: absolute;
   z-index: 4;
-  scale: 3.5; /* Boss maior que o jogador */
+  scale: 3.5;
+  filter: brightness(0.4);
 }
 
 .enemy.damaged {
@@ -1174,7 +1182,7 @@ onUnmounted(() => {
   border-radius: 8px;
   text-align: center;
   z-index: 200;
-  scale:  0.5;
+  scale: 0.5;
 }
 
 .enemy-name {
@@ -1183,6 +1191,7 @@ onUnmounted(() => {
   color: #ffffff;
   margin-bottom: 6px;
   text-shadow: 1px 1px 0 #000;
+  z-index: 200;
 }
 
 .health-bar {
@@ -1200,7 +1209,6 @@ onUnmounted(() => {
   border-radius: 4px;
   transition: width 0.2s ease;
 }
-
 
 .projectile {
   position: absolute;
