@@ -105,7 +105,7 @@ const cutscenes = {
     },
     { 
       speaker: 'Narrador', 
-      text: 'Em um castelo distante, um novo herói desperta para enfrentar o destino que o aguarda. No pátio do castelo a figura protagonista surge em silêncio. Seus olhos revelam confusão, mas também uma chama de determinação recém-acesa. À sua frente, um novo caminho se abre. A jornada começa agora.', 
+      text: 'Em um castelo distante, um novo herói desperta para enfrentar o destino que o aguarda. No pátio do castelo a figura protagonista surge em silêncio. Seus olhos revelam confusão, mas também uma chama de determinação recém-acesa. À sua frente, um novo caminho se abre. Entao uma nova jornada começa.', 
       backgroundImage: '/img/cutscene/cena4.png', 
       narration: '/audio/cutscene/cena4.mp3'
     },

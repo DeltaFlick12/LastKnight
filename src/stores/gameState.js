@@ -1,21 +1,22 @@
 import { defineStore } from 'pinia';
 
+// Definição das classes disponíveis
 const CLASSES = {
   Guerreiro: {
     name: 'Guerreiro',
     description: 'Combatente equilibrado, focado em dano corpo a corpo.',
     baseStats: { attack: 12, defense: 8, speed: 10, maxHealth: 100, maxStamina: 100 },
-    startItems: { weapon: 'sword_wood' }
+    startItems: { weapon: 'sword_wood' },
   },
 };
 
+// Definição dos itens do jogo
 export const ITEMS = {
   sword_wood: { id: 'sword_wood', name: 'Espada de Madeira', type: 'Arma', slot: 'weapon', stats: { attack: 5 }, description: 'Uma espada de treino.', icon: '/icons/weapons/sword_wood.png' },
-  axe_iron: { id: 'axe_iron', name: 'Machado de Ferro', type: 'Arma', slot: 'weapon', stats: { attack: 13, speed: -1 }, price: 60, description: 'Pesado, mas poderoso.', icon: '/icons/weapons/axe_iron.png' },
-  sword_iron: { id: 'sword_iron', name: 'Espada de Ferro', type: 'Arma', slot: 'weapon', price: 40, stats: { attack: 10 }, description: 'Uma espada básica, mas confiável.', icon: '/icons/weapons/sword_iron.png' },
+  sword_iron: { id: 'sword_iron', name: 'Espada de Ferro', type: 'Arma', slot: 'weapon', price: 100, stats: { attack: 10 }, description: 'Uma espada básica, mas confiável.', icon: '/icons/weapons/sword_iron.png' },
+  axe_iron: { id: 'axe_iron', name: 'Machado de Ferro', type: 'Arma', slot: 'weapon', stats: { attack: 13, speed: -1 }, price: 150, description: 'Pesado, mas poderoso.', icon: '/icons/weapons/axe_iron.png' },
   sword_mythril: { id: 'sword_mythril', name: 'Lança Rúnica', type: 'Arma', slot: 'weapon', price: 200, stats: { attack: 25 }, description: 'Aumenta o dano em +25. Forjada com magia anã.', icon: '/icons/weapons/sword_mythril.png' },
   potion_health: { id: 'potion_health', name: 'Poção de Cura', type: 'Consumível', price: 50, effect: { heal: 50 }, description: 'Restaura 50 de vida.', icon: '/icons/potions/potvida-icon.png' },
-  potion_mystery: { id: 'potion_mystery', name: 'Poção Azul Misteriosa', type: 'Consumível', price: 120, effect: { mystery: true }, description: 'Um líquido enigmático que pode revelar segredos... ou não.', icon: '/icons/potions/potmystery-icon.png' },
   potion_forbidden: { id: 'potion_forbidden', name: 'Poção Proibida', type: 'Consumível Especial', price: 500, effect: { special: 'sacrifice' }, description: '?????????????????????', icon: '/icons/potions/potforbidden-icon.png' },
   key_ancient: { id: 'key_ancient', name: 'Chave Ancestral', type: 'Chave', description: 'Uma chave antiga das ruínas.', icon: '/icons/key_ancient.png' },
   key_ice: { id: 'key_ice', name: 'Chave de Gelo', type: 'Chave', description: 'Uma chave congelada da montanha.', icon: '/icons/key_ice.png' },
@@ -27,10 +28,11 @@ export const ITEMS = {
     type: 'Bênção',
     price: 75,
     description: 'Concede proteção divina do rio, aumentando a resistência.',
-    icon: '/icons/blessing-river.png'
+    icon: '/icons/blessing-river.png',
   },
 };
 
+// Definição do store do jogo
 export const useGameState = defineStore('game', {
   state: () => {
     let savedState = null;
@@ -38,11 +40,15 @@ export const useGameState = defineStore('game', {
       const stored = localStorage.getItem('gameState');
       if (stored) {
         savedState = JSON.parse(stored);
+        // Garante compatibilidade com estados salvos antigos
         if (!savedState.player.hasOwnProperty('lives')) {
           savedState.player.lives = 3;
         }
         if (!savedState.hasOwnProperty('shaders')) {
           savedState.shaders = true;
+        }
+        if (!savedState.player.hasOwnProperty('princessAlive')) {
+          savedState.player.princessAlive = false;
         }
       }
     } catch (e) {
@@ -59,7 +65,11 @@ export const useGameState = defineStore('game', {
         maxStamina: 100,
         gold: 200,
         lives: 3,
-        inventory: [{ itemId: 'sword_wood', quantity: 1 }, { itemId: 'potion_health', quantity: 1 }],
+        princessAlive: false, // Rastreia se a princesa está viva
+        inventory: [
+          { itemId: 'sword_wood', quantity: 1 },
+          { itemId: 'potion_health', quantity: 1 },
+        ],
         equipment: {
           weapon: 'sword_wood',
         },
@@ -154,7 +164,7 @@ export const useGameState = defineStore('game', {
           }
         }
       }
-      console.log('Recalculating stats. Before: ', this.player.stats);
+      console.log('Recalculating stats. Before:', this.player.stats);
       this.player.stats = currentStats;
       const oldMaxHealth = this.player.maxHealth;
       this.player.maxHealth = currentStats.maxHealth;
@@ -163,28 +173,34 @@ export const useGameState = defineStore('game', {
         this.player.health = Math.min(this.player.health, this.player.maxHealth);
       }
       this.player.stamina = Math.min(this.player.stamina, this.player.maxStamina);
-      console.log('Recalculating stats. After: ', this.player.stats);
+      console.log('Recalculating stats. After:', this.player.stats);
       this.saveState();
     },
 
     addItemToInventory(itemId, quantity = 1) {
       if (!ITEMS[itemId]) return;
-      const existingItem = this.player.inventory.find(item => item.itemId === itemId);
+      const existingItem = this.player.inventory.find((item) => item.itemId === itemId);
       if (existingItem) {
         existingItem.quantity += quantity;
       } else {
         this.player.inventory.push({ itemId, quantity });
       }
+      if (itemId === 'potion_forbidden') {
+        this.player.hasForbiddenPotion = true;
+      }
       this.saveState();
     },
 
     removeItemFromInventory(itemId, quantity = 1) {
-      const itemIndex = this.player.inventory.findIndex(item => item.itemId === itemId);
+      const itemIndex = this.player.inventory.findIndex((item) => item.itemId === itemId);
       if (itemIndex > -1) {
         this.player.inventory[itemIndex].quantity -= quantity;
         if (this.player.inventory[itemIndex].quantity <= 0) {
           this.player.inventory.splice(itemIndex, 1);
         }
+      }
+      if (itemId === 'potion_forbidden' && this.getItemQuantity('potion_forbidden') === 0) {
+        this.player.hasForbiddenPotion = false;
       }
       this.saveState();
     },
@@ -195,7 +211,7 @@ export const useGameState = defineStore('game', {
       const currentItemInSlot = this.player.equipment[itemData.slot];
       if (currentItemInSlot === itemId) {
         console.log(`Item ${itemId} is already equipped in ${itemData.slot}`);
-        return; // Evita re-equipagem desnecessária
+        return;
       }
       if (currentItemInSlot) {
         this.unequipItem(itemData.slot);
@@ -269,7 +285,7 @@ export const useGameState = defineStore('game', {
 
     useItem(itemId) {
       const itemData = ITEMS[itemId];
-      const itemInInventory = this.player.inventory.find(i => i.itemId === itemId);
+      const itemInInventory = this.player.inventory.find((i) => i.itemId === itemId);
       if (!itemData || !itemInInventory || itemInInventory.quantity <= 0) return false;
       let used = false;
       if (itemData.type === 'Consumível' && itemData.effect) {
@@ -278,11 +294,11 @@ export const useGameState = defineStore('game', {
           used = true;
         }
         if (itemData.effect.stamina) {
-          this.recoverStamina(itemData.effect.stamina);
+          this.recoverStamina(itemData.effect.stamina); // Corrigido de recalculateStats para recoverStamina
           used = true;
         }
       } else if (itemData.type === 'Consumível Especial' && itemData.effect?.special === 'sacrifice') {
-        console.log("Poção Proibida selecionada para uso...");
+        console.log('Poção Proibida selecionada para uso...');
         used = true;
       }
       if (used && itemData.type !== 'Consumível Especial') {
@@ -317,6 +333,7 @@ export const useGameState = defineStore('game', {
 
     collectForbiddenPotion() {
       this.player.hasForbiddenPotion = true;
+      this.addItemToInventory('potion_forbidden', 1);
       this.saveState();
     },
 
@@ -387,6 +404,18 @@ export const useGameState = defineStore('game', {
 
     defeatMagnus() {
       this.magnusDefeated = true;
+      if (this.player.hasForbiddenPotion) {
+        this.player.health = this.player.maxHealth; // Jogador vive
+        this.boss.health = this.boss.maxHealth; // Magnus vive
+        this.useItem('potion_forbidden'); // Usa a poção
+        this.removeItemFromInventory('potion_forbidden', 1); // Remove a poção
+        this.player.hasForbiddenPotion = false; // Atualiza a flag
+        this.triggerEnding('forbidden_potion_ending'); // Final especial
+        console.log('Poção Proibida usada: Jogador e Magnus sobrevivem!');
+      } else {
+        this.triggerEnding('victory'); // Final padrão
+        console.log('Magnus foi derrotado!');
+      }
       this.saveState();
     },
 
@@ -394,6 +423,21 @@ export const useGameState = defineStore('game', {
       if (!this.endingTriggered) {
         this.endingType = type;
         this.endingTriggered = true;
+        if (type === 'forbidden_potion_ending') {
+          this.player.health = this.player.maxHealth; // Jogador vive
+          this.player.princessAlive = true; // Princesa vive
+          console.log('Final da Poção Proibida: Jogador e Princesa sobrevivem.');
+        } else if (type === 'kill_princess') {
+          this.player.princessAlive = false; // Princesa morre
+        } else if (type === 'sacrifice_self') {
+          this.player.princessAlive = true; // Princesa vive
+          this.takeDamage(this.player.maxHealth); // Jogador morre
+        } else if (type === 'both_die') {
+          this.player.princessAlive = false; // Princesa morre
+          this.takeDamage(this.player.maxHealth); // Jogador morre
+        } else if (type === 'victory') {
+          this.player.princessAlive = false; // Princesa morre (padrão contra Magnus)
+        }
       }
       this.saveState();
     },

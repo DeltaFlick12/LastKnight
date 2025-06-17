@@ -261,8 +261,6 @@ const cutsceneLines = ref([
   'Sombras dançam entre colunas partidas, sussurrando segredos de um reino perdido.',
   'Cada passo ecoa, como se o chão guardasse memórias de sangue e traição.',
   'Um rugido primal rasga o silêncio, estremecendo a terra sob seus pés.',
-  'O Dragão Ancestral desperta, seus olhos de fogo perfurando a escuridão.',
-  'Seu destino está selado: enfrentar a fera ou ser consumido por sua ira.',
 ]);
 const displayedLines = ref(cutsceneLines.value.map(() => ''));
 const cutsceneBackgroundImage = ref(warriorImage);
@@ -1217,6 +1215,7 @@ onUnmounted(() => {
   color: #d3d7e0;
   font-size: 12px;
   min-width: 180px;
+
 }
 
 .player-info {
@@ -1227,7 +1226,7 @@ onUnmounted(() => {
 
 .enemy-info {
   text-align: center;
-  margin-top: -5%;
+  margin-top: -10%;
 }
 
 .character-name {

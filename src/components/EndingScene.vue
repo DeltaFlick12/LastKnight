@@ -1,196 +1,732 @@
 <template>
-  <div class="ending-scene" :style="endingBackgroundStyle">
-    <div class="narrative-box">
-      <!-- Contexto Comum -->
-      <p v-if="step === 1">A energia sombria que preenchia o Santuário Corrompido recua como uma maré sinistra. Magnus, o Paladino Caído, jaz derrotado, sua armadura quebrada silenciando o pulsar profano.</p>
-      <p v-if="step === 2">O último cavaleiro, exausto mas vitorioso, corre até onde a Princesa Julie estava aprisionada. Ele a liberta, e por um instante, em meio à poeira e à desolação, há um vislumbre de esperança.</p>
-      <p v-if="step === 3">Mas o mal não cede tão facilmente... Com um último espasmo de força maligna, Magnus, mesmo caído, lança sua arma em direção à princesa. O cavaleiro tenta intervir, mas é tarde demais. A lâmina sombria encontra seu alvo.</p>
-
-      <!-- Lógica de Decisão (Final 1 vs Final 2) -->
-      <div v-if="step === 4 && requiresDecision">
-        <p>O grito de dor da Princesa Julie ecoa pelo santuário profanado. O cavaleiro a segura em seus braços enquanto a vida se esvai dela, a ferida sombria pulsando...</p>
-        <p>Você se lembra da Poção Proibida. Uma troca... vida por vida.</p>
-        <p>O que você faz?</p>
-        <button @click="makeDecision(1)">Usar a Poção Proibida (Sacrificar-se)</button>
-        <button @click="makeDecision(2)">Não usar a Poção (Aceitar o destino)</button>
-      </div>
-
-      <!-- Narrativa do Final Escolhido -->
-      <div v-if="step === 5">
-        <p v-html="endingText"></p>
-      </div>
-
-      <!-- Botão para Próximo Passo / Créditos -->
-      <button v-if="step < 4 || (step === 4 && !requiresDecision)" @click="nextStep">Continuar...</button>
-      <button v-if="step === 5" @click="goToCredits">Ver Créditos</button>
+  <div>
+    <!-- Start Cutscene Button -->
+    <div v-if="!isCutsceneStarted" class="start-cutscene-container">
+      <button @click="startCutscene" class="game-start-button" @mousedown="playClickSound">
+        <span class="button-glow"></span>
+        Iniciar Cutscene
+      </button>
     </div>
 
-    <!-- Placeholder para Imagem/Animação do Final -->
-    <div class="ending-visual">
-      <p v-if="step === 5">(Placeholder: Imagem/Animação da Cena Final {{ finalEndingType }})</p>
+    <!-- Cutscene Content -->
+    <div v-if="isCutsceneStarted" class="game-container" :style="{ backgroundImage: `url(${isCreditsScene ? creditsBackground : currentSceneData?.backgroundImage})` }" :class="{ 'fade-in': isMounted, 'fade-out': isFadingOut }" v-show="isVisible">
+      <!-- Letterbox effect -->
+      <div class="letterbox-top"></div>
+      <div class="letterbox-bottom"></div>
+      
+      <!-- Vignette overlay -->
+      <div class="vignette-overlay"></div>
+      
+      <!-- Particles effect -->
+      <div class="particles-container">
+        <div v-for="n in 50" :key="n" class="particle" :style="getParticleStyle(n)"></div>
+      </div>
+      
+      <!-- Background zoom effect -->
+      <div class="background-zoom" :style="{ backgroundImage: `url(${isCreditsScene ? creditsBackground : currentSceneData?.backgroundImage})` }"></div>
+      
+      <!-- Dialog box with game styling -->
+      <div class="game-dialog-box" v-if="showDialog && !isChoiceScene && !isCreditsScene">
+        <div class="dialog-text-container">
+          <p class="game-text">{{ displayedText }}</p>
+        </div>
+      </div>
+
+      <!-- Choice buttons for moral decision -->
+      <div v-if="isChoiceScene && !isCreditsScene" class="choice-container">
+        <button @click="makeChoice('sacrificeSelf')" class="game-choice-button" @mousedown="playClickSound">
+          <span class="button-glow"></span>
+          Trocar a Vida pela Princesa
+        </button>
+        <button @click="makeChoice('bothDie')" class="game-choice-button" @mousedown="playClickSound">
+          <span class="button-glow"></span>
+          Os dois Morrem
+        </button>
+        <button v-if="gameState.player.hasForbiddenPotion" @click="makeChoice('useForbiddenPotion')" class="game-choice-button" @mousedown="playClickSound">
+          <span class="button-glow"></span>
+          Usar Poção Proibida
+        </button>
+      </div>
+      
+      <!-- Credits sequence -->
+      <div v-if="isCreditsScene" class="credits-container">
+        <div class="credits-text">
+          <h1 class="game-text credits-title">Créditos</h1>
+          <p class="game-text">Leonardo Fratoni Borges da Silva</p>
+          <p class="game-text">Eduardo Viana Marques</p>
+          <p class="game-text">Pedro Lucas Gomes Braido</p>
+          <p class="game-text">Matheus Costa e Silva</p>
+          <p class="game-text">Lucas Leonardo Reche</p>
+          <p class="game-text">Agradecimentos Especiais</p>
+          <p class="game-text">Unicesumar Maringá</p>
+          <p class="game-text">Hugo Fumero</p>
+          <p class="game-text">ESOFT 3 Semestre A</p>
+          <p class="game-text">Comunidade de Albadia</p>
+          <p class="game-text">Obrigado por Jogar!</p>
+        </div>
+        <!-- Exit button -->
+        <button @click="exitCredits" class="game-choice-button exit-button" @mousedown="playClickSound">
+          <span class="button-glow"></span>
+          Sair
+        </button>
+      </div>
+      
+      <!-- Audio elements -->
+      <audio ref="bgAudio" loop>
+        <source :src="currentSceneData?.bgMusic || '/audio/cutscene/final_music.mp3'" type="audio/mp3" />
+      </audio>
+      <audio ref="narrationAudio">
+        <source :src="currentSceneData?.narration || ''" type="audio/mp3" />
+      </audio>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import { useGameState } from '@/stores/gameState';
-import { playAudio, stopAudio } from '@/utils/audioManager.js';
+import clickSound from '/sounds/click.wav';
 
-const route = useRoute();
-const router = useRouter();
 const gameState = useGameState();
-const actions = gameState;
+const router = useRouter();
+const bgAudio = ref(null);
+const narrationAudio = ref(null);
+const sfxAudio = ref(null);
+const clickAudio = ref(new Audio(clickSound));
+const isMounted = ref(false);
+const isFadingOut = ref(false);
+const isVisible = ref(true);
+const showDialog = ref(true);
+const displayedText = ref('');
+const typing = ref(false);
+const currentSceneIndex = ref(0);
+const isCutsceneStarted = ref(false);
+const isChoiceScene = ref(false);  
+const isCreditsScene = ref(false);
+const creditsBackground = ref('/img/cutscene/default_credits.png'); // Fundo padrão para créditos
 
-const step = ref(1);
-const requiresDecision = ref(false);
-const finalEndingType = ref(null);
-const endingText = ref('');
-const currentMusic = ref(null);
-
-const endingsContent = {
-  1: {
-    text: `O grito de dor da Princesa Julie ecoa... Você se lembra. A Poção Proibida... Com as mãos trêmulas, ele retira o frasco cintilante... Olhando uma última vez para o rosto pálido da princesa... ele toma sua decisão.<br><br>Ele derrama a poção sobre a ferida de Julie... Uma luz ofuscante envolve os dois. O cavaleiro sente sua própria força vital sendo drenada... enquanto a cor retorna ao rosto da princesa. Seus olhos se abrem... e ela vê o cavaleiro desabando ao seu lado, um sorriso fraco nos lábios.<br><br><i>"E assim, o último cavaleiro deu sua vida para que Albadia pudesse viver. Seu nome foi esquecido, mas seu sacrifício se tornou a pedra fundamental de um reino renascido das cinzas da tirania. A luz retornou, mas a um custo que jamais seria esquecido."</i>`,
-    background: '#a0a0c0',
-    music: 'ending_music_sacrifice',
-    sfx: ['princess_cry', 'potion_use', 'sacrifice_light']
-  },
-  2: {
-    text: `O grito de dor da Princesa Julie ecoa e silencia rapidamente... A luz em seus olhos se apaga. A ferida sombria era absoluta. Ela se foi.<br><br>O cavaleiro olha para suas mãos, para a princesa sem vida... A vitória tem um gosto amargo de cinzas... Ele a deposita gentilmente no chão frio... Levanta-se, o peso do mundo sobre seus ombros. Caminha lentamente até a beira da torre... O vento frio chicoteia seu rosto... Não há mais propósito.<br><br>Ele se inclina para frente... A tela corta para preto absoluto. Silêncio.<br><br><i>"A vitória foi conquistada, mas a esperança foi perdida. No coração do castelo sombrio, o último cavaleiro encontrou seu fim, não pela lâmina inimiga, mas pelo peso insuportável do fracasso. A escuridão recuou, mas deixou para trás apenas o vazio."</i>`,
-    background: '#404050',
-    music: 'ending_music_tragic',
-    sfx: ['princess_cry_short', 'player_despair', 'fall_sound', 'screen_black']
-  },
-  3: {
-    text: `O grito de dor da Princesa Julie ecoa... Mas então, algo acontece. As três Relíquias de Albadia brilham intensamente.<br><br>Uma luz suave e protetora envolve a princesa. A ferida sombria recua... A energia das relíquias não apenas cura a princesa, mas também reage ao mal residual de Magnus... Sua armadura começa a se desintegrar... Magnus solta um último grito enquanto seu ser corrompido é completamente obliterado.<br><br>A luz diminui, deixando o cavaleiro e a Princesa Julie, agora totalmente curada, sozinhos no santuário banhado pela luz do amanhecer... Juntos, eles olham pela janela enquanto o sol nasce sobre Albadia.<br><br><i>"Pela coragem e perseverança, as Relíquias perdidas de Albadia foram reunidas... O último cavaleiro e a princesa retornaram como símbolos de resiliência. Um novo amanhecer surgiu para Albadia, construído sobre as ruínas do passado, com a promessa de um futuro forjado em esperança e bravura."</i>`,
-    background: '#c0b0a0',
-    music: 'ending_music_true',
-    sfx: ['princess_cry', 'relics_shine', 'healing_sound', 'magnus_disintegrate']
-  }
+const cutscenes = {
+  inicio: [
+    { 
+      speaker: 'Narrador', 
+      text: 'O Destino Pende na Balança. As sombras se alongam, e o eco de uma nova escolha inevitável ressoa pelas muralhas. Um herói, uma princesa, um sacrifício: o quê será selado sob o peso desta decisão?', 
+      backgroundImage: '/img/cutscene/final_scene.png', 
+      narration: '/audio/cutscene/cena_final.mp3',
+      bgMusic: '/audio/cutscene/final_music.mp3'
+    },
+  ]
 };
 
-onMounted(() => {
-  const initialType = route.params.type;
-  playAudio('ending_scene_start');
+const currentSceneData = computed(() => cutscenes.inicio[currentSceneIndex.value]);
 
-  if (initialType === '3') {
-    finalEndingType.value = 3;
-    requiresDecision.value = false;
-  } else if (gameState.player.hasForbiddenPotion && gameState.player.relicsCollected < 3) {
-    requiresDecision.value = true;
-  } else {
-    finalEndingType.value = 2;
-    requiresDecision.value = false;
-  }
+let typingInterval = null;
 
-  if (!requiresDecision.value && finalEndingType.value) {
-    actions.setEnding(finalEndingType.value);
-    const style = endingsContent[finalEndingType.value];
-    if (style && style.music) {
-      playAudio(style.music, { loop: true });
-      currentMusic.value = style.music;
+function getParticleStyle(index) {
+  const delay = Math.random() * 10;
+  const duration = 15 + Math.random() * 10;
+  const left = Math.random() * 100;
+  const size = 1 + Math.random() * 3;
+  
+  return {
+    left: `${left}%`,
+    animationDelay: `${delay}s`,
+    animationDuration: `${duration}s`,
+    width: `${size}px`,
+    height: `${size}px`,
+  };
+}
+
+function ensureAudioContext() {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (AudioContext && bgAudio.value) {
+    const context = new AudioContext();
+    if (context.state === 'suspended') {
+      return context.resume().then(() => {
+        bgAudio.value.play().catch(error => console.error('Erro ao retomar música:', error));
+      });
     }
   }
+  return Promise.resolve();
+}
+
+function typeText() {
+  typing.value = true;
+  displayedText.value = '';
+  let i = 0;
+  typingInterval = setInterval(() => {
+    if (i < currentSceneData.value.text.length) {
+      displayedText.value += currentSceneData.value.text[i];
+      i++;
+    } else {
+      clearInterval(typingInterval);
+      typing.value = false;
+      if (currentSceneIndex.value < cutscenes.inicio.length - 1) {
+        setTimeout(() => {
+          nextScene();
+        }, 3000);
+      } else {
+        setTimeout(() => {
+          isChoiceScene.value = true;
+          showDialog.value = false;
+        }, 5000);
+      }
+    }
+  }, 80);
+}
+
+function nextScene() {
+  if (currentSceneIndex.value < cutscenes.inicio.length - 1) {
+    isFadingOut.value = true;
+    setTimeout(() => {
+      currentSceneIndex.value++;
+      isMounted.value = false;
+      playAudio();
+      setTimeout(() => {
+        isFadingOut.value = false;
+        isMounted.value = true;
+        typeText();
+      }, 1000);
+    }, 1000);
+  }
+}
+
+function playAudio() {
+  if (bgAudio.value && bgAudio.value.paused) {
+    bgAudio.value.src = currentSceneData.value.bgMusic || '/audio/cutscene/final_music.mp3';
+    bgAudio.value.volume = 0.2;
+    bgAudio.value.play().catch(error => console.error('Erro ao reproduzir música de fundo:', error));
+  }
+  if (narrationAudio.value && currentSceneData.value.narration) {
+    narrationAudio.value.pause();
+    narrationAudio.value.currentTime = 0;
+    narrationAudio.value.src = currentSceneData.value.narration;
+    narrationAudio.value.load();
+    narrationAudio.value.volume = 1;
+    narrationAudio.value.play().catch(error => console.error('Erro ao reproduzir narração:', error));
+  }
+  if (sfxAudio.value && currentSceneData.value.sfx) {
+    sfxAudio.value.pause();
+    sfxAudio.value.currentTime = 0;
+    sfxAudio.value.src = currentSceneData.value.sfx;
+    sfxAudio.value.load();
+    sfxAudio.value.volume = 0.6;
+    sfxAudio.value.play().catch(error => console.error('Erro ao reproduzir efeito sonoro:', error));
+  }
+}
+
+function playClickSound() {
+  if (clickAudio.value) {
+    clickAudio.value.currentTime = 0;
+    clickAudio.value.play().catch(error => console.error('Erro ao reproduzir som de clique:', error));
+  }
+}
+
+function startCutscene() {
+  playClickSound();
+  isCutsceneStarted.value = true;
+  ensureAudioContext().then(() => {
+    if (bgAudio.value) {
+      bgAudio.value.volume = 0.2;
+      bgAudio.value.load();
+      bgAudio.value.play().catch(error => {
+        console.error('Erro ao reproduzir música de fundo:', error);
+        console.log('Caminho do arquivo de música:', bgAudio.value.src);
+      });
+    }
+    playAudio();
+    typeText();
+  });
+}
+
+function makeChoice(choice) {
+  playClickSound();
+  isFadingOut.value = true;
+  // Pausar apenas narração e efeitos sonoros, mantendo música de fundo
+  if (narrationAudio.value) {
+    narrationAudio.value.pause();
+    narrationAudio.value.currentTime = 0;
+  }
+  if (sfxAudio.value) {
+    sfxAudio.value.pause();
+    sfxAudio.value.currentTime = 0;
+  }
+  // Define o fundo dos créditos com base na escolha
+  switch (choice) {
+    case 'sacrificeSelf':
+      creditsBackground.value = '/img/cutscene/bob_morte.png';
+      gameState.triggerEnding('sacrifice_self');
+      gameState.takeDamage(gameState.player.maxHealth);
+      break;
+    case 'bothDie':
+      creditsBackground.value = '/img/cutscene/ambos_morte.png';
+      gameState.triggerEnding('both_die');
+      gameState.takeDamage(gameState.player.maxHealth);
+      break;
+    case 'useForbiddenPotion':
+      creditsBackground.value = '/img/cutscene/final_feliz.png';
+      gameState.triggerEnding('forbidden_potion_ending');
+      gameState.useItem('potion_forbidden');
+      gameState.removeItemFromInventory('potion_forbidden', 1);
+      gameState.player.hasForbiddenPotion = false;
+      gameState.player.health = gameState.player.maxHealth;
+      console.log('Poção Proibida usada: Jogador e Princesa sobrevivem!');
+      break;
+  }
+  setTimeout(() => {
+    isVisible.value = false;
+    setTimeout(() => {
+      isFadingOut.value = false;
+      isVisible.value = true;
+      isChoiceScene.value = false;
+      isCreditsScene.value = true;
+      isMounted.value = true;
+      // Garantir que a música continue tocando
+      if (bgAudio.value && bgAudio.value.paused) {
+        bgAudio.value.play().catch(error => console.error('Erro ao retomar música nos créditos:', error));
+      }
+    }, 1000);
+  }, 1500);
+}
+
+function exitCredits() {
+  playClickSound();
+  isFadingOut.value = true;
+  // Pausar a música apenas ao sair
+  if (bgAudio.value) {
+    bgAudio.value.pause();
+    bgAudio.value.currentTime = 0;
+  }
+  setTimeout(() => {
+    isVisible.value = false;
+    router.push('/');
+  }, 1500);
+}
+
+onMounted(() => {
+  nextTick(() => {
+    isMounted.value = true;
+  });
 });
 
 onUnmounted(() => {
-  stopAudio(currentMusic.value);
+  if (typingInterval) clearInterval(typingInterval);
+  if (router.currentRoute.value.path !== '/level/cutscene') {
+    if (bgAudio.value) {
+      bgAudio.value.pause();
+      bgAudio.value.currentTime = 0;
+    }
+    if (narrationAudio.value) {
+      narrationAudio.value.pause();
+      narrationAudio.value.currentTime = 0;
+    }
+    if (sfxAudio.value) {
+      sfxAudio.value.pause();
+      sfxAudio.value.currentTime = 0;
+    }
+  }
 });
 
-const nextStep = () => {
-  step.value++;
-  if (step.value === 3) playAudio('magnus_final_attack');
-  if (step.value === 4 && !requiresDecision.value) {
-    prepareEndingDisplay();
-    step.value = 5;
+watch(() => router.currentRoute.value.path, (newPath) => {
+  if (newPath !== '/level/cutscene') {
+    isFadingOut.value = true;
+    setTimeout(() => {
+      isVisible.value = false;
+      isFadingOut.value = false;
+    }, 1500);
   }
-};
-
-const makeDecision = (decision) => {
-  finalEndingType.value = decision;
-  actions.setEnding(finalEndingType.value);
-  prepareEndingDisplay();
-  step.value = 5;
-};
-
-const prepareEndingDisplay = () => {
-  if (finalEndingType.value && endingsContent[finalEndingType.value]) {
-    const content = endingsContent[finalEndingType.value];
-    endingText.value = content.text;
-    stopAudio(currentMusic.value);
-    if (content.music) {
-      playAudio(content.music, { loop: true });
-      currentMusic.value = content.music;
-    }
-    if (content.sfx && content.sfx.length > 0) {
-      playAudio(content.sfx[0]);
-    }
-  } else {
-    endingText.value = 'Erro ao carregar o final.';
-  }
-};
-
-const goToCredits = () => {
-  router.push({ path: `/credits/${finalEndingType.value}` });
-};
-
-const endingBackgroundStyle = computed(() => {
-  const bg = finalEndingType.value && endingsContent[finalEndingType.value]
-             ? endingsContent[finalEndingType.value].background
-             : '#1a1a2e';
-  return { backgroundColor: bg };
 });
 </script>
 
 <style scoped>
-.ending-scene {
-  width: 100vw;
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Uncial+Antiqua&display=swap');
+
+.start-cutscene-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100vh;
+  background-color: #0a0a0a;
+}
+
+.game-container {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100vh;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 1s ease, transform 1s ease;
+  background-color: #0a0a0a;
+}
+
+.game-container.fade-in {
+  opacity: 0;
+  transform: scale(0.98);
+  animation: gameFadeIn 2s ease-in-out forwards;
+}
+
+.game-container.fade-out {
+  opacity: 1;
+  transform: scale(1);
+  animation: gameFadeOut 1s ease-in-out forwards;
+}
+
+@keyframes gameFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes gameFadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
+/* Letterbox effect */
+.letterbox-top,
+.letterbox-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.7));
+  z-index: 10;
+}
+
+.letterbox-top {
+  top: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.2));
+}
+
+.letterbox-bottom {
+  bottom: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.2));
+}
+
+/* Vignette overlay */
+.vignette-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.4) 70%, rgba(0,0,0,0.8) 100%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Background zoom effect */
+.background-zoom {
+  position: absolute;
+  top: -10%;
+  left: -10%;
+  right: -10%;
+  bottom: -10%;
+  background-size: cover;
+  background-position: center;
+  animation: backgroundZoom 20s ease-in-out infinite alternate;
+  z-index: 1;
+}
+
+@keyframes backgroundZoom {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.05);
+  }
+}
+
+/* Particles */
+.particles-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.particle {
+  position: absolute;
+  background: rgba(255, 215, 55, 0.3);
+  border-radius: 50%;
+  animation: particleFloat linear infinite;
+}
+
+@keyframes particleFloat {
+  0% {
+    transform: translateY(100vh) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  90% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-100px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Dialog box */
+.game-dialog-box {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, rgba(20, 15, 10, 0.95), rgba(40, 30, 20, 0.95));
+  border: 3px solid #8b7355;
+  border-radius: 0;
+  padding: 30px 40px;
+  max-width: 80%;
+  min-width: 60%;
+  z-index: 10;
+  box-shadow: 
+    0 0 30px rgba(0, 0, 0, 0.8),
+    inset 0 0 10px rgba(139, 115, 85, 0.1),
+    0 0 60px rgba(139, 115, 55, 0.2);
+  backdrop-filter: blur(5px);
+}
+
+.dialog-text-container {
+  position: relative;
+}
+
+.game-text {
+  font-family: 'Cinzel', 'Uncial Antiqua', serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: #f4e4bc;
+  text-align: center;
+  line-height: 1.6;
+  margin: 0;
+  text-shadow: 
+    2px 2px 4px rgba(0, 0, 0, 0.8),
+    0 0 10px rgba(244, 228, 188, 0.3),
+    0 0 20px rgba(139, 115, 85, 0.2);
+  letter-spacing: 0.5px;
+}
+
+/* Credits container */
+.credits-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
   height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  color: white;
-  font-family: 'Georgia', serif;
-  padding: 40px;
-  box-sizing: border-box;
-  text-align: center;
-  transition: background-color 1s ease;
+  align-items: center;
+  z-index: 10;
+  overflow: hidden;
 }
 
-.narrative-box {
-  background-color: rgba(0, 0, 0, 0.7);
-  padding: 30px;
-  border-radius: 10px;
-  max-width: 800px;
-  margin-bottom: 30px;
-  border: 1px solid #ccc;
-}
-
-.narrative-box p {
-  font-size: 1.1rem;
-  line-height: 1.6;
-  margin-bottom: 15px;
-}
-
-.narrative-box button {
-  padding: 10px 20px;
-  font-size: 1rem;
-  margin: 10px;
-  cursor: pointer;
-  font-family: 'Press Start 2P', cursive;
-}
-
-.ending-visual {
-  width: 80%;
-  max-width: 600px;
-  height: 200px;
-  background-color: rgba(0, 0, 0, 0.5);
-  border: 1px solid #ccc;
+.credits-text {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-style: italic;
+  gap: 20px;
+  animation: creditsScroll 40s linear forwards; /* Aumentado de 20s para 40s */
+  padding: 100vh 0;
+}
+
+@keyframes creditsScroll {
+  0% {
+    transform: translateY(100vh);
+  }
+  100% {
+    transform: translateY(-100%);
+  }
+}
+
+.credits-title {
+  font-size: 36px;
+  font-weight: 600;
+  margin-bottom: 40px;
+}
+
+/* Exit button */
+.exit-button {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Choice buttons */
+.choice-container {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  z-index: 10;
+}
+
+.game-choice-button {
+  position: relative;
+  padding: 15px 25px;
+  background: linear-gradient(135deg, rgba(40, 30, 20, 0.9), rgba(20, 15, 10, 0.9));
+  color: #d4af37;
+  font-family: 'Cinzel', serif;
+  font-size: 16px;
+  font-weight: 500;
+  border: 2px solid #8b7355;
+  border-radius: 0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  overflow: hidden;
+  box-shadow: 
+    0 0 15px rgba(0, 0, 0, 0.6),
+    inset 0 0 10px rgba(212, 175, 55, 0.1);
+  min-width: 300px;
+  text-align: center;
+}
+
+.game-choice-button:hover {
+  transform: scale(1.05);
+  background: linear-gradient(135deg, rgba(60, 45, 30, 0.9), rgba(40, 30, 20, 0.9));
+  box-shadow: 
+    0 0 25px rgba(212, 175, 55, 0.4),
+    inset 0 0 15px rgba(212, 175, 55, 0.2);
+  color: #f4e4bc;
+  border-color: #d4af37;
+}
+
+.game-choice-button:hover .button-glow {
+  left: 100%;
+}
+
+.game-choice-button:active {
+  transform: scale(0.98);
+}
+
+/* Start button */
+.game-start-button {
+  position: relative;
+  padding: 15px 25px;
+  background: linear-gradient(135deg, rgba(40, 30, 20, 0.9), rgba(20, 15, 10, 0.9));
+  color: #d4af37;
+  font-family: 'Cinzel', serif;
+  font-size: 16px;
+  font-weight: 500;
+  border: 2px solid #8b7355;
+  border-radius: 0;
+  cursor: pointer;
+  z-index: 20;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  overflow: hidden;
+  box-shadow: 
+    0 0 15px rgba(0, 0, 0, 0.6),
+    inset 0 0 10px rgba(212, 175, 55, 0.1);
+  margin: auto;
+}
+
+.button-glow {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.3), transparent);
+  transition: left 0.5s ease;
+}
+
+.game-start-button:hover {
+  transform: scale(1.05);
+  background: linear-gradient(135deg, rgba(60, 45, 30, 0.9), rgba(40, 30, 20, 0.9));
+  box-shadow: 
+    0 0 25px rgba(212, 175, 55, 0.4),
+    inset 0 0 15px rgba(212, 175, 55, 0.2);
+  color: #f4e4bc;
+  border-color: #d4af37;
+}
+
+.game-start-button:hover .button-glow {
+  left: 100%;
+}
+
+.game-start-button:active {
+  transform: scale(0.98);
+}
+
+/* Additional atmospheric effects */
+.game-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    linear-gradient(45deg, transparent 48%, rgba(139, 115, 85, 0.02) 50%, transparent 52%),
+    linear-gradient(-45deg, transparent 48%, rgba(139, 115, 85, 0.02) 50%, transparent 52%);
+  background-size: 20px 20px;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0.3;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .game-dialog-box {
+    bottom: 60px;
+    padding: 20px 25px;
+    max-width: 90%;
+  }
+  
+  .game-text {
+    font-size: 18px;
+  }
+  
+  .game-start-button,
+  .game-choice-button {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+  
+  .letterbox-top,
+  .letterbox-bottom {
+    height: 40px;
+  }
+  
+  .choice-container {
+    bottom: 60px;
+    gap: 15px;
+  }
+  
+  .game-choice-button {
+    min-width: 250px;
+  }
+  
+  .credits-title {
+    font-size: 28px;
+  }
 }
 </style>

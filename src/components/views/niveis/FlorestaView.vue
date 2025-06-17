@@ -40,6 +40,17 @@
         <button @click="restartGame">Tentar Novamente</button>
       </div>
     </div>
+
+    <!-- Audio Elements -->
+    <audio ref="bgAudio" loop>
+      <source src="/audio/albadia_noite.wav" type="audio/wav" />
+    </audio>
+    <audio ref="playerAttackAudio">
+      <source src="/sounds/hit_sound.mp3" type="audio/mp3" />
+    </audio>
+    <audio ref="enemyAttackAudio">
+      <source src="/sounds/hit_rat.mp3" type="audio/mp3" />
+    </audio>
   </div>
 </template>
 
@@ -53,6 +64,13 @@ const gameState = useGameState();
 const router = useRouter();
 const canvasRef = ref(null);
 const ctxRef = ref(null);
+const bgAudio = ref(null);
+const playerAttackAudio = ref(null);
+const enemyAttackAudio = ref(null);
+const typewriterAudio = ref(null);
+const victoryAudio = ref(null);
+const gameOverAudio = ref(null);
+const promptAudio = ref(null);
 const showIntroDialog = ref(true);
 const showForestDialog = ref(false);
 const showVictoryDialog = ref(false);
@@ -64,11 +82,10 @@ const totalEnemiesToDefeat = 6;
 const enemiesPerWave = 2;
 const currentWave = ref(0);
 const SPRITE_SCALE = 5;
-const attackCooldown = 1000; // ms
-const staminaRecoveryRate = 10; // per second
+const attackCooldown = 1000;
+const staminaRecoveryRate = 20;
 let lastAttackTime = 0;
 
-// Player animation and movement variables
 const frameTimer = ref(0);
 const staminaTimer = ref(0);
 const frameWidth = 96;
@@ -78,27 +95,23 @@ const isSprinting = ref(false);
 const lastDirection = ref('right');
 const isAttacking = ref(false);
 const isJumping = ref(false);
-const jumpVelocity = -25; // Upward velocity for jump
-const gravity = 1; // Gravity force
-const groundY = ref(0); // Will be set in onMounted
+const jumpVelocity = -25;
+const gravity = 1;
+const groundY = ref(0);
 
-// Input state
 const keys = ref({ e: false, space: false });
-
-// Typing effect state
 const currentDialogText = ref([]);
 const currentLineIndex = ref(0);
 const currentCharIndex = ref(0);
 const isTypingComplete = ref(false);
 let typingInterval = null;
+let animationFrameId = null;
 
-// Sprite assets
 const backgroundImage = new Image();
 backgroundImage.src = '/img/Floresta/floresta-bg.png';
 const playerSprite = new Image();
 playerSprite.src = '/img/sprites/player/player_sprite.png';
 
-// Enemy sprite assets (spritesheets)
 const enemyImages = {
   idle: new Image(),
   run: new Image(),
@@ -108,7 +121,6 @@ enemyImages.idle.src = '/img/sprites/rat/rat-idle.png';
 enemyImages.run.src = '/img/sprites/rat/rat-run.png';
 enemyImages.attack.src = '/img/sprites/rat/rat-attack.png';
 
-// Player animations
 const animations = {
   idle: { row: 2, frames: [7, 1, 2, 3, 4, 5], frameInterval: 150 },
   walk_left: { row: 5, frames: [9, 8, 7, 6, 5, 4, 3, 2, 1, 0], frameInterval: 70 },
@@ -117,7 +129,6 @@ const animations = {
   attack_right: { row: 14, frames: [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11], frameInterval: 100 },
 };
 
-// Enemy animations
 const enemyAnimations = {
   idle: { frames: [0, 1, 2, 3], frameInterval: 200, sprite: enemyImages.idle, frameWidth: 32, frameHeight: 32, scale: 2 },
   walk_left: { frames: [0, 1, 2, 3, 4], frameInterval: 100, sprite: enemyImages.run, frameWidth: 32, frameHeight: 32, scale: 2 },
@@ -125,7 +136,6 @@ const enemyAnimations = {
   attack: { frames: [0, 1, 2, 3], frameInterval: 100, sprite: enemyImages.attack, frameWidth: 32, frameHeight: 32, scale: 2 }
 };
 
-// Computed player animation
 const currentAnimation = computed(() => {
   if (isAttacking.value) {
     return lastDirection.value === 'left' ? 'attack_left' : 'attack_right';
@@ -135,7 +145,6 @@ const currentAnimation = computed(() => {
   return 'idle';
 });
 
-// Player state
 const player = {
   x: 80,
   y: 0,
@@ -145,42 +154,95 @@ const player = {
   dy: 0,
 };
 
-// Enemies state
 const enemies = ref([]);
 const lastAttackTimes = new Map();
 
-// Dialog Lines
 const introDialogLines = [
-  'As brumas da Floresta Sombria envolvem-te, viajante. Lobos amaldiçoados surgem em ondas, frutos de um feitiço antigo. Enfrenta ondas de duas feras até derrotar seis ao total. Toma tua arma e quebra a maldição que assola este lugar!',
+  'Floresta Escura',
 ];
 const forestDialogLines = [
-  'Um Lobo guincha nas sombras... cuidado!',
+  'Um Rato guincha nas sombras... cuidado!',
   'A fera te encara com olhos famintos!',
   'Prepare sua arma, herói!',
 ];
 const forestDialogLine = ref('');
 const victoryDialogLines = [
   '✨ A floresta silencia, a maldição foi quebrada!',
-  'Os Lobos jazem derrotados, e a paz retorna às árvores.',
+  'Os Ratos jazem derrotados, e a paz retorna às árvores.',
   'Novos desafios aguardam-te além destas matas...',
 ];
 const gameOverDialogLines = [
-  '💀 As garras dos Lobos prevaleceram, e a escuridão te engoliu.',
+  '💀 As garras dos Ratos prevaleceram, e a escuridão te engoliu.',
   'A floresta não perdoa os incautos, mas tua alma persiste.',
   'Levanta-te, herói, e enfrenta as feras novamente!',
 ];
 
-// Start typing effect
+// Função para garantir o AudioContext
+const ensureAudioContext = () => {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (AudioContext) {
+    const context = new AudioContext();
+    if (context.state === 'suspended') {
+      return context.resume().then(() => {
+        console.log('AudioContext resumed');
+      }).catch(error => console.error('Erro ao retomar AudioContext:', error));
+    }
+  }
+  return Promise.resolve();
+};
+
+// Pré-carregar áudios
+const preloadAudio = (audioRef, src) => {
+  if (audioRef.value) {
+    audioRef.value.src = src;
+    audioRef.value.load();
+    audioRef.value.onerror = () => console.error(`Erro ao carregar áudio: ${src}`);
+  }
+};
+
+// Tocar som
+const playSound = (audioRef, volume = 1.0, loop = false) => {
+  if (audioRef.value) {
+    ensureAudioContext().then(() => {
+      audioRef.value.currentTime = 0;
+      audioRef.value.volume = volume;
+      audioRef.value.loop = loop;
+      audioRef.value.play().catch(error => console.error(`Erro ao reproduzir áudio ${audioRef.value.src}:`, error));
+    });
+  }
+};
+
+// Parar som
+const stopSound = (audioRef) => {
+  if (audioRef.value) {
+    audioRef.value.pause();
+    audioRef.value.currentTime = 0;
+  }
+};
+
+// Tocar música de fundo
+const playBackgroundMusic = () => {
+  playSound(bgAudio, 0.3, true);
+};
+
+// Parar música de fundo
+const stopBackgroundMusic = () => {
+  stopSound(bgAudio);
+};
+
+// Iniciar efeito de digitação
 const startTypingEffect = () => {
   currentDialogText.value = introDialogLines.map(() => '');
   currentLineIndex.value = 0;
   currentCharIndex.value = 0;
   isTypingComplete.value = false;
 
+  playSound(typewriterAudio, 0.5, true);
   typingInterval = setInterval(() => {
     if (currentLineIndex.value >= introDialogLines.length) {
       clearInterval(typingInterval);
       isTypingComplete.value = true;
+      stopSound(typewriterAudio);
       return;
     }
 
@@ -192,20 +254,28 @@ const startTypingEffect = () => {
       setTimeout(() => {
         currentLineIndex.value++;
         currentCharIndex.value = 0;
-      }, 500); // Pause between lines
+      }, 500);
     }
-    currentDialogText.value = [...currentDialogText.value]; // Trigger reactivity
-  }, 50); // Typing speed
+    currentDialogText.value = [...currentDialogText.value];
+  }, 50);
 };
 
-// Resize canvas to window size
+// Fechar diálogo inicial
+const closeIntroDialog = () => {
+  clearInterval(typingInterval);
+  stopSound(typewriterAudio);
+  showIntroDialog.value = false;
+  playBackgroundMusic();
+};
+
+// Redimensionar canvas
 const resizeCanvas = (canvas) => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   groundY.value = canvas.height - 64 * SPRITE_SCALE - 20 - 100;
 };
 
-// Spawn a wave of enemies
+// Gerar onda de inimigos
 const spawnWave = (canvas) => {
   for (let i = 0; i < enemiesPerWave; i++) {
     let x;
@@ -231,20 +301,14 @@ const spawnWave = (canvas) => {
   console.log(`Spawned wave ${currentWave.value} with ${enemies.value.length} rats`);
 };
 
-// Check if current wave is complete
+// Verificar conclusão da onda
 const checkWaveCompletion = (canvas) => {
   if (enemies.value.length === 0 && defeatedEnemiesCount.value < totalEnemiesToDefeat) {
     spawnWave(canvas);
   }
 };
 
-// Close intro dialog
-const closeIntroDialog = () => {
-  clearInterval(typingInterval);
-  showIntroDialog.value = false;
-};
-
-// Player attack logic
+// Lógica de ataque do jogador
 const attackEnemy = () => {
   const now = Date.now();
   if (now - lastAttackTime < attackCooldown) {
@@ -266,6 +330,7 @@ const attackEnemy = () => {
   isAttacking.value = true;
   player.frameIndex = 0;
   gameState.useStamina(10);
+  playSound(playerAttackAudio, 0.6);
   console.log(`Player attacked, stamina reduced to ${gameState.player.stamina}`);
 
   const playerBox = {
@@ -304,18 +369,21 @@ const attackEnemy = () => {
       gameState.addGold(10);
       showForestDialog.value = false;
       showEnterPrompt.value = false;
+      stopSound(promptAudio);
       checkWaveCompletion(canvasRef.value);
       if (defeatedEnemiesCount.value >= totalEnemiesToDefeat) {
         showVictoryDialog.value = true;
+        stopBackgroundMusic();
+        playSound(victoryAudio, 0.8);
         gameState.addGold(60);
       }
     }
   }
 };
 
-// Use or equip item
+// Usar ou equipar item
 const useOrEquipItem = (itemId) => {
-  const item = ITEMS[itemId];
+  const item = постараются[itemId];
   if (!item) return;
   if (item.type === 'Arma' && item.slot === 'weapon') {
     gameState.equipItem(itemId);
@@ -324,13 +392,14 @@ const useOrEquipItem = (itemId) => {
   }
 };
 
-// Close victory dialog and redirect
+// Fechar diálogo de vitória
 const closeVictoryDialog = () => {
   showVictoryDialog.value = false;
+  stopSound(victoryAudio);
   router.push('/level/albadia');
 };
 
-// Draw enemies
+// Desenhar inimigos
 const drawEnemies = (ctx) => {
   enemies.value.forEach((enemy) => {
     const anim = enemyAnimations[enemy.currentAnimation];
@@ -392,7 +461,7 @@ const drawEnemies = (ctx) => {
   });
 };
 
-// Draw player
+// Desenhar jogador
 const drawPlayer = (ctx, now) => {
   const anim = animations[currentAnimation.value];
   if (now - frameTimer.value > anim.frameInterval) {
@@ -439,7 +508,7 @@ const drawPlayer = (ctx, now) => {
   }
 };
 
-// Update player position
+// Atualizar posição do jogador
 const updatePlayer = (canvas, now) => {
   const normalStep = 3;
   const sprintStep = 5;
@@ -473,28 +542,7 @@ const updatePlayer = (canvas, now) => {
       }
     }
 
-    // Jump logic disabled
-    /*
-    if (moving.value.jump && !isJumping.value && gameState.player.stamina >= 10) {
-      isJumping.value = true;
-      player.dy = jumpVelocity;
-      gameState.useStamina(10);
-      console.log('Player jumped, stamina reduced to', gameState.player.stamina);
-    }
-
-    if (isJumping.value) {
-      player.dy += gravity;
-      nextPos.y += player.dy;
-      if (nextPos.y >= groundY.value) {
-        nextPos.y = groundY + 100;
-        player.dy = 0;
-        isJumping.value = false;
-      }
-      player.y = nextPos.y;
-    }
-    */
-    // Ensure player stays at ground level
-    player.y = groundY.value + 96; // Align with enemy level
+    player.y = groundY.value + 96;
   }
 
   if (now - staminaTimer.value >= 1000 && gameState.player.stamina < gameState.player.maxStamina) {
@@ -503,11 +551,12 @@ const updatePlayer = (canvas, now) => {
   }
 };
 
-// Check enemy proximity for dialogs
+// Verificar proximidade para diálogos
 const checkProximity = () => {
-  if (showIntroDialog.value) {
+  if (showIntroDialog.value || showVictoryDialog.value || showGameOverDialog.value) {
     showForestDialog.value = false;
     showEnterPrompt.value = false;
+    stopSound(promptAudio);
     return;
   }
 
@@ -519,16 +568,19 @@ const checkProximity = () => {
 
   if (nearEnemy && !showForestDialog.value) {
     forestDialogLine.value = forestDialogLines[Math.floor(Math.random() * forestDialogLines.length)];
+    playSound(promptAudio, 0.5);
   }
 
   showForestDialog.value = nearEnemy;
   showEnterPrompt.value = nearEnemy;
 };
 
-// Enemy movement and attack logic
+// Lógica de movimento e ataque dos inimigos
 const enemyLogic = (canvas, now) => {
   if (gameState.player.lives <= 0) {
     showGameOverDialog.value = true;
+    stopBackgroundMusic();
+    playSound(gameOverAudio, 0.8);
     return;
   }
   const playerCenterX = player.x + (frameWidth * SPRITE_SCALE) / 2;
@@ -538,11 +590,9 @@ const enemyLogic = (canvas, now) => {
     const distX = enemyCenterX - playerCenterX;
     const distance = Math.abs(distX);
 
-    // Update animation
-    const anim = enemyAnimations[enemy.currentAnimation];
-    if (now - enemy.frameTimer > anim.frameInterval) {
+    if (now - enemy.frameTimer > enemyAnimations[enemy.currentAnimation].frameInterval) {
       enemy.frameTimer = now;
-      enemy.frameIndex = (enemy.frameIndex + 1) % anim.frames.length;
+      enemy.frameIndex = (enemy.frameIndex + 1) % enemyAnimations[enemy.currentAnimation].frames.length;
       if (enemy.isAttacking && enemy.frameIndex === 0) {
         enemy.isAttacking = false;
         enemy.currentAnimation = 'idle';
@@ -557,10 +607,13 @@ const enemyLogic = (canvas, now) => {
           enemy.currentAnimation = 'attack';
           enemy.frameIndex = 0;
           enemy.isAttacking = true;
+          playSound(enemyAttackAudio, 0.6);
           gameState.takeDamage(10);
           lastAttackTimes.set(enemy, now);
           if (gameState.player.health <= 0) {
             showGameOverDialog.value = true;
+            stopBackgroundMusic();
+            playSound(gameOverAudio, 0.8);
           }
         }
       } else {
@@ -578,21 +631,27 @@ const enemyLogic = (canvas, now) => {
   });
 };
 
-// Restart game or redirect to gameover
+// Reiniciar jogo
 const restartGame = () => {
   if (gameState.player.lives <= 0) {
+    stopSound(gameOverAudio);
     router.push('/gameOver');
   } else {
     gameState.resetGame();
     player.x = 80;
-    player.y = groundY.value;
+    player.y = groundY.value + 96;
     player.frameIndex = 0;
     player.dy = 0;
     isJumping.value = false;
     defeatedEnemiesCount.value = 0;
     currentWave.value = 0;
     showGameOverDialog.value = false;
+    showForestDialog.value = false;
+    showEnterPrompt.value = false;
     enemies.value = [];
+    lastAttackTimes.clear();
+    stopSound(gameOverAudio);
+    playBackgroundMusic();
     spawnWave(canvasRef.value);
   }
 };
@@ -610,13 +669,19 @@ onMounted(() => {
     return;
   }
   resizeCanvas(canvas);
-  window.addEventListener('resize', () => resizeCanvas(canvas));
 
+  const handleResize = () => resizeCanvas(canvas);
+  window.addEventListener('resize', handleResize);
+
+  // Pré-carregar áudios
+  preloadAudio(bgAudio, '/audio/albadia_noite.wav');
+  preloadAudio(playerAttackAudio, '/sounds/hit_sound.mp3');
+  preloadAudio(enemyAttackAudio, '/sounds/hit_rat.mp3');
   startTypingEffect();
 
   const startGame = () => {
     try {
-      player.y = groundY.value + 96; // Align with enemy level
+      player.y = groundY.value + 96;
       spawnWave(canvas);
       frameTimer.value = performance.now();
       staminaTimer.value = performance.now();
@@ -626,9 +691,8 @@ onMounted(() => {
     }
   };
 
-  // Wait for images to load
   let imagesLoaded = 0;
-  const totalImages = 5; // backgroundImage, playerSprite, and 3 enemy sprites
+  const totalImages = 5;
   const onImageLoad = () => {
     imagesLoaded++;
     if (imagesLoaded === totalImages) {
@@ -636,7 +700,6 @@ onMounted(() => {
     }
   };
 
-  // Load background and player sprite
   [backgroundImage, playerSprite, enemyImages.idle, enemyImages.run, enemyImages.attack].forEach((img) => {
     img.onload = onImageLoad;
     if (img.complete) onImageLoad();
@@ -653,7 +716,6 @@ onMounted(() => {
     }
   };
 
-  let animationFrameId = null;
   const loop = (timestamp) => {
     try {
       if (showIntroDialog.value || showVictoryDialog.value || showGameOverDialog.value) {
@@ -675,10 +737,9 @@ onMounted(() => {
     }
   };
 
-  window.addEventListener('keydown', (e) => {
+  const handleKeydown = (e) => {
     if (gameState.player.lives <= 0) return;
     const key = e.key.toLowerCase();
-    // 'w' key disabled for jumping
     if (key === 'a') moving.value.left = true;
     if (key === 'd') moving.value.right = true;
     if (key === 'shift') isSprinting.value = true;
@@ -687,24 +748,39 @@ onMounted(() => {
       keys.value.space = e.code === 'Space';
       attackEnemy();
     }
-  });
+  };
 
-  window.addEventListener('keyup', (e) => {
+  const handleKeyup = (e) => {
     const key = e.key.toLowerCase();
-    // 'w' key disabled for jumping
     if (key === 'a') moving.value.left = false;
     if (key === 'd') moving.value.right = false;
     if (key === 'shift') isSprinting.value = false;
     if (key === 'e') keys.value.e = false;
     if (e.code === 'Space') keys.value.space = false;
-  });
+  };
+
+  window.addEventListener('keydown', handleKeydown);
+  window.addEventListener('keyup', handleKeyup);
 
   onBeforeUnmount(() => {
-    window.removeEventListener('resize', () => resizeCanvas(canvasRef.value));
+    window.removeEventListener('resize', handleResize);
+    window.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('keyup', handleKeyup);
     if (animationFrameId) {
       cancelAnimationFrame(animationFrameId);
     }
     clearInterval(typingInterval);
+    stopBackgroundMusic();
+    stopSound(playerAttackAudio);
+    stopSound(enemyAttackAudio);
+    stopSound(typewriterAudio);
+    stopSound(victoryAudio);
+    stopSound(gameOverAudio);
+    stopSound(promptAudio);
+    enemies.value = [];
+    lastAttackTimes.clear();
+    defeatedEnemiesCount.value = 0;
+    currentWave.value = 0;
   });
 });
 </script>
@@ -782,7 +858,7 @@ onMounted(() => {
   color: #f0d0a0;
   font-family: 'MedievalSharp', cursive;
   font-size: 18px;
-  box-shadow: 0 4px 12px rgba(0, 0,0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   border-radius: 8px;
   overflow-y: auto;
 }
@@ -802,7 +878,7 @@ onMounted(() => {
   cursor: pointer;
   font-family: 'MedievalSharp', cursive;
   text-shadow: 1px 1px 2px;
-  box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.1), 2px 2px 6px rgba(0,0,0,0.5);
+  box-shadow: inset 0 0 5px rgba(255, 255, 255, 0.1), 2px 2px 6px rgba(0, 0, 0, 0.5);
   transition: filter 0.2s, transform 0.1s;
 }
 
@@ -813,6 +889,6 @@ onMounted(() => {
 
 .dialog-content button:active {
   transform: scale(0.97);
-  box-shadow: inset 0 0 6px rgba(0,0,0,0.6);
+  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.6);
 }
 </style>

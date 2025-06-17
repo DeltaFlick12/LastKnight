@@ -812,6 +812,7 @@ onUnmounted(() => {
   min-width: 280px;
   box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.5);
   text-align: center;
+  margin-top: 10%;
 }
 
 .player-info {

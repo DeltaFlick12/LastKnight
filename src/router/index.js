@@ -7,11 +7,9 @@ import Options from '@/components/Options.vue';
 import Map from '@/components/Map.vue';
 import Tutorial from '@/components/Tutorial.vue';
 import Gameover from '@/components/GameOver.vue';
-import FinalBossBattle from '@/components/FinalBossBattle.vue';
 import EndingScene from '@/components/EndingScene.vue';
 import ClassSelect from '@/components/ClassSelect.vue';
 import CreditsScreen from '@/components/CreditsScreen.vue';
-import Credits from '@/components/Credits.vue';
 import PracaView from '@/components/views/reino_albadia/PracaView.vue';
 import FlorestaView from '@/components/views/niveis/FlorestaView.vue';
 import FerreiroView from '@/components/views/interiors/FerreiroView.vue';
@@ -28,12 +26,10 @@ const routes = [
   { path: '/', name: 'Menu', component: Menu },
   { path: '/options', name: 'Options', component: Options },
   { path: '/gameover', name: 'Gameover', component: Gameover },
-  { path: '/credits/:type?', name: 'Credits', component: Credits },
   { path: '/map', name: 'Map', component: Map },
   { path: '/tutorial', name: 'Tutorial', component: Tutorial },
   { path: '/creditsScreen', name: 'CreditsScreen', component: CreditsScreen },
-  { path: '/battle', name: 'FinalBossBattle', component: FinalBossBattle },
-  { path: '/ending/:type', name: 'EndingScene', component: EndingScene },
+  { path: '/ending', name: 'EndingScene', component: EndingScene },
   { path: '/class', name: 'ClassSelect', component: ClassSelect },
   { path: '/level/albadia', name: 'PracaView', component: PracaView },
   { path: '/interior/ferreiro', name: 'FerreiroView', component: FerreiroView },
@@ -86,14 +82,15 @@ router.beforeEach((to, from, next) => {
   }
 
   // Bloqueia acesso ao final ou créditos sem derrotar Magnus (boss.health === 0)
-  if (
-    (to.name === 'EndingScene' || to.name === 'Credits') &&
-    gameState.boss?.health > 0
-  ) {
-    console.log('Redirecionando para Map: Magnus não foi derrotado.');
-    next({ name: 'Map' }); // Considerar redirecionar para um local mais apropriado que 'Map'
-    return;
-  }
+  // if (
+  //   (to.name === 'EndingScene' || to.name === 'Credits') &&
+  //   gameState.boss?.health > 0
+  // ) 
+  //   {
+  //   console.log('Redirecionando para Map: Magnus não foi derrotado.');
+  //   next({ name: 'Map' }); // Considerar redirecionar para um local mais apropriado que 'Map'
+  //   return;
+  // }
 
   // Se passou por todas as verificações, permite a navegação
   next();

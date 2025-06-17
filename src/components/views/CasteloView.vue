@@ -127,21 +127,6 @@
       <p>{{ displayedText }}</p>
       <button @click="nextDialog" :disabled="typing">Continuar</button>
     </div>
-
-    <!-- Game Over Dialog -->
-    <div v-if="showGameOver" class="dialog-box">
-      <p v-if="gameState.player.lives > 0">
-        Você foi derrotado! Vidas restantes: {{ gameState.player.lives }}
-      </p>
-      <p v-else>Game Over: Você foi derrotado!</p>
-      <button @click="restartGame">Tentar Novamente</button>
-    </div>
-
-    <!-- Victory Dialog -->
-    <div v-if="showVictory" class="dialog-box">
-      <p>Parabéns! Você derrotou Magnus!</p>
-      <button @click="returnToAlbadia">Retornar a Albadia</button>
-    </div>
   </div>
 </template>
 
@@ -193,8 +178,6 @@ const bossRecoveryStartTime = ref(0)
 const bossRecoveryDuration = 5000 // 5 seconds
 const invulnerabilityDuration = 1000
 let invulnerabilityTimer = null
-const showGameOver = ref(false)
-const showVictory = ref(false)
 const bagOpen = ref(false)
 
 const toggleBag = () => {
@@ -570,7 +553,6 @@ const performMeleeAttack = (now) => {
   if (
     gameState.boss.stamina >= 10 &&
     !isInvulnerable.value &&
-    !showGameOver.value &&
     !isBossRecovering.value &&
     checkEntityCollision(characterPosition.value, enemy.value.position)
   ) {
@@ -589,10 +571,41 @@ const performMeleeAttack = (now) => {
     }, invulnerabilityDuration)
     console.log(`Player health after: ${gameState.player.health}`)
     if (gameState.player.health <= 0) {
-      showGameOver.value = true
-      canMove.value = false
-      cancelAnimationFrame(animationFrameId)
-      console.log('Player defeated!')
+      if (gameState.player.lives > 0) {
+        // Reiniciar o jogo automaticamente
+        gameState.restorePlayer()
+        characterPosition.value = { x: 950, y: 1100 }
+        canMove.value = true
+        projectiles.value = []
+        enemy.value = {
+          position: { x: 1200, y: 300 },
+          state: 'idle',
+          timer: now,
+          lastShot: now,
+          lastMeleeAttack: now,
+          detectionRadius: 700,
+          randomMoveTimer: now,
+          randomDirection: { x: 0, y: 0 }
+        }
+        gameState.boss.health = gameState.boss.maxHealth
+        gameState.boss.stamina = gameState.boss.maxStamina
+        gameState.boss.phase = 1
+        gameState.boss.isVulnerable = false
+        isBossRecovering.value = false
+        bossRecoveryStartTime.value = now
+        gameState.saveState()
+        frameTimer.value = now
+        bossFrameTimer.value = now
+        staminaTimer.value = now
+        bossCurrentFrame.value = 0
+        isAttacking.value = false
+        bossLastDirection.value = 'down'
+        animationFrameId = requestAnimationFrame(updateMovement)
+      } else {
+        // Redirecionar para a tela de Game Over
+        cancelAnimationFrame(animationFrameId)
+        window.location.href = '/gameOver'
+      }
     }
     enemy.value.lastMeleeAttack = now
     setTimeout(() => {
@@ -607,7 +620,6 @@ const performMeleeAttack = (now) => {
 }
 
 const updateEnemy = (now) => {
-  // Se o diálogo está ativo, manter o boss em estado idle e não executar ações
   if (showDialog.value) {
     enemy.value.state = 'idle'
     console.log('Boss attacks disabled during dialog')
@@ -620,7 +632,6 @@ const updateEnemy = (now) => {
     `Boss stats: health=${gameState.boss.health}, stamina=${gameState.boss.stamina}, phase=${gameState.boss.phase}, vulnerable=${gameState.boss.isVulnerable}, recovering=${isBossRecovering.value}`
   )
 
-  // Verificar se o boss está em recuperação
   if (isBossRecovering.value) {
     if (now - bossRecoveryStartTime.value >= bossRecoveryDuration) {
       gameState.boss.stamina = gameState.boss.maxStamina
@@ -635,7 +646,6 @@ const updateEnemy = (now) => {
     return
   }
 
-  // Verificar se o boss está sem stamina
   if (gameState.boss.stamina <= 0) {
     isBossRecovering.value = true
     bossRecoveryStartTime.value = now
@@ -651,7 +661,6 @@ const updateEnemy = (now) => {
   let nextEnemyPos = { ...enemy.value.position }
   let isColliding = checkEntityCollision(characterPosition.value, enemy.value.position)
 
-  // Atualizar direção do boss
   if (Math.abs(dx) > Math.abs(dy)) {
     bossLastDirection.value = dx > 0 ? 'right' : 'left'
   } else {
@@ -685,7 +694,6 @@ const updateEnemy = (now) => {
         y: Math.floor(Math.random() * 3) - 1
       }
       enemy.value.randomMoveTimer = now
-      // Atualizar direção para movimento aleatório
       if (Math.abs(enemy.value.randomDirection.x) > Math.abs(enemy.value.randomDirection.y)) {
         bossLastDirection.value = enemy.value.randomDirection.x > 0 ? 'right' : 'left'
       } else if (enemy.value.randomDirection.y !== 0) {
@@ -743,7 +751,6 @@ const updateEnemy = (now) => {
     }
   }
 
-  // Atualizar quadro de animação do boss
   const bossAnim = bossAnimations[bossCurrentAnimation.value]
   if (now - bossFrameTimer.value > bossAnim.frameInterval) {
     bossFrameTimer.value = now
@@ -756,13 +763,11 @@ const updateEnemy = (now) => {
     }
   }
 
-  // Verificar se o boss foi derrotado
   if (gameState.boss.health <= 0 && enemy.value.state !== 'defeated') {
     enemy.value.state = 'defeated'
     gameState.defeatMagnus()
-    showVictory.value = true
-    canMove.value = false
-    console.log('Magnus defeated!')
+    cancelAnimationFrame(animationFrameId)
+    window.location.href = '/ending'
   }
 }
 
@@ -791,7 +796,7 @@ const updateProjectiles = () => {
       hitbox.y < playerHitbox.y + playerHitbox.height &&
       hitbox.y + hitbox.height > playerHitbox.y
 
-    if (hitsPlayer && !isInvulnerable.value && !showGameOver.value) {
+    if (hitsPlayer && !isInvulnerable.value) {
       console.log(
         `Player hit by projectile! Health before: ${gameState.player.health}`
       )
@@ -804,10 +809,41 @@ const updateProjectiles = () => {
       }, invulnerabilityDuration)
       console.log(`Player health after: ${gameState.player.health}`)
       if (gameState.player.health <= 0) {
-        showGameOver.value = true
-        canMove.value = false
-        cancelAnimationFrame(animationFrameId)
-        console.log('Player defeated!')
+        if (gameState.player.lives > 0) {
+          // Reiniciar o jogo automaticamente
+          gameState.restorePlayer()
+          characterPosition.value = { x: 950, y: 1100 }
+          canMove.value = true
+          projectiles.value = []
+          enemy.value = {
+            position: { x: 1200, y: 300 },
+            state: 'idle',
+            timer: performance.now(),
+            lastShot: performance.now(),
+            lastMeleeAttack: performance.now(),
+            detectionRadius: 700,
+            randomMoveTimer: performance.now(),
+            randomDirection: { x: 0, y: 0 }
+          }
+          gameState.boss.health = gameState.boss.maxHealth
+          gameState.boss.stamina = gameState.boss.maxStamina
+          gameState.boss.phase = 1
+          gameState.boss.isVulnerable = false
+          isBossRecovering.value = false
+          bossRecoveryStartTime.value = performance.now()
+          gameState.saveState()
+          frameTimer.value = performance.now()
+          bossFrameTimer.value = performance.now()
+          staminaTimer.value = performance.now()
+          bossCurrentFrame.value = 0
+          isAttacking.value = false
+          bossLastDirection.value = 'down'
+          animationFrameId = requestAnimationFrame(updateMovement)
+        } else {
+          // Redirecionar para a tela de Game Over
+          cancelAnimationFrame(animationFrameId)
+          window.location.href = '/gameOver'
+        }
       }
       return false
     }
@@ -894,7 +930,6 @@ const updateMovement = () => {
     gameState.recoverStamina(10)
   }
 
-  // Atualizar quadro de animação do jogador
   const anim = animations[currentAnimation.value]
   if (now - frameTimer.value > anim.frameInterval) {
     frameTimer.value = now
@@ -951,7 +986,7 @@ const updateMovement = () => {
 }
 
 const startMoving = (event) => {
-  if (!canMove.value || showGameOver.value || showVictory.value) return
+  if (!canMove.value) return
   const key = event.key.toLowerCase()
 
   if (key === 'e') {
@@ -987,47 +1022,6 @@ const stopMoving = (event) => {
   if (key === 'a') moving.value.left = false
   if (key === 'd') moving.value.right = false
   if (key === 'shift') isSprinting.value = false
-}
-
-const restartGame = () => {
-  if (gameState.player.lives > 0) {
-    gameState.restorePlayer()
-  } else {
-    gameState.resetGame()
-  }
-  showGameOver.value = false
-  showVictory.value = false
-  characterPosition.value = { x: 850, y: 1100 }
-  canMove.value = true
-  projectiles.value = []
-  enemy.value = {
-    position: { x: 1200, y: 300 },
-    state: 'idle',
-    timer: performance.now(),
-    lastShot: performance.now(),
-    lastMeleeAttack: performance.now(),
-    detectionRadius: 700,
-    randomMoveTimer: performance.now(),
-    randomDirection: { x: 0, y: 0 }
-  }
-  gameState.boss.health = gameState.boss.maxHealth
-  gameState.boss.stamina = gameState.boss.maxStamina
-  gameState.boss.phase = 1
-  gameState.boss.isVulnerable = false
-  isBossRecovering.value = false
-  bossRecoveryStartTime.value = performance.now()
-  gameState.saveState()
-  frameTimer.value = performance.now()
-  bossFrameTimer.value = performance.now()
-  staminaTimer.value = performance.now()
-  bossCurrentFrame.value = 0
-  isAttacking.value = false
-  bossLastDirection.value = 'down'
-  animationFrameId = requestAnimationFrame(updateMovement)
-}
-
-const returnToAlbadia = () => {
-  window.location.href = '/level/albadia'
 }
 
 onMounted(() => {
@@ -1075,8 +1069,8 @@ onUnmounted(() => {
   position: relative;
   overflow: hidden;
   outline: none;
-  font-family: 'Press Start 2P', cursive;
-  color: white;
+  font-family: 'Cinzel', serif;
+  color: #e0d8b0;
 }
 
 .zoom-layer.background,
@@ -1119,15 +1113,59 @@ onUnmounted(() => {
 .dialog-box {
   position: absolute;
   bottom: 40px;
-  left: 50%;
+  left: 46%;
   transform: translateX(-50%);
-  background-color: rgba(0, 0, 0, 0.85);
-  padding: 20px;
-  border: 2px solid #ffffff;
-  border-radius: 10px;
+  background-color: #2b2b2b;
+  background-image: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.4)),
+    url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23212121" width="100" height="100"/%3E%3Cpath fill="%23303030" d="M0 0h100v10H0zM0 20h100v10H0zM0 40h100v10H0zM0 60h100v10H0zM0 80h100v10H0z"/%3E%3C/svg%3E');
+  background-size: cover;
+  padding: 25px;
+  border: 4px solid #4a3728;
+  border-radius: 12px;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.7), 0 4px 10px rgba(0, 0, 0, 0.5);
   text-align: center;
   max-width: 600px;
   z-index: 10;
+}
+
+.dialog-box p {
+  font-family: 'Cinzel', serif;
+  font-size: 18px;
+  color: #e0d8b0;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+  margin: 0 0 20px 0;
+}
+
+.dialog-box button {
+  background-color: #4a3728;
+  color: #e0d8b0;
+  font-family: 'Cinzel', serif;
+  font-size: 16px;
+  padding: 10px 20px;
+  border: 2px solid #6b4e31;
+  border-radius: 8px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.4);
+}
+
+.dialog-box button:hover:not(:disabled) {
+  background-color: #6b4e31;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 8px rgba(0, 0, 0, 0.5);
+}
+
+.dialog-box button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
+}
+
+.dialog-box button:disabled {
+  background-color: #3a2b1f;
+  color: #8a7a5e;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .interaction-box {
@@ -1186,9 +1224,9 @@ onUnmounted(() => {
 }
 
 .enemy-name {
-  font-family: 'Press Start 2P', cursive;
+  font-family: 'Cinzel', serif;
   font-size: 10px;
-  color: #ffffff;
+  color: #e0d8b0;
   margin-bottom: 6px;
   text-shadow: 1px 1px 0 #000;
   z-index: 200;
