@@ -1072,9 +1072,8 @@ onUnmounted(() => {
   color: white;
 }
 
-.zoom-layer.background,
-.zoom-layer.foreground {
-  position: absolute;
+.zoom-layer.background {
+  position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
@@ -1085,6 +1084,7 @@ onUnmounted(() => {
 }
 
 .zoom-layer.foreground {
+  position: fixed;
   pointer-events: none;
   z-index: 6;
 }
