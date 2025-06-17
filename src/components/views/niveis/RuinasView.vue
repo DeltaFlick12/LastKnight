@@ -597,10 +597,10 @@ const attackEnemy = async () => {
   currentFrame.value = 0;
   frameTimer.value = performance.now();
 
-  gameState.recoverStamina(10);
-  addLogMessage(`<span style="color: #33cc33;">⚡ +10 energia restaurada!</span>`);
-  gameState.useStamina(5);
-  addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
+  gameState.recoverStamina(20);
+  addLogMessage(`<span style="color: #33cc33;">⚡ +20 energia restaurada!</span>`);
+  gameState.useStamina(10);
+  addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
 
   const attackResult = gameState.playerAttackAction();
   if (!attackResult.success) {
@@ -656,10 +656,10 @@ const usePotion = async () => {
   }
   isAttacking.value = true;
 
-  gameState.recoverStamina(5);
-  addLogMessage(`<span style="color: #33cc33;">⚡ +5 energia restaurada!</span>`);
-  gameState.useStamina(5);
-  addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
+  gameState.recoverStamina(20);
+  addLogMessage(`<span style="color: #33cc33;">⚡ +20 energia restaurada!</span>`);
+  gameState.useStamina(10);
+  addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
   const playerElement = document.querySelector('.player-character');
   if (gameState.getItemQuantity('potion_health') > 0) {
     gameState.useItem('potion_health');

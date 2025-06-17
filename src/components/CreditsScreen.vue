@@ -1,5 +1,5 @@
 <template>
- <img src="@/assets/menu-bg.jpg" class="background-image" alt="Background" />
+  <img src="@/assets/menu-bg.jpg" class="background-image" alt="Background" />
   <div class="credits-container slide-down">
     <div class="credits-box">
       <h1 class="credits-title">CRÉDITOS</h1>
@@ -13,13 +13,7 @@
 
         <h2>Agradecimentos Especiais</h2>
         <p>Prof. Hugo Fumero</p>
-        <p>Univesidade Unicesumar</p>
-
-        <h2>Ferramentas e Tecnologias</h2>
-        <p>Framework: Vue.js</p>
-        <p>Motor de Áudio: Howler.js</p>
-        <p>Gráficos e sprites: ChatGPT</p>
-        <p>Código: ChatGPT</p>
+        <p>Universidade Unicesumar</p>
       </div>
       <div class="menu-button back-button" @click="goToMenu">MENU</div>
     </div>
@@ -28,14 +22,33 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 
 const router = useRouter()
 
 let clickSound
+let backgroundMusic
+
 onMounted(() => {
+  // Inicializa o som de clique
   clickSound = new Audio('/sounds/click.wav')
   clickSound.volume = 0.4
+
+  // Inicializa a música de fundo
+  backgroundMusic = new Audio('/audio/credits_music.mp3') // Substitua pelo caminho do arquivo
+  backgroundMusic.volume = 0.3 // Volume baixo para não ser intrusivo
+  backgroundMusic.loop = true // Faz a música repetir
+  backgroundMusic.play().catch((error) => {
+    console.log('Erro ao tocar a música de fundo:', error)
+  })
+})
+
+onUnmounted(() => {
+  // Para a música de fundo ao sair da tela
+  if (backgroundMusic) {
+    backgroundMusic.pause()
+    backgroundMusic.currentTime = 0
+  }
 })
 
 function playClick() {

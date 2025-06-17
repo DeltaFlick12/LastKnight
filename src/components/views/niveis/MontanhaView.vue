@@ -669,11 +669,11 @@ const attackEnemy = async () => {
   if (!gameOver.value && !victory.value) {
     isPlayerTurn.value = true;
     battleStatus.value = 'Desfira seu golpe!';
-    gameState.recoverStamina(5);
+    gameState.recoverStamina(20);
     if (gameState.player.stamina >= gameState.player.maxStamina) {
       addLogMessage(`<span style="color: #33cc33;">⚡ Energia totalmente restaurada!</span>`);
     } else {
-      addLogMessage(`<span style="color: #33cc33;">⚡ +5 energia!</span>`);
+      addLogMessage(`<span style="color: #33cc33;">⚡ +20 energia!</span>`);
     }
   }
   isAttacking.value = false;
@@ -687,8 +687,8 @@ const usePotion = async () => {
     return;
   }
   isAttacking.value = true;
-  gameState.useStamina(5);
-  addLogMessage(`<span style="color: #33cc33;">⚡ -5 energia</span>`);
+  gameState.useStamina(10);
+  addLogMessage(`<span style="color: #33cc33;">⚡ -10 energia</span>`);
   const playerElement = document.querySelector('.player-character');
   if (gameState.getItemQuantity('potion_health') > 0) {
     gameState.useItem('potion_health');
@@ -707,7 +707,7 @@ const usePotion = async () => {
   if (!gameOver.value && !victory.value) {
     isPlayerTurn.value = true;
     battleStatus.value = 'Desfira seu golpe!';
-    gameState.recoverStamina(5);
+    gameState.recoverStamina(20);
     if (gameState.player.stamina >= gameState.player.maxStamina) {
       addLogMessage(`<span style="color: #33cc33;">⚡ Energia totalmente restaurada!</span>`);
     } else {
