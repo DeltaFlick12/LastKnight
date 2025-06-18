@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { ref } from 'vue';
 
 // Definição das classes disponíveis
 const CLASSES = {
@@ -49,6 +50,9 @@ export const useGameState = defineStore('game', {
         }
         if (!savedState.player.hasOwnProperty('princessAlive')) {
           savedState.player.princessAlive = false;
+        }
+        if (!savedState.hasOwnProperty('resolution')) {
+          savedState.resolution = 1;
         }
       }
     } catch (e) {
@@ -107,6 +111,7 @@ export const useGameState = defineStore('game', {
       isBagOpen: false,
       currentDialog: null,
       shaders: true,
+      resolution: 1,
     };
   },
 

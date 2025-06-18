@@ -384,10 +384,10 @@ const interactionAreas = [
 
 const collisionAreas = [
   { x: 0, y: 0, width: 1, height: 1266 }, //Esquerda
-  { x: 0, y: 880, width: 2048, height: 1 }, // Baixo
+  { x: 0, y: 1080, width: 2048, height: 1 }, // Baixo
   { x: 1920, y: 0, width: 1, height: 1266 }, //Direito
-  { x: 0, y: 100, width: 2048, height: 1 }, //Cima
-  { x: 490, y: 290, width: 150, height: 100 }
+  { x: 0, y: 150, width: 2048, height: 1 }, //Cima
+  { x: 665, y: 430, width: 250, height: 150 } //trono
 ]
 
 const screenSize = { width: window.innerWidth, height: window.innerHeight }
@@ -1224,7 +1224,6 @@ onUnmounted(() => {
 .collision-box {
   position: absolute;
   z-index: 2;
-  border: solid red;
 }
 
 .enemy {

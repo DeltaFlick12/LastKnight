@@ -5,15 +5,17 @@
       <div class="options-content">
         <div class="option-group">
           <label for="musicVolume">🎵 {{ texts[language].musicVolume }}</label>
-          <input
-            type="range"
-            id="musicVolume"
-            v-model.number="musicVolume"
-            min="0"
-            max="100"
-            @input="updateVolume('music')"
-          />
+          <input type="range" id="musicVolume" v-model.number="musicVolume" min="0" max="100"
+            @input="updateVolume('music')" />
           <span>{{ musicVolume }}%</span>
+        </div>
+
+        <div class="option-group">
+          <label for="resolution">🖥️ Resolução {{ texts[language].resolution }}</label>
+          <select id="resolution" v-model="selectedResolution">
+            <option value="1">1920x1080</option>
+            <option value="2">1366x768</option>
+          </select>
         </div>
 
         <div class="option-group">
@@ -51,17 +53,20 @@
 <script setup>
 import { ref, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
-import { useGameState } from '@/stores/gameState.js';
+import { useGameState } from '@/stores/gameState';
+
 
 const emit = defineEmits(["close"]); // ✅ movido aqui para funcionar em goBack
 
 const router = useRouter();
 const gameState = useGameState();
+const selectedResolution = ref(gameState.resolution || 1);
 
 const texts = {
   pt: {
     title: "OPÇÕES",
     musicVolume: "Volume da Música",
+    resolution: "Resolução da Tela",
     language: "Idioma",
     save: "SALVAR",
     back: "VOLTAR",
@@ -75,6 +80,7 @@ const texts = {
   en: {
     title: "OPTIONS",
     musicVolume: "Music Volume",
+    resolution: "Screen Resolution",
     language: "Language",
     save: "SAVE",
     back: "BACK",
@@ -129,6 +135,7 @@ const saveSettings = () => {
   updateVolume("music");
   saved.value = true;
   setTimeout(() => (saved.value = false), 1500);
+  gameState.resolution = Number(selectedResolution.value);
 };
 
 const toggleShaders = () => {
@@ -163,19 +170,23 @@ function playClick() {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: rgba(0, 0, 0, 0.3); /* fundo escurecido translúcido */
-  backdrop-filter: blur(2px); /* leve desfoque do que está atrás */
+  background: rgba(0, 0, 0, 0.3);
+  /* fundo escurecido translúcido */
+  backdrop-filter: blur(2px);
+  /* leve desfoque do que está atrás */
   z-index: 100;
 }
 
 .slide-down {
   animation: slideDown 1s ease-out;
 }
+
 @keyframes slideDown {
   0% {
     transform: translateY(-100%);
     opacity: 0;
   }
+
   100% {
     transform: translateY(0);
     opacity: 1;

@@ -630,6 +630,8 @@ onUnmounted(() => {
 .bartolomeu-image {
   position: absolute;
   width: 600px;
+  margin-top: 25vh;
+  margin-left: 10vw;
   z-index: 30;
 }
 
@@ -759,7 +761,7 @@ onUnmounted(() => {
   transform: scale(5);
   transform-origin: center center;
   image-rendering: pixelated;
-  margin-top: 3%;
+  margin-top: 15%;
   margin-left: 5%;
 }
 
