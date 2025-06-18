@@ -227,6 +227,14 @@ import { useRouter } from 'vue-router';
 import { useGameState, ITEMS } from '@/stores/gameState.js';
 import { playAudio } from '@/utils/audioManager.js';
 
+const backgroundMusic = new Audio(new URL('/sounds/ruinas.mp3', import.meta.url).href);
+backgroundMusic.loop = true;
+backgroundMusic.volume = 0.5;
+
+backgroundMusic.play().catch(error => {
+  console.error('Failed to play background music:', error);
+});
+
 const router = useRouter();
 const gameState = useGameState();
 const isGameStateReady = ref(false);
@@ -479,6 +487,10 @@ const stopAllAudio = () => {
     battleMusic.pause();
     battleMusic.currentTime = 0;
   }
+  if (backgroundMusic) {
+    backgroundMusic.pause();
+    backgroundMusic.currentTime = 0;
+  }
   playAudio('ruins_ambient', { stop: true, volume: 0.3 });
 };
 
@@ -516,7 +528,6 @@ const playCutscene = async () => {
 };
 
 const startCutsceneWithAudio = async () => {
-  stopAllAudio();
   initializeAudio();
   try {
     await cutsceneMusic.value.play();
@@ -541,7 +552,6 @@ const advanceCutscene = (event) => {
 
 const endCutscene = async () => {
   isCutscenePlaying.value = false;
-  stopAllAudio();
   isFading.value = true;
   await sleep(500);
   cutsceneBackgroundImage.value = ruinasDragonImage;
@@ -555,7 +565,6 @@ const endCutscene = async () => {
 const confrontBoss = () => {
   inBattle.value = true;
   battleLog.value = [`${gameState.player.name || 'Herói'} enfrenta o Dragão Ancestral!`];
-  stopAllAudio();
   battleMusic.play().catch(err => console.warn('Erro ao tocar música de batalha:', err));
   playAudio('battle_start_dragon_ancestral', { volume: 0.3 });
   feedbackMessage.value = 'O Dragão Ancestral desperta!';

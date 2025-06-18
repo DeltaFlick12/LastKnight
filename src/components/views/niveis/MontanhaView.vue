@@ -231,9 +231,15 @@ const gameState = useGameState();
 const battleMusic = new Audio('/audio/musica-combate.mp3');
 battleMusic.loop = true;
 battleMusic.volume = 0.3;
+battleMusic.preload = 'auto';
 const suspenseMusic = new Audio('/audio/musica-sus.mp3');
 suspenseMusic.loop = true;
 suspenseMusic.volume = 0.5;
+suspenseMusic.preload = 'auto';
+const backgroundMusic = new Audio(new URL('/sounds/montanhafundo.mp3', import.meta.url).href);
+backgroundMusic.loop = true;
+backgroundMusic.volume = 0.5;
+backgroundMusic.preload = 'auto';
 
 // Sprite Sheet for Player
 const playerSprite = new URL('/img/sprites/player/player_sprite.png', import.meta.url).href;
@@ -462,10 +468,13 @@ const showAttackEffect = async (attackerElement, targetElement, isPlayer = true)
 
 // Audio Management
 const stopAllAudio = () => {
-  suspenseMusic.pause();
-  suspenseMusic.currentTime = 0;
-  battleMusic.pause();
-  battleMusic.currentTime = 0;
+  [suspenseMusic, battleMusic, backgroundMusic].forEach(audio => {
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.src = ''; // Clear source to release resources
+    }
+  });
   playAudio('mountain_ambient', { stop: true });
 };
 
@@ -500,14 +509,14 @@ const advanceDialogue = (event) => {
 };
 
 const endDialogue = async () => {
-  isDialoguePlaying.value = false;
-  stopAllAudio();
+  isDialoguePlaying.value = false;  
   isFading.value = true;
   await sleep(500);
   showDialogue.value = false;
   isFading.value = false;
   gameState.player.hasViewedMontanhaDialogue = true;
   gameState.saveState();
+  backgroundMusic.play().catch(err => console.error('Failed to play background music:', err));
 };
 
 // Cutscene Logic
@@ -552,7 +561,6 @@ const advanceCutscene = (event) => {
 
 const endCutscene = async () => {
   isCutscenePlaying.value = false;
-  stopAllAudio();
   isFading.value = true;
   await sleep(500);
   cutsceneBackgroundImage.value = montanhaImage;
@@ -560,6 +568,7 @@ const endCutscene = async () => {
   showCutscene.value = false;
   gameState.player.hasViewedMontanhaCutscene = true;
   gameState.saveState();
+  backgroundMusic.play().catch(err => console.error('Failed to play background music:', err));
 };
 
 // Game Functions
@@ -589,7 +598,6 @@ const climbMountain = async () => {
 const confrontBoss = () => {
   inBattle.value = true;
   battleLog.value = [`${gameState.player.name || 'Herói'} enfrenta o Dragão de Gelo!`];
-  stopAllAudio();
   battleMusic.play().catch(err => console.warn('Erro ao tocar música de batalha:', err));
   playAudio('battle_start_dragon_ice', { volume: 0.3 });
   feedbackMessage.value = 'O Dragão de Gelo surge rugindo da nevasca!';
@@ -610,10 +618,10 @@ const collectKey = () => {
   }
 };
 
-const fleeArea = () => {
+const fleeArea = async () => {
   playAudio('ui_back', { volume: 0.3 });
   stopAllAudio();
-  router.push({ name: 'Map' });
+  await router.push({ name: 'Map' });
 };
 
 const attackEnemy = async () => {
@@ -755,6 +763,7 @@ const handleVictory = () => {
   feedbackMessage.value = 'Dragão de Gelo derrotado!';
   showFeedback.value = true;
   stopAllAudio();
+  backgroundMusic.play().catch(err => console.error('Failed to play background music:', err));
 };
 
 const handleDefeat = async () => {
@@ -772,24 +781,26 @@ const handleDefeat = async () => {
     gameOver.value = false;
     battleStatus.value = 'Desfira seu golpe!';
     battleLog.value = [`${gameState.player.name || 'Herói'} retorna para enfrentar o Dragão de Gelo!`];
+    stopAllAudio();
     battleMusic.play().catch(err => console.warn('Erro ao tocar música de batalha:', err));
   } else {
     gameOver.value = true;
     stopAllAudio();
-    router.push('/GameOver');
+    await router.push('/GameOver');
   }
 };
 
-const returnToMenu = () => {
+const returnToMenu = async () => {
+  playAudio('ui_confirm', { volume: 0.3 });
   stopAllAudio();
-  router.push('/');
+  await router.push('/');
 };
 
-const goToNextArea = () => {
+const goToNextArea = async () => {
   if (!bossDefeated.value) return;
   playAudio('ui_confirm', { volume: 0.3 });
   stopAllAudio();
-  router.push('/level/albadia');
+  await router.push('/level/albadia');
 };
 
 // Lifecycle Hooks
@@ -820,12 +831,17 @@ onMounted(() => {
   } else {
     showDialogue.value = false;
     showCutscene.value = false;
+    backgroundMusic.play().catch(err => console.error('Failed to play background music:', err));
   }
-  suspenseMusic.load();
 });
 
 onUnmounted(() => {
   stopAllAudio();
+  if (backgroundMusic) {
+    backgroundMusic.pause();
+    backgroundMusic.currentTime = 0;
+    backgroundMusic.src = '';
+  }
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
   }

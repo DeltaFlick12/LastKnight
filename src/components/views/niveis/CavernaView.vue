@@ -204,6 +204,13 @@ const gameState = useGameState();
 const battleMusic = new Audio('/audio/musica-combate.mp3');
 battleMusic.loop = true;
 battleMusic.volume = 0.3;
+const backgroundMusic = new Audio(new URL('/sounds/lavafundo.mp3', import.meta.url).href);
+backgroundMusic.loop = true;
+backgroundMusic.volume = 0.5;
+
+backgroundMusic.play().catch(error => {
+  console.error('Failed to play background music:', error);
+});
 
 // Audio Management
 const cutsceneMusic = ref(null);
@@ -221,6 +228,10 @@ const stopAllAudio = () => {
   if (battleMusic) {
     battleMusic.pause();
     battleMusic.currentTime = 0;
+  }
+  if (backgroundMusic) {
+    backgroundMusic.pause();
+    backgroundMusic.currentTime = 0;
   }
   playAudio('cave_ambient', { stop: true, volume: 0.3 });
 };
@@ -472,7 +483,6 @@ const playCutscene = async () => {
 };
 
 const startCutsceneWithAudio = async () => {
-  stopAllAudio();
   initializeAudio();
   try {
     await cutsceneMusic.value.play();
@@ -497,7 +507,6 @@ const advanceCutscene = (event) => {
 
 const endCutscene = async () => {
   isCutscenePlaying.value = false;
-  stopAllAudio();
   isFading.value = true;
   await sleep(500);
   isFading.value = false;
@@ -510,7 +519,6 @@ const endCutscene = async () => {
 const confrontBoss = () => {
   inBattle.value = true;
   battleLog.value = [`${gameState.player.name || 'Herói'} enfrenta o Dragão de Fogo!`];
-  stopAllAudio();
   battleMusic.play().catch(err => console.warn('Erro ao tocar música de batalha:', err));
   playAudio('battle_start_dragon_fire', { volume: 0.3 });
   feedbackMessage.value = 'O Dragão de Fogo surge rugindo das chamas!';
@@ -530,6 +538,10 @@ const attackEnemy = async () => {
   playerAttacking.value = true;
   currentFrame.value = 0;
   frameTimer.value = performance.now();
+
+  backgroundMusic.play().catch(error => {
+    console.error('Failed to play background music:', error)
+  })
 
   gameState.recoverStamina(20);
   addLogMessage(`<span style="color: #33cc33;">⚡ +20 energia restaurada!</span>`);
@@ -710,7 +722,7 @@ const handleDefeat = async () => {
 const fleeArea = () => {
   playAudio('ui_back', { volume: 0.3 });
   stopAllAudio();
-  router.push('/map');
+  router.push({ name: 'Map' });
 };
 
 const returnToMenu = () => {
@@ -751,6 +763,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  console.log('Component unmounted');
   stopAllAudio();
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
