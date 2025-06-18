@@ -14,7 +14,7 @@
     </div>
 
     <div class="btn-sound" @click="toggleMute">
-      <img :src="isMuted ? '/src/assets/music-icon.png' : '/src/assets/mute-music-icon.png'" alt="Sound Toggle" class="sound-icon" />
+      <img :src="isMuted ? 'icons/music-icon.png' : 'icons/mute-music-icon.png'" alt="Sound Toggle" class="sound-icon" />
     </div>
 
     <!-- OVERLAY DE OPÇÕES -->
@@ -23,7 +23,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Options from './Options.vue' // importe aqui
 
@@ -47,17 +47,19 @@ onMounted(() => {
     language.value = savedLang
   }
 
-  clickSound = new Audio('/public/sounds/click.wav')
+  clickSound = new Audio('/sounds/click.wav')
   clickSound.volume = isMuted.value ? 0 : 1
+  clickSound.onerror = () => console.error('Failed to load click sound')
 
   backgroundMusic = new Audio('/audio/musica-menu.ogg')
   backgroundMusic.loop = true
-  backgroundMusic.volume = 0
+  backgroundMusic.volume = isMuted.value ? 0 : 0
+  backgroundMusic.onerror = () => console.error('Failed to load background music')
 
   const tryPlayMusic = () => {
     if (!isMuted.value) {
       backgroundMusic.play().then(() => fadeInMusic())
-      .catch(err => console.warn('Erro ao tocar música após clique:', err))
+        .catch(err => console.warn('Erro ao tocar música após clique:', err))
     }
     document.removeEventListener('click', tryPlayMusic)
   }
@@ -96,7 +98,15 @@ function toggleMute() {
   isMuted.value = !isMuted.value
   localStorage.setItem('isMuted', isMuted.value)
   if (clickSound) clickSound.volume = isMuted.value ? 0 : 1
-  if (backgroundMusic) backgroundMusic.volume = isMuted.value ? 0 : 0.4
+  if (backgroundMusic) {
+    backgroundMusic.volume = isMuted.value ? 0 : 0.4
+    if (isMuted.value) {
+      backgroundMusic.pause()
+      backgroundMusic.currentTime = 0
+    } else {
+      backgroundMusic.play().catch(err => console.warn('Erro ao retomar música:', err))
+    }
+  }
 }
 
 function fadeOutMusic(callback) {
@@ -129,6 +139,19 @@ function openOptions() {
   playClick()
   showOptions.value = true
 }
+onUnmounted(() => {
+  if (backgroundMusic) {
+    backgroundMusic.pause()
+    backgroundMusic.currentTime = 0
+    backgroundMusic.src = ''
+  }
+  if (clickSound) {
+    clickSound.pause()
+    clickSound.currentTime = 0
+    clickSound.src = ''
+  }
+  document.removeEventListener('click', tryPlayMusic)
+})
 </script>
 
 
