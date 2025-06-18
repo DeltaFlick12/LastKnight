@@ -43,7 +43,7 @@
 
     <!-- Audio Elements -->
     <audio ref="bgAudio" loop>
-      <source src="/audio/albadia_noite.wav" type="audio/wav" />
+      <source src="/sounds/floresta.mp3" type="audio/wav" />
     </audio>
     <audio ref="playerAttackAudio">
       <source src="/sounds/hit_sound.mp3" type="audio/mp3" />
@@ -280,7 +280,7 @@ const spawnWave = (canvas) => {
   for (let i = 0; i < enemiesPerWave; i++) {
     let x;
     do {
-      x = 500 + Math.random() * 1000;
+      x = 500 + Math.random() * 500;
     } while (Math.abs(x - player.x) < 200);
     enemies.value.push({
       x,
@@ -674,7 +674,7 @@ onMounted(() => {
   window.addEventListener('resize', handleResize);
 
   // Pré-carregar áudios
-  preloadAudio(bgAudio, '/audio/albadia_noite.wav');
+  preloadAudio(bgAudio, '/sounds/floresta.mp3');
   preloadAudio(playerAttackAudio, '/sounds/hit_sound.mp3');
   preloadAudio(enemyAttackAudio, '/sounds/hit_rat.mp3');
   startTypingEffect();
