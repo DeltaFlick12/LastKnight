@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Start Cutscene Button -->
-    <div v-if="!isCutsceneStarted" class="start-cutscene-container">
+    <div v-if="!isCutsceneStarted && !hasSeenCutscene" class="start-cutscene-container">
       <button @click="startCutscene" class="elden-start-button" @mousedown="playClickSound">
         <span class="button-glow"></span>
         Iniciar Cutscene
@@ -9,7 +9,7 @@
     </div>
 
     <!-- Cutscene Content -->
-    <div v-if="isCutsceneStarted" class="elden-ring-container" :style="{ backgroundImage: `url(${currentSceneData?.backgroundImage})` }" :class="{ 'fade-in': isMounted, 'fade-out': isFadingOut }" v-show="isVisible">
+    <div v-if="isCutsceneStarted && !hasSeenCutscene" class="elden-ring-container" :style="{ backgroundImage: `url(${currentSceneData?.backgroundImage})` }" :class="{ 'fade-in': isMounted, 'fade-out': isFadingOut }" v-show="isVisible">
       <!-- Letterbox effect -->
       <div class="letterbox-top"></div>
       <div class="letterbox-bottom"></div>
@@ -70,6 +70,7 @@ const displayedText = ref('');
 const typing = ref(false);
 const currentSceneIndex = ref(0);
 const isCutsceneStarted = ref(false);
+const hasSeenCutscene = ref(false);
 
 const cutscenes = {
   inicio: [
@@ -177,6 +178,7 @@ function nextScene() {
     }, 1000);
   } else {
     isFadingOut.value = true;
+    saveCutsceneState();
     setTimeout(() => {
       isVisible.value = false;
       router.push('/tutorial');
@@ -233,6 +235,7 @@ function startCutscene() {
 
 function skipCutscene() {
   playClickSound();
+  saveCutsceneState();
   isFadingOut.value = true;
   setTimeout(() => {
     isVisible.value = false;
@@ -240,9 +243,24 @@ function skipCutscene() {
   }, 1500);
 }
 
+function saveCutsceneState() {
+  localStorage.setItem('hasSeenCutscene', 'true');
+}
+
+function checkCutsceneState() {
+  const seen = localStorage.getItem('hasSeenCutscene');
+  if (seen === 'true') {
+    hasSeenCutscene.value = true;
+    router.push('/tutorial');
+  }
+}
+
 onMounted(() => {
+  checkCutsceneState();
   nextTick(() => {
-    isMounted.value = true;
+    if (!hasSeenCutscene.value) {
+      isMounted.value = true;
+    }
   });
 });
 

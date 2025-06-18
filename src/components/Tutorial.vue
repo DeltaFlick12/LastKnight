@@ -629,7 +629,7 @@ onUnmounted(() => {
 
 .bartolomeu-image {
   position: absolute;
-  width: 800px;
+  width: 600px;
   z-index: 30;
 }
 
@@ -759,7 +759,8 @@ onUnmounted(() => {
   transform: scale(5);
   transform-origin: center center;
   image-rendering: pixelated;
-  margin-top: 7%;
+  margin-top: 3%;
+  margin-left: 5%;
 }
 
 .player-character.is-attacking {

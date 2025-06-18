@@ -1077,10 +1077,10 @@ onUnmounted(() => {
 
 .player-character {
   z-index: 10;
-  transform: scale(5);
+  transform: scale(4);
   transform-origin: center center;
   image-rendering: pixelated;
-  margin-top: 5%;
+  margin-top: 3%;
 }
 
 .player-character.is-damaged {

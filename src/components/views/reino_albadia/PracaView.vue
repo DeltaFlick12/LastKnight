@@ -102,7 +102,7 @@ watch(() => backgroundIndex, (newIndex) => {
 
 const obstacles = [
   { x: 910, y: 790, width: 580, height: 270, name: 'Ferreiro', route: '/interior/ferreiro' },
-  { x: 2645, y: 990, width: 390, height: 250, name: 'Loja de Poções', route: '/interior/bruxa' },
+  { x: 2665, y: 990, width: 370, height: 250, name: 'Loja de Poções', route: '/interior/bruxa' },
   { x: 1720, y: 660, width: 660, height: 240, name: 'Igreja', route: '/interior/igreja' },
   { x: 1800, y: 1350, width: 500, height: 280 },
   { x: 980, y: 1900, width: 495, height: 300 },

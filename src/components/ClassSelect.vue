@@ -28,7 +28,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameState } from '@/stores/gameState';
 import { useLanguageStore } from '@/stores/language';
@@ -40,60 +40,74 @@ const gameState = useGameState();
 const languageStore = useLanguageStore();
 const { texts } = languageStore;
 
+// Verifica se já completou a seleção de classe e redireciona se necessário
 onMounted(() => {
-  try {
-    console.log('GameState actions:', gameState); // Debug: Log all actions
-    if (typeof gameState.initializePlayerName === 'function') {
-      gameState.initializePlayerName();
-      console.log('Player name initialized:', gameState.player.name);
-    } else {
-      console.error('initializePlayerName is not a function in gameState');
-    }
-    if (gameState.player.name) {
-      playerName.value = gameState.player.name;
-    }
-  } catch (error) {
-    console.error('Error in onMounted:', error);
+  const hasCompletedClassSelection = localStorage.getItem('hasCompletedClassSelection');
+  if (hasCompletedClassSelection === 'true') {
+    router.push('/map').catch((err) => {
+      console.error('Erro ao redirecionar para /map:', err);
+    });
+    return;
+  }
+
+  if (typeof gameState.initializePlayerName === 'function') {
+    gameState.initializePlayerName();
+  } else {
+    console.warn('initializePlayerName is not defined in gameState');
+  }
+
+  // Se já houver um nome salvo, redireciona para /cutscene
+  if (gameState.player.name && gameState.player.name.trim()) {
+    router.push('/cutscene').catch((err) => {
+      console.error('Erro ao redirecionar:', err);
+    });
+    return;
+  }
+
+  // Inicializa o input com o nome do gameState (se houver)
+  playerName.value = gameState.player.name || '';
+  console.log('Player name initialized:', gameState.player.name);
+});
+
+// Sincroniza o playerName com o gameState enquanto o usuário digita
+watch(playerName, (newName) => {
+  if (typeof gameState.setPlayerName === 'function') {
+    gameState.setPlayerName(newName.trim());
+    console.log('Player name updated in gameState:', newName);
+  } else {
+    console.warn('setPlayerName is not defined in gameState');
   }
 });
 
 function confirmarClasse() {
-  console.log('Nome digitado:', playerName.value);
+  const nome = playerName.value.trim();
 
-  if (!playerName.value.trim()) {
+  if (!nome) {
     console.warn('Nome vazio, não prossegue.');
     return;
   }
 
+  // Reproduz o som de clique
   if (clickSound.value) {
-    try {
-      clickSound.value.play();
-    } catch (e) {
-      console.error('Erro ao tocar som:', e);
-    }
+    clickSound.value.play().catch((e) => console.error('Erro ao tocar som:', e));
   } else {
     console.warn('Elemento de som não encontrado');
   }
 
-  const nome = playerName.value.trim();
-
-  if (typeof gameState.setPlayerName === 'function') {
-    gameState.setPlayerName(nome);
-  } else {
-    console.error('setPlayerName não é uma função');
-  }
-
+  // Define a classe do jogador
   if (typeof gameState.setPlayerClass === 'function') {
     gameState.setPlayerClass('guerreiro');
   } else {
-    console.error('setPlayerClass não é uma função');
+    console.warn('setPlayerClass is not defined in gameState');
   }
 
-  try {
-    router.push('/cutscene');
-  } catch (err) {
+  // Salva no localStorage que a seleção de classe foi concluída
+  localStorage.setItem('hasCompletedClassSelection', 'true');
+
+  // Redireciona para a próxima tela
+  router.push('/cutscene').catch((err) => {
     console.error('Erro ao redirecionar:', err);
-  }
+  });
 }
 </script>
 

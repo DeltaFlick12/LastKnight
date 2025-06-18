@@ -416,7 +416,7 @@ const collisionAreas = [
   { x: 0, y: 950, width: 1024, height: 50 },
   { x: 1020, y: 200, width: 50, height: 1000 },
   { x: 820, y: 700, width: 130, height: 100 },
-  { x: 430, y: 890, width: 170, height: 50 }
+  { x: 430, y: 990, width: 170, height: 50 }
 ]
 
 // Áreas interativas

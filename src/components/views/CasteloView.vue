@@ -181,7 +181,7 @@ const bossSpriteSheet = new URL(
 ).href
 
 // Player Position and State
-const characterPosition = ref({ x: 750, y: 700 })
+const characterPosition = ref({ x: 550, y: 500 })
 const moving = ref({ up: false, down: false, left: false, right: false })
 const isSprinting = ref(false)
 const lastDirection = ref('down')
@@ -383,11 +383,11 @@ const interactionAreas = [
 ]
 
 const collisionAreas = [
-  { x: 0, y: 0, width: 1, height: 1266 },
-  { x: 0, y: 1080, width: 2048, height: 1 },
-  { x: 1920, y: 0, width: 1, height: 1266 },
-  { x: 0, y: 200, width: 2048, height: 1 },
-  { x: 530, y: 290, width: 200, height: 100 }
+  { x: 0, y: 0, width: 1, height: 1266 }, //Esquerda
+  { x: 0, y: 880, width: 2048, height: 1 }, // Baixo
+  { x: 1920, y: 0, width: 1, height: 1266 }, //Direito
+  { x: 0, y: 100, width: 2048, height: 1 }, //Cima
+  { x: 490, y: 290, width: 150, height: 100 }
 ]
 
 const screenSize = { width: window.innerWidth, height: window.innerHeight }
@@ -1224,6 +1224,7 @@ onUnmounted(() => {
 .collision-box {
   position: absolute;
   z-index: 2;
+  border: solid red;
 }
 
 .enemy {

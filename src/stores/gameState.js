@@ -63,7 +63,7 @@ export const useGameState = defineStore('game', {
         maxHealth: 100,
         stamina: 100,
         maxStamina: 100,
-        gold: 200,
+        gold: 0,
         lives: 3,
         princessAlive: false, // Rastreia se a princesa está viva
         inventory: [
@@ -79,9 +79,9 @@ export const useGameState = defineStore('game', {
           speed: 10,
         },
         keys: {
-          ancestral: true,
-          ice: true,
-          fire: true,
+          ancestral: false,
+          ice: false,
+          fire: false,
         },
         hasRiverBlessing: false,
         hasForbiddenPotion: false,

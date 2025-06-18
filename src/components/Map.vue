@@ -52,7 +52,7 @@ const areas = ref([
   {
     name: 'Reino Albadia',
     top: '65%',
-    left: '20%',
+    left: '15%',
     width: '25%',
     height: '30%',
     route: '/level/albadia',
@@ -64,7 +64,7 @@ const areas = ref([
   {
     name: 'Floresta',
     top: '15%',
-    left: '19%',
+    left: '14%',
     width: '30%',
     height: '30%',
     route: '/level/floresta',
@@ -75,8 +75,8 @@ const areas = ref([
   },
   {
     name: 'Rio',
-    top: '60%',
-    left: '46%',
+    top: '55%',
+    left: '40%',
     width: '12%',
     height: '15%',
     route: '/level/rio',
@@ -92,9 +92,9 @@ const areas = ref([
     width: '20%',
     height: '30%',
     route: '/level/ruinas',
-    unlocked: true,
+    unlocked: false,
     description: 'Restos de uma civilização antiga.',
-    newlyUnlocked: true,
+    newlyUnlocked: false,
     showTooltip: false,
   },
   {
@@ -104,9 +104,9 @@ const areas = ref([
     width: '25%',
     height: '30%',
     route: '/level/caverna',
-    unlocked: true,
+    unlocked: false,
     description: 'Uma caverna sombria.',
-    newlyUnlocked: true,
+    newlyUnlocked: false,
     showTooltip: false,
   },
   {
@@ -116,9 +116,9 @@ const areas = ref([
     width: '23%',
     height: '30%',
     route: '/level/montanha',
-    unlocked: true,
+    unlocked: false,
     description: 'Picos gelados e perigosos.',
-    newlyUnlocked: true,
+    newlyUnlocked: false,
     showTooltip: false,
   },
   {
@@ -128,9 +128,9 @@ const areas = ref([
     width: '30%',
     height: '30%',
     route: '/level/castelo',
-    unlocked: true,
+    unlocked: false,
     description: 'Um castelo imponente.',
-    newlyUnlocked: true,
+    newlyUnlocked: false,
     showTooltip: false,
   },
 ]);
@@ -256,7 +256,6 @@ watch(
 .map-image {
   width: 90%;
   height: 110%;
-  margin-left: 10%;
   object-fit: contain;
   filter: brightness(0.9);
   border-radius: 10px;
@@ -302,10 +301,9 @@ watch(
   left: 2px;
   right: 2px;
   bottom: 2px;
-  background-color: rgba(0, 0, 0, 0.5);
   border-radius: 6px;
   pointer-events: none;
-  z-index: 999999;
+  z-index: -999999;
 }
 
 .area-label {
